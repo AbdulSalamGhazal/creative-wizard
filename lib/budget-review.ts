@@ -36,6 +36,10 @@ export interface MonthReviewRow {
   plan: number;
   /** The first plan on record (null = none recorded). */
   firstPlan: number | null;
+  /** The first plan's revenue target, SAR (null = none recorded, or it set none). */
+  firstRevenueTarget: number | null;
+  /** When the first plan was saved (ISO timestamp; null = none recorded). */
+  firstPlanAt: string | null;
   /** Actual spend — the whole month once closed, to date while it runs. */
   actual: number;
   /** actual vs the final plan, as a deviation (closed months only). */
@@ -125,6 +129,8 @@ export function buildMonthReview(input: {
       hasPlan,
       plan: spend.bar.plan,
       firstPlan,
+      firstRevenueTarget: stat?.first?.plannedRevenueSar ?? null,
+      firstPlanAt: stat?.first?.createdAt ?? null,
       actual: spend.bar.actual,
       vsPlan: closed && spend.bar.plan > 0 ? pacingDeviation(spend.bar.actual, spend.bar.plan) : null,
       vsFirst:

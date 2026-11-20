@@ -6,7 +6,10 @@ import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { Sparkline } from "@/components/charts/sparkline";
 import { StatusBadge } from "@/components/creative/status-badge";
-import { int, pct, roas, usd } from "@/lib/format";
+import { PriorityStars } from "@/components/creative/priority-stars";
+import { StageChips } from "@/components/creative/stage-chips";
+import { CreativeThumb } from "@/components/creative/creative-thumb";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { TYPE_LABEL } from "@/lib/palette";
 import type { LeaderboardRow } from "@/db/queries/performance";
@@ -33,7 +36,15 @@ type ColKey =
   | "roas"
   | "revenue"
   | "cpa"
-  | "trend";
+  | "trend"
+  | "priority"
+  | "stages"
+  | "launchDate"
+  | "thumbnail"
+  | "cpc"
+  | "landingPageViews"
+  | "hookRate"
+  | "holdRate";
 
 interface Col {
   key: ColKey;
@@ -68,6 +79,16 @@ const COLS: Col[] = [
   { key: "roas", label: "ROAS", align: "right", on: true, render: (r) => <span className="text-ink">{fRatio(r.roas)}</span>, csv: (r) => r.roas },
   { key: "revenue", label: METRIC_LABEL.revenue, align: "right", on: false, render: (r) => <span className="text-ink-2">{usd(r.conversionValue)}</span>, csv: (r) => r.conversionValue },
   { key: "trend", label: "Trend", align: "left", on: true, render: (r) => <Sparkline values={r.sparkline} color="var(--brand-2)" responsive height={24} />, csv: () => null },
+  // ── Offered, hidden by default: fields the query already carries ──
+  { key: "priority", label: "Priority", align: "left", on: false, render: (r) => <PriorityStars value={r.priority} />, csv: (r) => r.priority },
+  { key: "stages", label: "Stage", align: "left", on: false, render: (r) => <StageChips stages={r.stages} nowrap />, csv: (r) => r.stages.join(", ") },
+  { key: "launchDate", label: "Launch date", align: "left", on: false, render: (r) => <span className="tabular-nums text-ink-2">{r.launchDate ? isoDate(r.launchDate) : "—"}</span>, csv: (r) => r.launchDate },
+  { key: "thumbnail", label: "Thumbnail", align: "left", on: false, render: (r) => <CreativeThumb url={r.thumbnailUrl} name={r.name} />, csv: (r) => r.thumbnailUrl },
+  { key: "cpc", label: METRIC_LABEL.cpc, align: "right", on: false, render: (r) => <span className="text-ink-2">{usd(r.cpc)}</span>, csv: (r) => r.cpc },
+  // NULL = no platform in scope reported LP views (google) — a dash, never 0.
+  { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, align: "right", on: false, render: (r) => <span className="text-ink-2">{r.landingPageViews === null ? "—" : int(r.landingPageViews)}</span>, csv: (r) => r.landingPageViews },
+  { key: "hookRate", label: METRIC_LABEL.hookRate, align: "right", on: false, render: (r) => <span className="text-ink-2">{fPct(r.hookRate)}</span>, csv: (r) => r.hookRate },
+  { key: "holdRate", label: METRIC_LABEL.holdRate, align: "right", on: false, render: (r) => <span className="text-ink-2">{fPct(r.holdRate)}</span>, csv: (r) => r.holdRate },
 ];
 
 /** The first-visit state, in the columns system's own terms: what is HIDDEN. */

@@ -44,6 +44,8 @@ import {
   sourceLabel,
   utmBucketColor,
   utmBucketLabel,
+  channelSplit,
+  type ChannelSplit,
   type FoldedSourceRow,
   type UtmBucket,
   type UtmBucketDay,
@@ -52,10 +54,14 @@ import {
 } from "@/lib/store-utms";
 import type { UtmSourceDay } from "@/db/queries/store-utms";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CHANNEL_SPLIT_KEYS, channelSplitColumns } from "./utm-channel-columns";
 
 type GroupBy = "day" | "week" | "month";
 
-interface SourceTableRow extends FoldedSourceRow {
+/** The channel split is context — on by request, like Reconciliation's money columns. */
+const SOURCES_DEFAULT_HIDDEN = ["websiteShare", ...CHANNEL_SPLIT_KEYS];
+
+interface SourceTableRow extends FoldedSourceRow, ChannelSplit {
   label: string;
   ordersShare: number | null;
   aov: number | null;
@@ -64,7 +70,7 @@ interface SourceTableRow extends FoldedSourceRow {
 }
 
 /** How a bucket reads in the Platform column: a dot and a name, or a dash. */
-function BucketCell({ bucket }: { bucket: UtmBucket | null }) {
+export function BucketCell({ bucket }: { bucket: UtmBucket | null }) {
   if (bucket === null) return <span className="text-ink-3">—</span>;
   if (isPlatformBucket(bucket)) {
     return (
@@ -190,9 +196,10 @@ export function UtmSourcesSection({
         ordersShare: share(r.orders, coverage.orders),
         aov: aov(r.revenue, r.orders),
         websiteShare: share(r.website, r.orders),
+        ...channelSplit(r, coverage.revenue),
         trend: r.value === OTHER_VALUE ? null : (trendByKey.get(sourceKey(r.value)) ?? null),
       })),
-    [folded, sourceFieldLabel, coverage.orders, trendByKey],
+    [folded, sourceFieldLabel, coverage.orders, coverage.revenue, trendByKey],
   );
   const foldedRow = folded.find((r) => r.value === OTHER_VALUE);
 
@@ -308,8 +315,13 @@ export function UtmSourcesSection({
         ),
         total: () => <span className="tabular-nums">{signedPct(totalTrend)}</span>,
       },
+      ...channelSplitColumns<SourceTableRow>({
+        sortOf,
+        totals: { orders: coverage.orders, revenue: coverage.revenue, website, application },
+        totalRevenue: coverage.revenue,
+      }),
     ];
-  }, [sourceFieldLabel, coverage.orders, coverage.revenue, website, totalTrend]);
+  }, [sourceFieldLabel, coverage.orders, coverage.revenue, website, application, totalTrend]);
 
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
@@ -318,7 +330,7 @@ export function UtmSourcesSection({
     defaults: columnKeys,
     // The channel split is context — on by request, like Reconciliation's
     // money columns.
-    defaultHidden: ["websiteShare"],
+    defaultHidden: SOURCES_DEFAULT_HIDDEN,
   });
 
   /** CSV exports the FULL breakdown — every value, not the folded top-N. */

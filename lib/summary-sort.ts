@@ -36,6 +36,11 @@ export const SUMMARY_IDENTITY_SORT_KEYS: ReadonlySet<string> = new Set([
   "stage",
   "creator",
   "launch",
+  // Offered, hidden by default (2026-11).
+  "angles",
+  "email",
+  "notes",
+  "created",
 ]);
 
 /** Per-scope metric keys ("<platform | total>.<metric>"), and the block field each reads. */
@@ -55,6 +60,9 @@ export const SUMMARY_METRIC_FIELDS = {
   landing_page_views: "landingPageViews",
   voc: "voc",
   cvr: "cvr",
+  // Offered, hidden by default (2026-11) — not metric-FILTER vocabulary.
+  revenue: "conversionValue",
+  aov: "aov",
 } as const satisfies Record<string, keyof PlatformMetricBlock>;
 export type SummaryMetricKey = keyof typeof SUMMARY_METRIC_FIELDS;
 
@@ -120,6 +128,17 @@ export function summaryComparator(sort: SummarySort, ratingConfig: RatingConfig)
       return then((a, b) => nullableText(a.creatorName, b.creatorName, sign));
     case "launch":
       return then((a, b) => nullableText(a.launchDate, b.launchDate, sign));
+    case "angles":
+      // No angle reads as NULL — last ascending, first descending.
+      return then((a, b) =>
+        nullableText(a.angles.join(", ") || null, b.angles.join(", ") || null, sign),
+      );
+    case "email":
+      return then((a, b) => nullableText(a.creatorEmail, b.creatorEmail, sign));
+    case "notes":
+      return then((a, b) => nullableText(a.notes || null, b.notes || null, sign));
+    case "created":
+      return then((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0) * sign);
     case "status":
       return then((a, b) => (STATUS_ORDER[a.generalStatus] - STATUS_ORDER[b.generalStatus]) * sign);
     case "priority":

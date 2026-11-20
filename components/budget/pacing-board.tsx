@@ -9,7 +9,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { Sparkline } from "@/components/charts/sparkline";
-import { int, roas as fmtRoas, signedPct } from "@/lib/format";
+import { int, pct1, roas as fmtRoas, signedPct } from "@/lib/format";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +19,8 @@ import {
   groupTrackerByObjective,
   monthLabel,
   neededPerDay,
+  planUsedShare,
+  remainingPlan,
   pacingTone,
   rangeProjection,
   round2,
@@ -688,6 +690,9 @@ function rowsByObjective(platforms: readonly RangePlatform[]): BoardTableRow[] {
  * (an unplanned row has no Δ% and would sink out of its objective), so it
  * opens on the identity column, funnel order.
  */
+/** The board table's optional columns — offered, collapsed on a first visit. */
+const BOARD_DEFAULT_HIDDEN = ["value", "remaining", "used", "through"] as const;
+
 function BoardTable({
   rows: platforms,
   group,
@@ -728,6 +733,8 @@ function BoardTable({
       r.unplanned ? null : rangeProjection(r.bar, r.through, to);
     const neededOf = (r: BoardTableRow) =>
       r.unplanned ? null : neededPerDay(r.bar, r.through, from, to);
+    const remainingOf = (r: BoardTableRow) => (r.unplanned ? null : remainingPlan(r.bar));
+    const usedOf = (r: BoardTableRow) => (r.unplanned ? null : planUsedShare(r.bar));
     /** A money cell for the CSV: the display currency, to the cent. */
     const money = (usd: number | null) => (usd === null ? null : round2(toDisplay(usd)));
     // The footer's results: the subtotals' components summed, then divided.
@@ -890,6 +897,69 @@ function BoardTable({
         render: (r) => <span className="tabular-nums">{int(r.results.purchases)}</span>,
         total: () => <span className="tabular-nums">{int(totalResults.purchases)}</span>,
       },
+      // ── Optional (defaultHidden): figures the rows already carry. ──
+      {
+        key: "value",
+        label: "Purchase value (platform)",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.results.purchaseValue,
+        csv: (r) => money(r.results.purchaseValue),
+        render: (r) => (
+          <span className="tabular-nums">
+            {r.results.purchaseValue === null ? "—" : fmt(r.results.purchaseValue)}
+          </span>
+        ),
+        total: () => (
+          <span className="tabular-nums">
+            {totalResults.purchaseValue === null ? "—" : fmt(totalResults.purchaseValue)}
+          </span>
+        ),
+      },
+      {
+        key: "remaining",
+        label: "Remaining",
+        align: "right",
+        sortable: true,
+        info: "Plan − actual; negative is spend past the plan.",
+        sortValue: remainingOf,
+        csv: (r) => money(remainingOf(r)),
+        render: (r) => {
+          const v = remainingOf(r);
+          return (
+            <span className="tabular-nums text-ink-3">
+              {v === null ? "—" : `${v < 0 ? "\u2212" : ""}${fmt(Math.abs(v))}`}
+            </span>
+          );
+        },
+      },
+      {
+        key: "used",
+        label: "Plan used",
+        align: "right",
+        sortable: true,
+        info: "Actual as a share of the full plan.",
+        sortValue: usedOf,
+        csv: (r) => {
+          const v = usedOf(r);
+          return v === null ? null : Math.round(v * 1000) / 10;
+        },
+        render: (r) => {
+          const v = usedOf(r);
+          return <span className="tabular-nums text-ink-3">{v === null ? "—" : pct1(v)}</span>;
+        },
+      },
+      {
+        key: "through",
+        label: "Data through",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.through,
+        csv: (r) => r.through,
+        render: (r) => (
+          <span className="tabular-nums text-ink-3">{r.through ?? "—"}</span>
+        ),
+      },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, group, currency, from, to, toDisplay]);
@@ -900,6 +970,7 @@ function BoardTable({
     tableKey: TABLE_KEYS.BUDGET_TRACKER,
     hideable: columnKeys,
     defaults: columnKeys,
+    defaultHidden: BOARD_DEFAULT_HIDDEN,
   });
 
   return (

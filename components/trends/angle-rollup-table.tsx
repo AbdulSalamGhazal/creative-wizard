@@ -50,6 +50,10 @@ const COLS: Col[] = [
   { key: "holdRate", label: "Hold", fmt: fPct },
   { key: "completeRate", label: "Complete", fmt: fPct },
   { key: "aov", label: "AOV", fmt: usd },
+  // Offered, hidden by default (2026-11): the funnel counts, same scan.
+  { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, fmt: fInt },
+  { key: "addToCart", label: METRIC_LABEL.addToCart, fmt: fInt },
+  { key: "addPayment", label: METRIC_LABEL.addPayment, fmt: fInt },
 ];
 
 const DEFAULT_VISIBLE = new Set<Key>([

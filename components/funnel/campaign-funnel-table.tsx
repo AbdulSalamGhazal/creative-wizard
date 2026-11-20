@@ -5,7 +5,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { DeltaBadge } from "@/components/kpi/delta-badge";
-import { int, pct, roas, usd } from "@/lib/format";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { funnelTotals } from "@/lib/funnel-totals";
 import { PLATFORM_LABEL } from "@/lib/palette";
@@ -34,11 +34,19 @@ export type SortKey =
   // Offered, hidden by default — the counts the rates are built from.
   | "clicks"
   | "landingPageViews"
-  | "conversionValue";
+  | "conversionValue"
+  // Offered, hidden by default (2026-11) — free at this grain: the campaign's
+  // objective (PK join), CPA/CPC (same scan), the prior window's spend (the
+  // delta's own baseline) and the last day with a record.
+  | "objective"
+  | "cpa"
+  | "cpc"
+  | "priorSpend"
+  | "lastDate";
 type Dir = "asc" | "desc";
 
 /** The two text columns ascend on first click; every number descends. */
-export const TEXT_KEYS = new Set<SortKey>(["campaign", "platform"]);
+export const TEXT_KEYS = new Set<SortKey>(["campaign", "platform", "objective"]);
 
 /** The one place that decides a column's first-click direction. */
 export const firstDir = (key: SortKey): Dir => (TEXT_KEYS.has(key) ? "asc" : "desc");
@@ -63,6 +71,11 @@ export function compareRows(
   key: SortKey,
 ): number {
   if (key === "campaign") return a.campaign.localeCompare(b.campaign);
+  if (key === "objective") {
+    return a.objective.localeCompare(b.objective) || a.campaign.localeCompare(b.campaign);
+  }
+  // ISO dates compare as text; a row with no date sorts where "" would.
+  if (key === "lastDate") return (a.lastDate ?? "").localeCompare(b.lastDate ?? "");
   if (key === "platform") {
     return (
       PLATFORM_LABEL[a.platform].localeCompare(PLATFORM_LABEL[b.platform]) ||
@@ -89,7 +102,16 @@ export function nextSort(
 
 /** Columns a first visit does not show: every rate's own denominator, plus
  *  revenue. The query has always returned them. */
-const DEFAULT_HIDDEN: SortKey[] = ["clicks", "landingPageViews", "conversionValue"];
+const DEFAULT_HIDDEN: SortKey[] = [
+  "clicks",
+  "landingPageViews",
+  "conversionValue",
+  "objective",
+  "cpa",
+  "cpc",
+  "priorSpend",
+  "lastDate",
+];
 
 /**
  * Per-campaign funnel table. One row per (platform, campaign_name), on the
@@ -125,6 +147,18 @@ export function CampaignFunnelTable({
   }, [rows, sort]);
 
   const totals = useMemo(() => funnelTotals(rows), [rows]);
+  /** The prior window's spend summed over the rows that had one — NULL (a
+   *  dash) when none did, never a fabricated $0. */
+  const priorSpendTotal = useMemo(() => {
+    let sum = 0;
+    let any = false;
+    for (const r of rows) {
+      if (r.priorSpend === null) continue;
+      sum += r.priorSpend;
+      any = true;
+    }
+    return any ? sum : null;
+  }, [rows]);
 
   const columns = useMemo<DataColumn<CampaignFunnelRow>[]>(() => {
     /** Every numeric column is the same cell with a different formatter. */
@@ -242,8 +276,35 @@ export function CampaignFunnelTable({
         () => usd(totals.conversionValue),
         (r) => r.conversionValue,
       ),
+      {
+        key: "objective",
+        label: "Objective",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("objective"),
+        render: (r) => <span className="whitespace-nowrap text-ink-2">{r.objective}</span>,
+        csv: (r) => r.objective,
+      },
+      num("cpa", METRIC_LABEL.cpa, (r) => <span className="text-ink">{usd(r.cpa)}</span>, () => usd(totals.cpa), (r) => r.cpa),
+      num("cpc", METRIC_LABEL.cpc, (r) => <span className="text-ink">{usd(r.cpc)}</span>, () => usd(totals.cpc), (r) => r.cpc),
+      num(
+        "priorSpend",
+        "Prior spend",
+        (r) => <span className="text-ink-2">{usd(r.priorSpend)}</span>,
+        () => usd(priorSpendTotal),
+        (r) => r.priorSpend,
+      ),
+      {
+        key: "lastDate",
+        label: "Last",
+        align: "right",
+        sortable: true,
+        defaultSortDir: firstDir("lastDate"),
+        render: (r) => <span className="whitespace-nowrap text-ink-2">{isoDate(r.lastDate)}</span>,
+        csv: (r) => r.lastDate,
+      },
     ];
-  }, [totals, from, to]);
+  }, [totals, priorSpendTotal, from, to]);
 
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({

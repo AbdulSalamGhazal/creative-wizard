@@ -55,6 +55,19 @@ function downloadJson(filename: string, payload: unknown) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** The versions table's optional columns — offered, collapsed on a first visit. */
+const VERSIONS_DEFAULT_HIDDEN = ["edited", "revisions", "created", "createdBy", "updatedBy"] as const;
+
+/** A person's name in a cell, bidi-isolated; a dash when they're unknown. */
+function PersonName({ name }: { name: string | null }) {
+  if (!name) return <span className="text-ink-3">—</span>;
+  return (
+    <span className="block max-w-[12rem] truncate" dir="auto" title={name}>
+      {name}
+    </span>
+  );
+}
+
 /** Summary numbers of one version, for the All versions table. */
 function summarise(row: VersionRow) {
   const data = row.data;
@@ -175,6 +188,12 @@ export function VersionsView() {
       },
       { key: "periods", label: "Actual periods", align: "right", render: (r) => <span className="tabular-nums">{summarise(r).periods}</span> },
       { key: "opened", label: "Last opened", align: "right", render: (r) => <span className="tabular-nums text-ink-2">{WHEN.format(new Date(r.openedAt))}</span> },
+      // Optional (defaultHidden): the row's own bookkeeping.
+      { key: "edited", label: "Last edited", align: "right", render: (r) => <span className="tabular-nums text-ink-2">{WHEN.format(new Date(r.updatedAt))}</span> },
+      { key: "revisions", label: "Revision", align: "right", render: (r) => <span className="tabular-nums">{r.revision}</span> },
+      { key: "created", label: "Created", align: "right", render: (r) => <span className="tabular-nums text-ink-2">{WHEN.format(new Date(r.createdAt))}</span> },
+      { key: "createdBy", label: "Created by", render: (r) => <PersonName name={r.createdByName} /> },
+      { key: "updatedBy", label: "Last edited by", render: (r) => <PersonName name={r.updatedByName} /> },
       {
         key: "actions",
         label: "Actions",
@@ -228,7 +247,12 @@ export function VersionsView() {
     [open?.id, busy, manage],
   );
   const hideable = columns.filter((c) => !c.pinned && !c.lockedVisible).map((c) => c.key);
-  const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_VERSIONS, hideable, defaults: columns.filter((c) => !c.pinned).map((c) => c.key) });
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.PS_VERSIONS,
+    hideable,
+    defaults: columns.filter((c) => !c.pinned).map((c) => c.key),
+    defaultHidden: VERSIONS_DEFAULT_HIDDEN,
+  });
 
   if (!open) return <PsPageHeader title="Versions" info={INTRO} />;
 

@@ -30,6 +30,8 @@ const base: CreativeListRow = {
   sourceLink: "https://example.com/ad?a=1,2",
   createdByName: "Salam Ghazal",
   createdAt: new Date("2026-04-01T09:30:00Z"),
+  updatedAt: new Date("2026-04-02T10:00:00Z"),
+  productStatus: "active",
 };
 
 function parse(csv: string): string[][] {

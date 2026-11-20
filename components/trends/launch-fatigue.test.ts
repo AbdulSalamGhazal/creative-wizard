@@ -38,6 +38,10 @@ function row(over: {
   w2?: number | null;
   w3?: number | null;
   spend?: number;
+  conv?: number;
+  revenue?: number;
+  priority?: number | null;
+  stages?: string[];
 }): LaunchFatigueViewRow {
   const spend = over.spend ?? 0;
   return {
@@ -49,6 +53,13 @@ function row(over: {
     derived: false,
     daysSinceLaunch: 40,
     href: "/library/x",
+    priority: over.priority ?? null,
+    stages: over.stages ?? [],
+    outcomes: {
+      w1: { conversions: over.conv ?? 0, revenue: over.revenue ?? 0 },
+      w2: { conversions: 0, revenue: 0 },
+      w3: { conversions: 0, revenue: 0 },
+    },
     assessment: {
       tier: over.tier ?? "holding",
       drop: over.drop === undefined ? null : over.drop,
@@ -67,11 +78,19 @@ const sortBy = (rows: LaunchFatigueViewRow[], key: Parameters<typeof compareRows
 
 describe("first-click direction", () => {
   it("is ascending for the three text-ish columns, descending for the rest", () => {
-    expect([...ASC_FIRST].sort()).toEqual(["creative", "launched", "status"]);
-    for (const key of ["status", "creative", "launched"] as const) {
+    expect([...ASC_FIRST].sort()).toEqual(["creative", "launched", "product", "stages", "status", "type"]);
+    for (const key of ["status", "creative", "launched", "product", "type"] as const) {
       expect(firstDir(key)).toBe("asc");
     }
-    for (const key of ["spend", "fatigue", ...FATIGUE_WINDOWS.map((w) => w.key)] as const) {
+    for (const key of [
+      "spend",
+      "fatigue",
+      "age",
+      "w1Conv",
+      "w2Revenue",
+      "w3Roas",
+      ...FATIGUE_WINDOWS.map((w) => w.key),
+    ] as const) {
       expect(firstDir(key)).toBe("desc");
     }
   });

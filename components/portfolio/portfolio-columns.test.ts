@@ -6,12 +6,20 @@ import {
   VIEW_MARKER_PARAM,
   isSavedViewApplied,
 } from "@/validators/user-prefs";
-import { parseColumnList, resolveColumnPrefs } from "@/lib/table-columns";
+import { encodeHiddenColumns, parseColumnList, resolveColumnPrefs } from "@/lib/table-columns";
 import {
+  ADS_DEFAULT_HIDDEN,
   ADS_HIDEABLE_KEYS,
+  adsColumnsFromLists,
+  adsHiddenKeys,
   joinAdsHidden,
   splitAdsHidden,
 } from "@/components/summary/summary-columns";
+import {
+  CAMPAIGN_COLUMN_KEYS,
+  CAMPAIGN_DEFAULT_HIDDEN,
+} from "@/components/portfolio/portfolio-columns";
+import { summaryFiltersSchema } from "@/validators/summary";
 
 /**
  * REGRESSION for the columns move (2026-10): the control left the Campaigns
@@ -144,12 +152,17 @@ describe("the grouped twins keep their URL contract (phase 2)", () => {
     };
     const flat = joinAdsHidden(parts);
     expect(flat).toEqual(["product", "creator", "cpm", "roas", "rate"]);
+    // `flat` names no default-hidden column, so — read as a DECODED list —
+    // every one of them is open.
     expect(splitAdsHidden(flat)).toEqual({
       identity: ["product", "creator"],
       metrics: ["cpm", "roas"],
       rate: true,
       blended: false,
+      shown: [...ADS_DEFAULT_HIDDEN],
     });
+    // The DECODED form lists every closed default-hidden column by name.
+    expect(splitAdsHidden(adsHiddenKeys(parts))).toEqual({ ...parts, shown: [] });
   });
 
   it("round-trips the empty case and ignores keys it doesn't own", () => {
@@ -160,6 +173,7 @@ describe("the grouped twins keep their URL contract (phase 2)", () => {
       metrics: [],
       rate: false,
       blended: false,
+      shown: [...ADS_DEFAULT_HIDDEN],
     });
     // A platform group key lives in the ORDER, never in the hidden list's
     // identity/metric halves.
@@ -179,5 +193,67 @@ describe("the grouped twins keep their URL contract (phase 2)", () => {
     expect(resolved.hidden).toEqual(["cpm"]);
     // …and the view owns the ORDER it doesn't state, too.
     expect(resolved.order).toEqual([]);
+  });
+});
+
+describe("the offered columns (2026-11) stay shut for every existing URL", () => {
+  it("Campaigns: an old view's `hide` renders as before, new columns hidden", () => {
+    const keys = CAMPAIGN_COLUMN_KEYS;
+    const read = raw(`hide=cpm,cvr&${VIEW_MARKER_PARAM}=v1`);
+    const resolved = resolveColumnPrefs({
+      url: { hidden: parseColumnList(read("hide")) },
+      viewApplied: isSavedViewApplied(read),
+      hideable: keys,
+      defaults: keys,
+      defaultHidden: CAMPAIGN_DEFAULT_HIDDEN,
+    });
+    expect(resolved.hidden).toEqual(["cpm", "cvr", ...CAMPAIGN_DEFAULT_HIDDEN]);
+  });
+
+  it("Campaigns: a bare URL hides exactly the offered set; `!key` opens one", () => {
+    const keys = CAMPAIGN_COLUMN_KEYS;
+    const bare = resolveColumnPrefs({ hideable: keys, defaults: keys, defaultHidden: CAMPAIGN_DEFAULT_HIDDEN });
+    expect(bare.hidden).toEqual([...CAMPAIGN_DEFAULT_HIDDEN]);
+    const opened = resolveColumnPrefs({
+      url: { hidden: parseColumnList("cpm,!lpv") },
+      hideable: keys,
+      defaults: keys,
+      defaultHidden: CAMPAIGN_DEFAULT_HIDDEN,
+    });
+    expect(opened.hidden).toContain("cpm");
+    expect(opened.hidden).not.toContain("lpv");
+    // …and the URL form round-trips (the table writes it without the closed
+    // default-hidden keys, which are implied).
+    const url = encodeHiddenColumns(opened.hidden, keys, CAMPAIGN_DEFAULT_HIDDEN).filter(
+      (k) => !CAMPAIGN_DEFAULT_HIDDEN.includes(k),
+    );
+    expect(url).toEqual(["cpm", "!lpv"]);
+  });
+
+  it("Ads: an old view's four params decode with every offered column shut", () => {
+    const read = raw(`hideMetrics=cpm&${VIEW_MARKER_PARAM}=v9`);
+    const resolved = resolveColumnPrefs({
+      url: { hidden: joinAdsHidden(adsColumnsFromLists([], parseColumnList(read("hideMetrics")), false, false)) },
+      viewApplied: isSavedViewApplied(read),
+      hideable: ADS_HIDEABLE_KEYS,
+      defaults: ["instagram"],
+      defaultHidden: ADS_DEFAULT_HIDDEN,
+    });
+    expect(splitAdsHidden(resolved.hidden)).toEqual({
+      identity: [],
+      metrics: ["cpm"],
+      rate: false,
+      blended: false,
+      shown: [],
+    });
+  });
+
+  it("Ads: the validator keeps `!key` opt-ins and still drops unknown keys", () => {
+    const parsed = summaryFiltersSchema.parse({
+      hideIdentity: "type,!angles,!bogus",
+      hideMetrics: "cpm,!revenue",
+    });
+    expect(parsed.hideIdentity).toEqual(["type", "!angles"]);
+    expect(parsed.hideMetrics).toEqual(["cpm", "!revenue"]);
   });
 });

@@ -11,7 +11,7 @@ import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
 import { Button } from "@/components/ui/button";
 import { Pager } from "@/components/ui/pager";
-import { isoDate, int, num, sarBare } from "@/lib/format";
+import { dateTimeLabel, isoDate, int, num, sarBare } from "@/lib/format";
 import { downloadCsv, todayStamp } from "@/lib/csv-export";
 import { useNavTransition } from "@/lib/nav-progress";
 import { exportStoreOrders } from "@/app/actions/store-export";
@@ -30,6 +30,24 @@ import {
 } from "@/store/order-status";
 
 const CORE_SORT = new Set(["order_id", "order_date", "total_amount"]);
+
+// Row bookkeeping columns (defaultHidden). The `_` prefix keeps them clear of
+// any custom field key, which the field admin derives from a label.
+const SYNCED_AT_KEY = "_synced_at";
+const UPLOAD_FILE_KEY = "_upload_file";
+const CREATED_AT_KEY = "_created_at";
+const UPDATED_AT_KEY = "_updated_at";
+const BOOKKEEPING_KEYS = [UPLOAD_FILE_KEY, CREATED_AT_KEY, UPDATED_AT_KEY] as const;
+
+/** A timestamp cell: the business day, the exact time on hover. */
+function Stamp({ iso }: { iso: string | null }) {
+  if (iso === null) return <>—</>;
+  return (
+    <span className="tabular-nums" title={dateTimeLabel(iso)}>
+      {isoDate(iso)}
+    </span>
+  );
+}
 
 type SortKey = "order_id" | "order_date" | "total_amount";
 
@@ -77,9 +95,14 @@ export function StoreOrdersTable({
       "order_date",
       "total_amount",
       ...customCols.map((c) => c.key),
-      ...(showSource ? [ORDER_SOURCE_COLUMN_KEY] : []),
+      ...(showSource ? [ORDER_SOURCE_COLUMN_KEY, SYNCED_AT_KEY] : []),
+      ...BOOKKEEPING_KEYS,
     ],
     [customCols, showSource],
+  );
+  const defaultHidden = useMemo(
+    () => [...(showSource ? [SYNCED_AT_KEY] : []), ...BOOKKEEPING_KEYS],
+    [showSource],
   );
   /**
    * Still HIDDEN-key semantics — a field added in Order fields is not in the
@@ -92,6 +115,7 @@ export function StoreOrdersTable({
     tableKey: TABLE_KEYS.STORE_ORDERS,
     hideable: hideableKeys,
     defaults: hideableKeys,
+    defaultHidden,
     initial: columnPref,
   });
 
@@ -234,7 +258,45 @@ export function StoreOrdersTable({
         render: (r) => orderSourceLabel(r.fromFeed),
         sortValue: (r) => orderSourceLabel(r.fromFeed),
       });
+      cols.push({
+        key: SYNCED_AT_KEY,
+        label: "Synced at",
+        ...customSort,
+        render: (r) => <Stamp iso={r.connectorUpdatedAt} />,
+        sortValue: (r) => r.connectorUpdatedAt,
+      });
     }
+    // Row bookkeeping the query already carries — offered, collapsed.
+    cols.push(
+      {
+        key: UPLOAD_FILE_KEY,
+        label: "Upload file",
+        ...customSort,
+        render: (r) =>
+          r.uploadFileName === null ? (
+            "—"
+          ) : (
+            <span className="block max-w-[16rem] truncate" title={r.uploadFileName}>
+              {r.uploadFileName}
+            </span>
+          ),
+        sortValue: (r) => r.uploadFileName,
+      },
+      {
+        key: CREATED_AT_KEY,
+        label: "Created at",
+        ...customSort,
+        render: (r) => <Stamp iso={r.createdAt} />,
+        sortValue: (r) => r.createdAt,
+      },
+      {
+        key: UPDATED_AT_KEY,
+        label: "Updated at",
+        ...customSort,
+        render: (r) => <Stamp iso={r.updatedAt} />,
+        sortValue: (r) => r.updatedAt,
+      },
+    );
     return cols;
   }, [customCols, total, sumTotal, customSort, showSource]);
 

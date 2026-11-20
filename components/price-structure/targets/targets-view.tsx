@@ -126,6 +126,9 @@ function offerEditorHref(r: OfferRow, v: string | null): string {
   return `/price-structure/products/${r.product.id}/${r.offer.id}${v ? `?v=${v}` : ""}`;
 }
 
+/** The matrix's optional columns — offered, collapsed on a first visit. */
+const TARGET_MATRIX_DEFAULT_HIDDEN = ["product"] as const;
+
 function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: readonly Target[] }) {
   const router = useRouter();
   const v = useSearchParams().get("v");
@@ -162,11 +165,29 @@ function TargetMatrix({ rows, targets }: { rows: readonly OfferRow[]; targets: r
         }),
       ),
       { key: "overall", label: "Overall", align: "right", render: (r) => (r.overall ? <StatusBadge status={r.overall} compact /> : "—") },
+      // Optional (defaultHidden): the product on its own, to read down a column.
+      {
+        key: "product",
+        label: "Product",
+        render: (r) => (
+          <span className="inline-flex max-w-[12rem] items-center gap-1.5">
+            <span className="size-2 shrink-0 rounded-full" style={{ background: productColor(r.product.colorSlot) }} aria-hidden />
+            <span className="truncate" dir="auto" title={r.product.name}>
+              {r.product.name}
+            </span>
+          </span>
+        ),
+      },
     ];
     return cols;
   }, [targets, v]);
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
-  const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_TARGET_MATRIX, hideable, defaults: hideable });
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.PS_TARGET_MATRIX,
+    hideable,
+    defaults: hideable,
+    defaultHidden: TARGET_MATRIX_DEFAULT_HIDDEN,
+  });
   return (
     <SectionCard title="Every offer against every target" info="Click a row to edit that offer." contentClassName="px-0">
       <DataTable<OfferRow>

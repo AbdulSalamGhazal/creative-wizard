@@ -21,6 +21,7 @@ import {
   users,
 } from "@/db/schema";
 import {
+  aov,
   ctr,
   cpa,
   cpc,
@@ -119,6 +120,12 @@ export interface PlatformMetricBlock {
   landingPageViews: number;
   voc: number | null;
   cvr: number | null;
+  /**
+   * Average order value = revenue / orders (2026-11, offered hidden). The
+   * blended total reads `lib/metrics`' `aov`; a platform block recombines its
+   * OWN component sums (Σ value / Σ conversions) — never an average of ratios.
+   */
+  aov: number | null;
 }
 
 export interface SummaryRow {
@@ -140,6 +147,12 @@ export interface SummaryRow {
   /** Manual launch date (`creatives.launch_date`), null when not set. */
   launchDate: string | null;
   angles: string[];
+  // ── Offered, hidden by default (2026-11) — columns of the creative row the
+  //    query already reads (grouped by creatives.id, the PK) ──
+  thumbnailUrl: string | null;
+  notes: string | null;
+  /** ISO timestamp of when the creative was created. */
+  createdAt: string;
   /** One entry per selected platform; key is the platform string. */
   perPlatform: Partial<Record<Platform, PlatformMetricBlock>>;
   /**
@@ -163,6 +176,17 @@ export interface SummaryResult {
 // with the same function, so a sort click is not a server render.
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
+
+/** A platform block's AOV from its own component sums — `aov`'s formula
+ *  (Σ value / NULLIF(Σ conversions, 0)), applied to sums already selected. */
+function blockAov(value: unknown, conversions: unknown): number | null {
+  const v = numOrNull(value);
+  const c = numOrNull(conversions);
+  return v === null || c === null || c === 0 ? null : v / c;
+}
+
+const toIso = (v: unknown): string =>
+  v instanceof Date ? v.toISOString() : String(v);
 
 /**
  * Read a metric off a metric block in the SAME units the user sees and
@@ -396,6 +420,9 @@ export async function listCreativeSummary(
     productName: products.name,
     type: creatives.type,
     launchDate: creatives.launchDate,
+    thumbnailUrl: creatives.thumbnailUrl,
+    notes: creatives.notes,
+    createdAt: creatives.createdAt,
     creatorName: users.name,
     creatorEmail: users.email,
     // Blended totals — canonical lib/metrics fragments over ALL platforms (the
@@ -418,6 +445,7 @@ export async function listCreativeSummary(
     totalLandingPageViews: sumLandingPageViews,
     totalVoc: voc,
     totalCvr: cvr,
+    totalAov: aov,
   };
   for (const pf of selectedPlatforms) {
     const m = metricsByPlatform.get(pf)!;
@@ -510,6 +538,7 @@ export async function listCreativeSummary(
         landingPageViews: num(r[`${pf}_landingPageViews`]),
         voc: numOrNull(r[`${pf}_voc`]),
         cvr: numOrNull(r[`${pf}_cvr`]),
+        aov: blockAov(r[`${pf}_conversionValue`], r[`${pf}_conversions`]),
       };
     }
     const dyn = statusFor(sMap, r.creativeId as string);
@@ -526,6 +555,9 @@ export async function listCreativeSummary(
       stages: sortStages((r.stages as string[] | null) ?? []),
       creatorEmail: (r.creatorEmail as string | null) ?? null,
       launchDate: (r.launchDate as string | null) ?? null,
+      thumbnailUrl: (r.thumbnailUrl as string | null) ?? null,
+      notes: (r.notes as string | null) ?? null,
+      createdAt: toIso(r.createdAt),
       angles: anglesByCreative.get(r.creativeId as string) ?? [],
       perPlatform,
       total: {
@@ -545,6 +577,7 @@ export async function listCreativeSummary(
         landingPageViews: num(r.totalLandingPageViews),
         voc: numOrNull(r.totalVoc),
         cvr: numOrNull(r.totalCvr),
+        aov: numOrNull(r.totalAov),
       },
     };
   });

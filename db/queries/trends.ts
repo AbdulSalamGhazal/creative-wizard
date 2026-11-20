@@ -19,6 +19,8 @@ import {
   hookRate,
   holdRate,
   roas,
+  sumAddPayment,
+  sumAddToCart,
   sumClicks,
   sumConversionValue,
   sumConversions,
@@ -37,6 +39,7 @@ import { getActiveAccountId } from "@/lib/tenant";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
 import { numOrNull } from "@/db/queries/values";
+import { sortStages } from "@/lib/funnel-stages";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -87,11 +90,15 @@ export interface AngleMetrics {
   holdRate: number | null;
   completeRate: number | null;
   aov: number | null;
+  // Offered, hidden by default (2026-11): the funnel counts, same scan.
+  // Cart/payment are optional upload columns, so they stay NULL-able.
+  landingPageViews: number;
+  addToCart: number | null;
+  addPayment: number | null;
 }
 
 export interface AngleRollupRow extends AngleMetrics {
   angle: string;
-  landingPageViews: number;
   /**
    * The same metrics for the immediately-prior equal-length window — powers
    * the table's "Vs prev" view. Null when unbounded (no range to compare).
@@ -106,6 +113,8 @@ interface AngleAgg {
   conversions: number;
   revenue: number;
   landingPageViews: number;
+  addToCart: number | null;
+  addPayment: number | null;
   ctr: number | null;
   cvr: number | null;
   cpa: number | null;
@@ -145,6 +154,8 @@ async function angleAggregates(f: TrendsFilters): Promise<Map<string, AngleAgg>>
       conversions: sumConversions,
       revenue: sumConversionValue,
       landingPageViews: sumLandingPageViews,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
       ctr,
       cvr,
       cpa,
@@ -172,6 +183,8 @@ async function angleAggregates(f: TrendsFilters): Promise<Map<string, AngleAgg>>
       conversions: num(r.conversions),
       revenue: num(r.revenue),
       landingPageViews: num(r.landingPageViews),
+      addToCart: numOrNull(r.addToCart),
+      addPayment: numOrNull(r.addPayment),
       ctr: numOrNull(r.ctr),
       cvr: numOrNull(r.cvr),
       cpa: numOrNull(r.cpa),
@@ -209,6 +222,9 @@ function toAngleMetrics(a: AngleAgg): AngleMetrics {
     holdRate: a.holdRate,
     completeRate: a.completeRate,
     aov: a.aov,
+    landingPageViews: a.landingPageViews,
+    addToCart: a.addToCart,
+    addPayment: a.addPayment,
   };
 }
 
@@ -233,7 +249,6 @@ export async function angleRollup(f: TrendsFilters): Promise<AngleRollupRow[]> {
     rows.push({
       angle,
       ...toAngleMetrics(c),
-      landingPageViews: c.landingPageViews,
       prev: p ? toAngleMetrics(p) : null,
     });
   }
@@ -278,6 +293,9 @@ export async function angleByPlatform(f: TrendsFilters): Promise<AnglePlatformRo
       clicks: sumClicks,
       conversions: sumConversions,
       revenue: sumConversionValue,
+      landingPageViews: sumLandingPageViews,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
       ctr,
       cvr,
       cpa,
@@ -316,6 +334,9 @@ export async function angleByPlatform(f: TrendsFilters): Promise<AnglePlatformRo
     holdRate: numOrNull(r.holdRate),
     completeRate: numOrNull(r.completeRate),
     aov: numOrNull(r.aov),
+    landingPageViews: num(r.landingPageViews),
+    addToCart: numOrNull(r.addToCart),
+    addPayment: numOrNull(r.addPayment),
   }));
 }
 
@@ -336,6 +357,16 @@ export interface TypeRollupRow {
   cpa: number | null;
   roas: number | null;
   cvr: number | null;
+  // Offered, hidden by default (2026-11): same scan, lib/metrics fragments.
+  conversions: number;
+  revenue: number;
+  landingPageViews: number;
+  cpm: number | null;
+  voc: number | null;
+  /** Video rates — NULL on an image/slides row (no video data). */
+  hookRate: number | null;
+  holdRate: number | null;
+  aov: number | null;
 }
 
 const TYPE_ORDER: Record<TypeRollupRow["type"], number> = {
@@ -385,6 +416,14 @@ export async function typeRollup(
       cpa,
       roas,
       cvr,
+      conversions: sumConversions,
+      revenue: sumConversionValue,
+      landingPageViews: sumLandingPageViews,
+      cpm,
+      voc,
+      hookRate,
+      holdRate,
+      aov,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -407,6 +446,14 @@ export async function typeRollup(
     cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),
     cvr: numOrNull(r.cvr),
+    conversions: num(r.conversions),
+    revenue: num(r.revenue),
+    landingPageViews: num(r.landingPageViews),
+    cpm: numOrNull(r.cpm),
+    voc: numOrNull(r.voc),
+    hookRate: numOrNull(r.hookRate),
+    holdRate: numOrNull(r.holdRate),
+    aov: numOrNull(r.aov),
   }));
 
   out.sort((a, b) =>
@@ -451,6 +498,17 @@ export interface VideoDiagnosticRow extends VideoFunnel {
   roas: number | null;
   costPerHook: number | null; // spend ÷ 2s plays
   costPerCompletion: number | null; // spend ÷ completions
+  // ── Offered, hidden by default (2026-11): the LP views the query already
+  //    sums, three more ratios of sums it carries, and creative columns read
+  //    off the row's own PK (grouped by creatives.id) ──
+  landingPageViews: number;
+  voc: number | null; // LP views ÷ clicks
+  cpm: number | null; // spend ÷ impressions × 1000
+  cpc: number | null; // spend ÷ clicks
+  launchDate: string | null;
+  priority: number | null;
+  stages: string[];
+  thumbnailUrl: string | null;
 }
 
 export interface VideoDiagnosticsResult {
@@ -498,6 +556,10 @@ export async function videoDiagnostics(
       creativeId: creatives.id,
       name: creatives.name,
       productName: products.name,
+      launchDate: creatives.launchDate,
+      priority: creatives.priority,
+      stages: creatives.stages,
+      thumbnailUrl: creatives.thumbnailUrl,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -552,6 +614,14 @@ export async function videoDiagnostics(
       roas: rate(revenue, spend),
       costPerHook: rate(spend, v2s),
       costPerCompletion: rate(spend, v100),
+      landingPageViews: lpv,
+      voc: rate(lpv, clicks),
+      cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+      cpc: rate(spend, clicks),
+      launchDate: r.launchDate ?? null,
+      priority: r.priority ?? null,
+      stages: sortStages(r.stages ?? []),
+      thumbnailUrl: r.thumbnailUrl ?? null,
     };
   });
 

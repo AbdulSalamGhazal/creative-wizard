@@ -36,6 +36,10 @@ const row = (over: Partial<CreativeRecordRow> = {}): CreativeRecordRow => ({
   excludedAt: null,
   excludedRuleKind: null,
   excludedRuleObjective: null,
+  campaignObjective: "Sales",
+  importedAt: new Date("2026-10-02T08:00:00Z"),
+  uploadFileName: "ig-2026-10-01.csv",
+  excludedByName: null,
   ...over,
 });
 
@@ -84,6 +88,16 @@ describe("compareRecords — the order this table has always had", () => {
       row({ id: 3, excludedReason: "Agency audit" }),
     ];
     expect(order(rows, "excludedReason", "asc")).toEqual([2, 3, 1]);
+  });
+
+  it("sorts the derived ratios by the row's OWN components", () => {
+    // CPA = spend ÷ conversions of that one record.
+    const rows = [
+      row({ id: 1, spend: 100, conversions: 2 }), // 50
+      row({ id: 2, spend: 100, conversions: 10 }), // 10
+      row({ id: 3, spend: 100, conversions: 4 }), // 25
+    ];
+    expect(order(rows, "cpa", "asc")).toEqual([2, 3, 1]);
   });
 });
 

@@ -25,6 +25,13 @@ export interface CampaignColumnMeta {
   /** The identity column: pinned, never hidden or reordered. */
   pinned?: boolean;
   defaultSortDir?: "asc" | "desc";
+  /**
+   * Offered, hidden by default (2026-11). This table is URL-backed, so its
+   * `hide` param carries the opt-in as `!key` (`SHOW_MARKER`): a URL or saved
+   * view that never mentions the column keeps it hidden, and every existing
+   * `hide` value means exactly what it meant.
+   */
+  defaultHidden?: boolean;
 }
 
 export const CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = [
@@ -45,6 +52,15 @@ export const CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = [
   { key: "cpm", label: "CPM", align: "right", sortable: true },
   { key: "cvr", label: "CvR", align: "right", sortable: true },
   { key: "lastDate", label: "Last", align: "right", sortable: true },
+  // ── Offered, hidden by default (2026-11): fields the query already carries
+  //    at the campaign grain (an existing SELECT or the campaigns PK join) ──
+  { key: "lpv", label: METRIC_LABEL.landingPageViews, align: "right", sortable: true, defaultHidden: true },
+  { key: "addToCart", label: METRIC_LABEL.addToCart, align: "right", sortable: true, defaultHidden: true },
+  { key: "addPayment", label: METRIC_LABEL.addPayment, align: "right", sortable: true, defaultHidden: true },
+  { key: "voc", label: METRIC_LABEL.voc, align: "right", sortable: true, defaultHidden: true },
+  { key: "cpc", label: METRIC_LABEL.cpc, align: "right", sortable: true, defaultHidden: true },
+  { key: "firstDate", label: "First", align: "right", sortable: true, defaultHidden: true },
+  { key: "createdAt", label: "Created", align: "right", sortable: true, defaultHidden: true },
 ];
 
 /** Hideable columns (everything but the identity column) — the columns control. */
@@ -55,3 +71,8 @@ export const CAMPAIGN_TABLE_COLUMNS: ReadonlyArray<{ key: string; label: string 
 export const CAMPAIGN_COLUMN_KEYS: readonly string[] = CAMPAIGN_TABLE_COLUMNS.map(
   (c) => c.key,
 );
+
+/** The columns a first visit (and every existing URL / saved view) hides. */
+export const CAMPAIGN_DEFAULT_HIDDEN: readonly string[] = CAMPAIGN_COLS_META.filter(
+  (c) => c.defaultHidden,
+).map((c) => c.key);

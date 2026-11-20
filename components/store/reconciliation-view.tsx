@@ -102,6 +102,9 @@ function signedCompact(n: number): string {
 }
 const pctText = (pct: number | null) => signedPct(pct);
 const csvPct = (pct: number | null) => (pct === null ? "" : (pct * 100).toFixed(1));
+/** A channel's share of the day's store orders (null on a day with none). */
+const ofStore = (part: number, storeOrders: number) => (storeOrders > 0 ? part / storeOrders : null);
+const csvShare = (share: number | null) => (share === null ? "" : (share * 100).toFixed(1));
 
 export function ReconciliationView({
   from,
@@ -136,8 +139,10 @@ export function ReconciliationView({
     "delta_excl_pct",
     "store_revenue",
     "spend",
+    "website_share",
+    "application_share",
   ];
-  const CHANNEL_DEFAULT_HIDDEN = ["store_revenue", "spend"];
+  const CHANNEL_DEFAULT_HIDDEN = ["store_revenue", "spend", "website_share", "application_share"];
   /** The Platforms view's leading context columns (Day is its pinned one). */
   const PLATFORM_LEADING_KEYS = ["store_total", "unattributed", "unattributed_pct"];
 
@@ -455,6 +460,32 @@ export function ReconciliationView({
         render: (r) => <span className="tabular-nums text-ink-2">{usd(r.spend)}</span>,
         sortValue: (r) => r.spend,
         total: () => tot(usd(t.spend)),
+      },
+      // Optional, hidden by default: each channel's share of the store's
+      // orders that day — counts over counts, nothing compared.
+      {
+        key: "website_share",
+        label: `${CHANNEL_LABEL.website} %`,
+        align: "right",
+        sortable: true,
+        render: (r) => (
+          <span className="tabular-nums text-ink-2">{pct1(ofStore(r.website, r.storeOrders))}</span>
+        ),
+        sortValue: (r) => ofStore(r.website, r.storeOrders),
+        csv: (r) => csvShare(ofStore(r.website, r.storeOrders)),
+        total: () => tot(pct1(ofStore(t.website, t.storeOrders))),
+      },
+      {
+        key: "application_share",
+        label: `${CHANNEL_LABEL.application} %`,
+        align: "right",
+        sortable: true,
+        render: (r) => (
+          <span className="tabular-nums text-ink-2">{pct1(ofStore(r.application, r.storeOrders))}</span>
+        ),
+        sortValue: (r) => ofStore(r.application, r.storeOrders),
+        csv: (r) => csvShare(ofStore(r.application, r.storeOrders)),
+        total: () => tot(pct1(ofStore(t.application, t.storeOrders))),
       },
     );
     return cols;

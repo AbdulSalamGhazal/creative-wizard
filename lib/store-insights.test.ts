@@ -158,6 +158,23 @@ describe("foldTopValues", () => {
     expect(out.reduce((a, r) => a + r.revenue, 0)).toBe(12000);
   });
 
+  it("Other's first/last order spans its tail — unknown past the query's cap", () => {
+    const dated = Array.from({ length: TOP_VALUE_LIMIT + 2 }, (_, i) => ({
+      value: `v${i}`,
+      orders: 100 - i,
+      revenue: 10,
+      firstOrder: `2026-10-${String(10 + (i % 5)).padStart(2, "0")}`,
+      lastOrder: `2026-11-${String(10 + (i % 7)).padStart(2, "0")}`,
+    }));
+    const tail = dated.slice(TOP_VALUE_LIMIT);
+    const other = foldTopValues(dated).at(-1)!;
+    expect(other.firstOrder).toBe(tail.map((r) => r.firstOrder).sort()[0]);
+    expect(other.lastOrder).toBe(tail.map((r) => r.lastOrder).sort().at(-1));
+    const capped = foldTopValues(dated, TOP_VALUE_LIMIT, { orders: 10_000, revenue: 0, values: 5000 }).at(-1)!;
+    expect(capped.firstOrder).toBeNull();
+    expect(capped.lastOrder).toBeNull();
+  });
+
   it("folds the tail into ONE row past the limit", () => {
     const out = foldTopValues(rows(TOP_VALUE_LIMIT + 5));
     expect(out).toHaveLength(TOP_VALUE_LIMIT + 1);

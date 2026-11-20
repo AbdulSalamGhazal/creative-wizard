@@ -234,6 +234,16 @@ function ResultsTable({
         total: () =>
           total.purchaseValue === null ? dash : <span className="tabular-nums">{fmt(total.purchaseValue)}</span>,
       },
+      {
+        key: "valueShare",
+        label: "Share of value",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.valueShare,
+        csv: (r) => (r.valueShare === null ? null : Math.round(r.valueShare * 1000) / 10),
+        render: (r) => share(r.valueShare),
+        info: "Over the purchase value the platforms report.",
+      },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, by, csvName]);
@@ -242,7 +252,7 @@ function ResultsTable({
     tableKey: TABLE_KEYS.BUDGET_RESULTS,
     hideable: keys,
     defaults: keys,
-    defaultHidden: ["value"],
+    defaultHidden: ["value", "valueShare"],
   });
   return (
     <DataTable<ResultRow>

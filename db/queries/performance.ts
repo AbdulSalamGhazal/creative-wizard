@@ -16,6 +16,8 @@ import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
 import { FATIGUE_WINDOWS, type FatigueWindowSums } from "@/lib/launch-fatigue";
 import {
+  aov,
+  completeRate,
   ctr,
   cpa,
   cpc,
@@ -24,6 +26,8 @@ import {
   hookRate,
   holdRate,
   roas,
+  sumAddPayment,
+  sumAddToCart,
   sumClicks,
   sumConversionValue,
   sumConversions,
@@ -42,6 +46,7 @@ import {
 } from "@/lib/period";
 import { fillDailyGaps } from "@/lib/time-series";
 import { getActiveAccountId } from "@/lib/tenant";
+import { sortStages } from "@/lib/funnel-stages";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -98,6 +103,13 @@ export interface Kpis {
   landingPageViews: number | null;
   hookRate: number | null;
   holdRate: number | null;
+  /** Funnel-step sums and two more derived rates the Compare totals table
+   *  OFFERS (defaultHidden) — riding the same SELECT, no extra scan. NULL when
+   *  no row in scope reported the step (NULL ≠ 0). */
+  addToCart: number | null;
+  addPayment: number | null;
+  completeRate: number | null;
+  aov: number | null;
   /**
    * CPM and CTR restricted to the platforms that report a funnel (google
    * excluded — see FUNNEL_PLATFORMS). ONLY the funnel-rates card reads these:
@@ -153,17 +165,28 @@ export interface LeaderboardRow {
   productName: string;
   type: CreativeType;
   status: CreativeStatus;
+  /** Creative identity the table OFFERS (defaultHidden) — columns of the
+   *  `creatives` row this query already joins, no extra scan. */
+  priority: number | null;
+  stages: string[];
+  launchDate: string | null;
+  thumbnailUrl: string | null;
   spend: number;
   impressions: number;
   clicks: number;
   conversions: number | null;
   conversionValue: number | null;
+  /** NULL = no platform in scope reported LP views (google) — never 0. */
+  landingPageViews: number | null;
   cpm: number | null;
+  cpc: number | null;
   ctr: number | null;
   voc: number | null;
   cvr: number | null;
   cpa: number | null;
   roas: number | null;
+  hookRate: number | null;
+  holdRate: number | null;
   /** Daily-spend series across the filter window, ordered ASC by date. Only
    *  populated for the ranking-candidate pool (see creativeLeaderboard). */
   sparkline: number[];
@@ -316,6 +339,10 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
       landingPageViews: sumLandingPageViews,
       hookRate,
       holdRate,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
+      completeRate,
+      aov,
       funnelCpm: funnelScoped.cpm,
       funnelCtr: funnelScoped.ctr,
     })
@@ -351,6 +378,10 @@ export async function kpis(filters: KpiFilters): Promise<Kpis> {
     landingPageViews: num(row?.landingPageViews),
     hookRate: num(row?.hookRate),
     holdRate: num(row?.holdRate),
+    addToCart: num(row?.addToCart),
+    addPayment: num(row?.addPayment),
+    completeRate: num(row?.completeRate),
+    aov: num(row?.aov),
     funnelCpm: num(row?.funnelCpm),
     funnelCtr: num(row?.funnelCtr),
   };
@@ -490,17 +521,27 @@ export async function creativeLeaderboard(
       name: creatives.name,
       productName: products.name,
       type: creatives.type,
+      // Identity fields for the table's opt-in columns — the joined creative's
+      // own columns, functionally dependent on the GROUP BY's PK.
+      priority: creatives.priority,
+      stages: creatives.stages,
+      launchDate: creatives.launchDate,
+      thumbnailUrl: creatives.thumbnailUrl,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
+      landingPageViews: sumLandingPageViews,
       cpm,
+      cpc,
       ctr,
       voc,
       cvr,
       cpa,
       roas,
+      hookRate,
+      holdRate,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -516,7 +557,16 @@ export async function creativeLeaderboard(
 
   const raw = await q
     .where(and(...conditions))
-    .groupBy(creatives.id, creatives.name, products.name, creatives.type)
+    .groupBy(
+      creatives.id,
+      creatives.name,
+      products.name,
+      creatives.type,
+      creatives.priority,
+      creatives.stages,
+      creatives.launchDate,
+      creatives.thumbnailUrl,
+    )
     .orderBy(desc(sumSpend));
 
   const base = raw
@@ -525,17 +575,26 @@ export async function creativeLeaderboard(
       name: r.name,
       productName: r.productName,
       type: r.type as CreativeType,
+      priority: r.priority,
+      // Stored unordered; presented in funnel order like every other surface.
+      stages: sortStages(r.stages ?? []),
+      launchDate: r.launchDate,
+      thumbnailUrl: r.thumbnailUrl,
       spend: Number(r.spend ?? 0),
       impressions: Number(r.impressions ?? 0),
       clicks: Number(r.clicks ?? 0),
       conversions: num(r.conversions),
       conversionValue: num(r.conversionValue),
+      landingPageViews: num(r.landingPageViews),
       cpm: num(r.cpm),
+      cpc: num(r.cpc),
       ctr: num(r.ctr),
       voc: num(r.voc),
       cvr: num(r.cvr),
       cpa: num(r.cpa),
       roas: num(r.roas),
+      hookRate: num(r.hookRate),
+      holdRate: num(r.holdRate),
     }))
     // Spend floor: creatives below it carry too little signal to rank on (a $5
     // creative shouldn't top the CTR/ROAS board), so they're dropped before
@@ -706,6 +765,9 @@ export async function platformMix(
 export interface CampaignMixRow extends PlatformMixRow {
   /** Combined `Campaign ➤ Adset` (with platform suffix for IG/FB). */
   campaign: string;
+  /** The campaign's objective — a column of the row the GROUP BY's PK
+   *  (`campaigns.id`) already joins, offered as a defaultHidden column. */
+  objective: string;
 }
 
 /**
@@ -724,6 +786,7 @@ export async function campaignMix(
     .select({
       platform: performanceRecords.platform,
       campaign: campaigns.name,
+      objective: campaigns.objective,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -759,6 +822,7 @@ export async function campaignMix(
   return rows.map((r) => ({
     platform: r.platform as Platform,
     campaign: r.campaign as string,
+    objective: r.objective as string,
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),
     clicks: Number(r.clicks ?? 0),
@@ -1946,6 +2010,10 @@ export interface LaunchFatigueRow {
   /** True when launchDate fell back to the first-spend day. */
   derived: boolean;
   daysSinceLaunch: number;
+  /** Manual priority (1..3), null = unrated — 1:1 per creative (eff CTE). */
+  priority: number | null;
+  /** Manual funnel stage(s), in funnel order; empty = unassigned. */
+  stages: string[];
   w1: FatigueWindowSums; // days 1–7
   w2: FatigueWindowSums; // days 8–30
   w3: FatigueWindowSums; // days 31–90
@@ -2040,6 +2108,7 @@ export async function launchFatigue(
   const rows = (await db.execute(sql`
     WITH eff AS MATERIALIZED (
       SELECT c.id, c.name, c.type, p.name AS product_name,
+             c.priority, c.stages,
              (c.launch_date IS NULL) AS derived,
              COALESCE(c.launch_date, fd.first_day) AS eff_launch
       FROM creatives c
@@ -2053,6 +2122,7 @@ export async function launchFatigue(
       WHERE c.account_id = ${acct}${creativeWhere}
     )
     SELECT eff.id, eff.name, eff.type, eff.product_name, eff.derived,
+           eff.priority, eff.stages,
            eff.eff_launch::text AS eff_launch,
            (CURRENT_DATE - eff.eff_launch)::int AS days_since,
            ${sql.join(sumSelects, sql`, `)}
@@ -2062,7 +2132,8 @@ export async function launchFatigue(
       AND pr.date >= eff.eff_launch
       AND pr.date <= eff.eff_launch + ${maxDay}::int${platformJoin}${excludedJoin}
     WHERE eff.eff_launch IS NOT NULL${cohortWhere}
-    GROUP BY eff.id, eff.name, eff.type, eff.product_name, eff.derived, eff.eff_launch
+    GROUP BY eff.id, eff.name, eff.type, eff.product_name, eff.derived, eff.eff_launch,
+             eff.priority, eff.stages
     ORDER BY eff.eff_launch DESC
   `)) as unknown as Array<Record<string, unknown>>;
 
@@ -2088,6 +2159,8 @@ export async function launchFatigue(
         launchDate: String(r.eff_launch),
         derived: r.derived === true || r.derived === "t",
         daysSinceLaunch: Number(r.days_since ?? 0),
+        priority: r.priority === null || r.priority === undefined ? null : Number(r.priority),
+        stages: sortStages(Array.isArray(r.stages) ? r.stages.map(String) : []),
         w1,
         w2,
         w3,

@@ -21,6 +21,18 @@ interface Row {
   spendShare: number;
 }
 
+/** The blend's other outputs — offered, collapsed on a first visit. */
+const BREAKDOWN_DEFAULT_HIDDEN = [
+  "delivered",
+  "units",
+  "netRevenue",
+  "cogs",
+  "undelivered",
+  "undeliveredPct",
+  "contribution",
+  "cpa",
+] as const;
+
 /** "Plan breakdown" (brief §6.4): products with orders (their blend), then their offers, then a total. */
 export function PlanBreakdown({ lines, total, products, settings, mult, perLabel }: { lines: readonly Line[]; total: Blend; products: readonly Product[]; settings: Settings; mult: number; perLabel: string }) {
   const rows = useMemo<Row[]>(() => {
@@ -63,11 +75,25 @@ export function PlanBreakdown({ lines, total, products, settings, mult, perLabel
       { key: "mktPct", label: "Marketing %", align: "right", render: (r) => <span className="tabular-nums">{pct2(r.b.marketingPct)}</span>, total: () => <span className="tabular-nums">{pct2(total.marketingPct)}</span> },
       { key: "cml", label: "CML (SAR)", align: "right", render: (r) => <Num value={r.b.profit * mult} kind="money0" />, total: () => <Num value={total.profit * mult} kind="money0" /> },
       { key: "cmlPct", label: "CML %", align: "right", render: (r) => <Num value={r.b.margin} kind="pct2" />, total: () => <Num value={total.margin} kind="pct2" /> },
+      // Optional (defaultHidden): the blend's other outputs, at the same scale.
+      { key: "delivered", label: "Delivered", align: "right", render: (r) => <span className="tabular-nums">{num2(r.b.delivered * mult)}</span>, total: () => <span className="tabular-nums">{num2(total.delivered * mult)}</span> },
+      { key: "units", label: "Units", align: "right", render: (r) => <span className="tabular-nums">{num2(r.b.units * mult)}</span>, total: () => <span className="tabular-nums">{num2(total.units * mult)}</span> },
+      { key: "netRevenue", label: "Net revenue (SAR)", align: "right", render: (r) => <span className="tabular-nums">{money0(r.b.netRevenue * mult)}</span>, total: () => <span className="tabular-nums">{money0(total.netRevenue * mult)}</span> },
+      { key: "cogs", label: "COGS (SAR)", align: "right", render: (r) => <span className="tabular-nums">{money0(r.b.cogs * mult)}</span>, total: () => <span className="tabular-nums">{money0(total.cogs * mult)}</span> },
+      { key: "undelivered", label: "Undelivered (SAR)", align: "right", render: (r) => <span className="tabular-nums">{money0(r.b.undelivered * mult)}</span>, total: () => <span className="tabular-nums">{money0(total.undelivered * mult)}</span> },
+      { key: "undeliveredPct", label: "Undelivered %", align: "right", render: (r) => <span className="tabular-nums">{pct2(r.b.undeliveredPct)}</span>, total: () => <span className="tabular-nums">{pct2(total.undeliveredPct)}</span> },
+      { key: "contribution", label: "Contribution (SAR)", align: "right", render: (r) => <Num value={r.b.contribution * mult} kind="money0" />, total: () => <Num value={total.contribution * mult} kind="money0" /> },
+      { key: "cpa", label: "CPA $", align: "right", render: (r) => <Num value={r.b.cpaUsd} kind="usd2" red={false} />, total: () => <Num value={total.cpaUsd} kind="usd2" red={false} /> },
     ],
     [mult, total, settings.usdToSar],
   );
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
-  const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_PLAN_BREAKDOWN, hideable, defaults: hideable });
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.PS_PLAN_BREAKDOWN,
+    hideable,
+    defaults: hideable,
+    defaultHidden: BREAKDOWN_DEFAULT_HIDDEN,
+  });
 
   return (
     <SectionCard title={`Plan breakdown ${perLabel}`} info="Revenue is what customers pay incl. VAT. CML counts delivered orders only." contentClassName="px-0">

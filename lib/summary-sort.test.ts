@@ -16,12 +16,14 @@ const block = (over: Partial<PlatformMetricBlock> = {}): PlatformMetricBlock => 
   spend: 0, impressions: 0, clicks: 0, conversions: null, conversionValue: null,
   ctr: null, cpm: null, cpc: null, cpa: null, roas: null, hookRate: null,
   holdRate: null, completeRate: null, landingPageViews: 0, voc: null, cvr: null,
+  aov: null,
   ...over,
 });
 const row = (name: string, over: Partial<SummaryRow> = {}): SummaryRow => ({
   creativeId: name, name, productId: "p", productName: "P", type: "video",
   generalStatus: "active", perPlatformStatus: {}, creatorName: null, creatorEmail: null,
   priority: null, stages: [], launchDate: null, angles: [],
+  thumbnailUrl: null, notes: null, createdAt: "2026-01-01T00:00:00.000Z",
   perPlatform: {}, total: block(), ...over,
 });
 const names = (rows: SummaryRow[]) => rows.map((r) => r.name);
@@ -112,9 +114,54 @@ describe("the Ads column params — read and written in the saved-view shape", (
       metrics: ["ctr"],
       rate: true,
       blended: false,
+      shown: [],
     });
     const out = new URLSearchParams("sort=name");
     writeAdsColumnParams(out, { identity: [], metrics: ["cpm"], rate: false, blended: true });
     expect(out.toString()).toBe("sort=name&hideMetrics=cpm&hideBlended=1");
+  });
+
+  it("carries an opened default-hidden column as `!key` in its own param", () => {
+    const p = new URLSearchParams("hideIdentity=type,!angles&hideMetrics=!revenue,!bogus");
+    expect(adsColumnsFromParams(p)).toEqual({
+      identity: ["type"],
+      metrics: [],
+      rate: false,
+      blended: false,
+      shown: ["angles", "revenue"],
+    });
+    const out = new URLSearchParams();
+    writeAdsColumnParams(out, {
+      identity: ["type"],
+      metrics: [],
+      rate: false,
+      blended: false,
+      shown: ["angles", "revenue"],
+    });
+    expect(out.get("hideIdentity")).toBe("type,!angles");
+    expect(out.get("hideMetrics")).toBe("!revenue");
+  });
+});
+
+describe("the offered (default-hidden) Ads columns sort", () => {
+  it("revenue and AOV are per-scope metrics", () => {
+    expect(resolveSummarySort("total.revenue", "desc", [])).toEqual({ key: "total.revenue", dir: "desc" });
+    expect(resolveSummarySort("instagram.aov", "asc", ["instagram"])).toEqual({ key: "instagram.aov", dir: "asc" });
+    const rows = [
+      row("low", { total: block({ conversionValue: 10, aov: 5 }) }),
+      row("high", { total: block({ conversionValue: 90, aov: 30 }) }),
+    ];
+    expect(sort(rows, "total.revenue", "desc")).toEqual(["high", "low"]);
+    expect(sort(rows, "total.aov", "asc")).toEqual(["low", "high"]);
+  });
+
+  it("created, email, notes and angles are identity sorts; empty sinks ascending", () => {
+    const rows = [
+      row("b", { createdAt: "2026-02-01T00:00:00.000Z", creatorEmail: "z@x.com", angles: ["Price"] }),
+      row("a", { createdAt: "2026-01-01T00:00:00.000Z", creatorEmail: null, angles: [] }),
+    ];
+    expect(sort(rows, "created", "asc")).toEqual(["a", "b"]);
+    expect(sort(rows, "email", "asc")).toEqual(["b", "a"]);
+    expect(sort(rows, "angles", "asc")).toEqual(["b", "a"]);
   });
 });

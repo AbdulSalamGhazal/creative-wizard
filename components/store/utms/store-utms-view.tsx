@@ -225,6 +225,7 @@ export function StoreUtmsView({
             sourceDaily={sourceDaily}
             range={resolvedRange}
             totalOrders={coverage.orders}
+            totalRevenue={coverage.revenue}
             sourceFieldLabel={sourceFieldLabel}
           />
           <UtmHygieneSection

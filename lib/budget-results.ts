@@ -39,6 +39,11 @@ export interface ResultRow {
   purchaseShare: number | null;
   /** purchaseShare − spendShare, in percentage POINTS. */
   gapPts: number | null;
+  /**
+   * Share of platform-reported purchase value over the rows that report a
+   * value (null = this row reports none, or nothing does).
+   */
+  valueShare: number | null;
 }
 
 interface Part {
@@ -102,9 +107,12 @@ export function buildResultRows(input: {
   const reporting = spent.filter((r) => r.results.purchases !== null);
   const spendBase = reporting.reduce((s, r) => s + r.reportingSpend, 0);
   const purchaseBase = reporting.reduce((s, r) => s + (r.results.purchases ?? 0), 0);
+  const valueBase = spent.reduce((s, r) => s + (r.results.purchaseValue ?? 0), 0);
   return spent.map(({ reportingSpend, ...r }) => {
+    const valueShare =
+      r.results.purchaseValue === null || valueBase <= 0 ? null : r.results.purchaseValue / valueBase;
     if (r.results.purchases === null || spendBase <= 0) {
-      return { ...r, spendShare: null, purchaseShare: null, gapPts: null };
+      return { ...r, spendShare: null, purchaseShare: null, gapPts: null, valueShare };
     }
     const spendShare = reportingSpend / spendBase;
     const purchaseShare = purchaseBase > 0 ? r.results.purchases / purchaseBase : null;
@@ -113,6 +121,7 @@ export function buildResultRows(input: {
       spendShare,
       purchaseShare,
       gapPts: purchaseShare === null ? null : (purchaseShare - spendShare) * 100,
+      valueShare,
     };
   });
 }

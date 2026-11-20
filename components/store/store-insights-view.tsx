@@ -61,6 +61,8 @@ type GroupBy = "day" | "week" | "month";
 /** The two series share an x-axis but not a scale — orders are counts, revenue is SAR. */
 const ORDERS_COLOR = seriesColor(0);
 const REVENUE_COLOR = seriesColor(2);
+/** The analyzer's optional columns — offered, collapsed on a first visit. */
+const INSIGHTS_DEFAULT_HIDDEN = ["firstOrder", "lastOrder"] as const;
 
 interface TrendPoint {
   key: string;
@@ -310,6 +312,23 @@ export function StoreInsightsView({
           </span>
         ),
       },
+      // ── Optional (defaultHidden): the same GROUP BY's MIN/MAX. ──
+      {
+        key: "firstOrder",
+        label: "First order",
+        sortable: true,
+        sortValue: (r) => sortOf(r, r.firstOrder ?? null),
+        csv: (r) => r.firstOrder ?? null,
+        render: (r) => <span className="tabular-nums">{r.firstOrder ?? "—"}</span>,
+      },
+      {
+        key: "lastOrder",
+        label: "Last order",
+        sortable: true,
+        sortValue: (r) => sortOf(r, r.lastOrder ?? null),
+        csv: (r) => r.lastOrder ?? null,
+        render: (r) => <span className="tabular-nums">{r.lastOrder ?? "—"}</span>,
+      },
     ];
   }, [dimension, totals.orders, totals.revenue, empty]);
   // The table's own columns control, remembered per user per brand.
@@ -318,6 +337,7 @@ export function StoreInsightsView({
     tableKey: TABLE_KEYS.STORE_INSIGHTS,
     hideable: columnKeys,
     defaults: columnKeys,
+    defaultHidden: INSIGHTS_DEFAULT_HIDDEN,
   });
 
 

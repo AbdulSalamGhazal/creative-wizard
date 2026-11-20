@@ -49,20 +49,30 @@ import {
   halfSplitTrend,
   parseCompareParam,
   share,
+  channelSplit,
+  utmBucketLabel,
+  type ChannelSplit,
+  type UtmBucket,
   sourceFromKey,
   sourceKey,
   sourceLabel,
   type UtmSourceRow,
 } from "@/lib/store-utms";
 import type { UtmSourceDay } from "@/db/queries/store-utms";
+import { BucketCell } from "./utm-sources-section";
+import { CHANNEL_SPLIT_KEYS, channelSplitColumns } from "./utm-channel-columns";
 
 type GroupBy = "day" | "week" | "month";
+
+/** The compare table's optional columns — offered, collapsed on a first visit. */
+const COMPARE_DEFAULT_HIDDEN = ["platform", ...CHANNEL_SPLIT_KEYS];
 type Metric = "orders" | "revenue";
 
-interface CompareRow {
+interface CompareRow extends ChannelSplit {
   key: string;
   label: string;
   color: string;
+  bucket: UtmBucket;
   orders: number;
   revenue: number;
   ordersShare: number | null;
@@ -84,6 +94,7 @@ export function UtmCompareSection({
   sourceDaily,
   range,
   totalOrders,
+  totalRevenue,
   sourceFieldLabel,
 }: {
   /** The top sources (the ones with per-day series), largest first. */
@@ -91,6 +102,8 @@ export function UtmCompareSection({
   sourceDaily: UtmSourceDay[];
   range: DateRangeValue;
   totalOrders: number;
+  /** The range's store revenue (SAR) — the base of the "% of revenue" column. */
+  totalRevenue: number;
   sourceFieldLabel: string;
 }) {
   const searchParams = useSearchParams();
@@ -169,18 +182,21 @@ export function UtmCompareSection({
             ordersShare: share(r.orders, totalOrders),
             aov: aov(r.revenue, r.orders),
             websiteShare: share(r.website, r.orders),
+            bucket: r.bucket,
+            ...channelSplit(r, totalRevenue),
             trend: halfSplitTrend(dailyByKey.get(key) ?? [], range).pct,
           },
         ];
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selected, byKey, totalOrders, dailyByKey, range, sourceFieldLabel],
+    [selected, byKey, totalOrders, totalRevenue, dailyByKey, range, sourceFieldLabel],
   );
 
   const totals = useMemo(() => {
     const orders = tableRows.reduce((a, r) => a + r.orders, 0);
     const revenue = tableRows.reduce((a, r) => a + r.revenue, 0);
     const website = selected.reduce((a, k) => a + (byKey.get(k)?.website ?? 0), 0);
+    const application = selected.reduce((a, k) => a + (byKey.get(k)?.application ?? 0), 0);
     // The selection's combined per-day series, for one honest trend.
     const perDay = new Map<string, number>();
     for (const k of selected) {
@@ -190,7 +206,7 @@ export function UtmCompareSection({
       [...perDay].map(([day, o]) => ({ day, orders: o })),
       range,
     ).pct;
-    return { orders, revenue, website, trend };
+    return { orders, revenue, website, application, trend };
   }, [tableRows, selected, byKey, dailyByKey, range]);
 
   const columns = useMemo(
@@ -280,14 +296,30 @@ export function UtmCompareSection({
         ),
         total: () => <span className="tabular-nums">{signedPct(totals.trend)}</span>,
       },
+      // ── Optional (defaultHidden): what the source rows already carry. ──
+      {
+        key: "platform",
+        label: "Platform",
+        sortable: true,
+        sortValue: (r) => utmBucketLabel(r.bucket),
+        defaultSortDir: "asc",
+        csv: (r) => utmBucketLabel(r.bucket),
+        render: (r) => <BucketCell bucket={r.bucket} />,
+      },
+      ...channelSplitColumns<CompareRow>({
+        sortOf: (_r, v) => v,
+        totals,
+        totalRevenue,
+      }),
     ],
-    [sourceFieldLabel, totals, totalOrders],
+    [sourceFieldLabel, totals, totalOrders, totalRevenue],
   );
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
     tableKey: TABLE_KEYS.STORE_UTM_COMPARE,
     hideable: columnKeys,
     defaults: columnKeys,
+    defaultHidden: COMPARE_DEFAULT_HIDDEN,
   });
 
   const candidates = rows.filter((r) => !selected.includes(sourceKey(r.value)));

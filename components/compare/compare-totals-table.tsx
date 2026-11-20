@@ -43,6 +43,12 @@ const COLUMNS: ColumnDef[] = [
   { key: "roas", label: METRIC_LABEL.roas, fmt: (v) => roas(v), strong: true },
   { key: "hookRate", label: METRIC_LABEL.hookRate, fmt: (v) => pct(v) },
   { key: "holdRate", label: METRIC_LABEL.holdRate, fmt: (v) => pct(v) },
+  // Offered, hidden by default (they're not in DEFAULT_VISIBLE): the funnel
+  // steps and two rates `kpis()` carries in the same SELECT.
+  { key: "addToCart", label: METRIC_LABEL.addToCart, fmt: (v) => int(v) },
+  { key: "addPayment", label: METRIC_LABEL.addPayment, fmt: (v) => int(v) },
+  { key: "completeRate", label: "Complete", fmt: (v) => pct(v) },
+  { key: "aov", label: "AOV", fmt: (v) => usd(v) },
 ];
 
 /** The metrics a first visit shows; the rest are one click away. */

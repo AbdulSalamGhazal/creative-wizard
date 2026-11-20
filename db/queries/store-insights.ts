@@ -162,6 +162,8 @@ export async function storeInsightsBreakdown(
       value: bucket,
       orders: sql<number>`count(*)::int`,
       revenue: sql<string>`COALESCE(SUM(${storeOrders.totalAmount}), 0)`,
+      firstOrder: sql<string | null>`MIN(${storeOrders.orderDate})::text`,
+      lastOrder: sql<string | null>`MAX(${storeOrders.orderDate})::text`,
       // Groups before the LIMIT — window functions run after grouping, so this
       // is the honest distinct-value count and costs no second scan.
       totalValues: sql<number>`count(*) OVER ()::int`,
@@ -182,6 +184,8 @@ export async function storeInsightsBreakdown(
       value: r.value === null ? null : String(r.value),
       orders: Number(r.orders),
       revenue: Number(r.revenue ?? 0),
+      firstOrder: r.firstOrder ?? null,
+      lastOrder: r.lastOrder ?? null,
     })),
     totalValues: rows.length > 0 ? Number(rows[0]!.totalValues) : 0,
   };

@@ -23,6 +23,23 @@ import { StatusBadge } from "../status-badge";
 
 export type CostView = "pct" | "sar";
 
+/** The table's optional columns — the engine's other outputs, collapsed on a first visit. */
+const OVERVIEW_DEFAULT_HIDDEN = [
+  "cpaA",
+  "cpaB",
+  "netRevenue",
+  "vat",
+  "discountValue",
+  "deliveryRate",
+  "contribution",
+  "adCostPct",
+  "mPlaced",
+  "mDelivered",
+  "mRevenue",
+  "mAdSpend",
+  "mProfit",
+] as const;
+
 type Row =
   | { kind: "product"; key: string; product: Product }
   | { kind: "offer"; key: string; row: OfferRow };
@@ -149,8 +166,24 @@ export function PriceStructureTable({
       cols.push(
         { key: "roasA", label: "ROAS for A", align: "right", render: only((o) => <Num value={o.roasA} kind="roas" title={`Platform ROAS needed for ${targetA}`} />) },
         { key: "roasB", label: "ROAS for B", align: "right", render: only((o) => <Num value={o.roasB} kind="roas" title={`Platform ROAS needed for ${targetB}`} />) },
+        { key: "cpaA", label: "Max CPA for A $", align: "right", render: only((o) => <Num value={o.cpaA} kind="usd2" title={`Highest CPA that still meets ${targetA}`} />) },
+        { key: "cpaB", label: "Max CPA for B $", align: "right", render: only((o) => <Num value={o.cpaB} kind="usd2" title={`Highest CPA that still meets ${targetB}`} />) },
       );
     }
+    // Optional (defaultHidden): the engine's other per-offer outputs.
+    cols.push(
+      { key: "netRevenue", label: "Net revenue", align: "right", render: only((o) => <Num value={o.r.netRevenue} kind="money2" title="Customer pays minus VAT" />) },
+      { key: "vat", label: "VAT", align: "right", render: only((o) => <Num value={o.r.vat} kind="money2" title="VAT in what the customer pays" red={false} />) },
+      { key: "discountValue", label: "Discount SAR", align: "right", render: only((o) => <Num value={o.r.discountValue} kind="money2" title="List − paid" red={false} />) },
+      { key: "deliveryRate", label: "Delivery rate", align: "right", render: only((o) => <Num value={o.r.deliveryRate} kind="pct1" title="Share of placed orders delivered" red={false} />) },
+      { key: "contribution", label: "Contribution", align: "right", render: only((o) => <Num value={o.r.contribution} kind="money2" title="Net revenue − COGS − undelivered: what is left before ads" />) },
+      { key: "adCostPct", label: "Ad cost %", align: "right", render: only((o) => <Num value={o.r.adCostPct} kind="pct2" title="(Marketing + undelivered) ÷ net revenue" red={false} />) },
+      { key: "mPlaced", label: "Monthly placed", align: "right", render: only((o) => <Num value={o.r.monthly.placed} kind="money0" title="Orders placed per month" red={false} />) },
+      { key: "mDelivered", label: "Monthly delivered", align: "right", render: only((o) => <Num value={o.r.monthly.delivered} kind="money0" title="Orders delivered per month" red={false} />) },
+      { key: "mRevenue", label: "Monthly revenue", align: "right", render: only((o) => <Num value={o.r.monthly.revenue} kind="money0" title="Net revenue per month, SAR" />) },
+      { key: "mAdSpend", label: "Monthly ad spend", align: "right", render: only((o) => <Num value={o.r.monthly.adSpend} kind="money0" title="Ad spend per month, SAR" red={false} />) },
+      { key: "mProfit", label: "Monthly CML", align: "right", render: only((o) => <Num value={o.r.monthly.profit} kind="money0" title="CML per month, SAR" />) },
+    );
     cols.push({
       key: "status",
       label: "Status",
@@ -162,7 +195,12 @@ export function PriceStructureTable({
   }, [grouping, hasUndelivered, roasTarget, pctMode, targetA, targetB, v]);
 
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
-  const cols = useTableColumns({ tableKey: TABLE_KEYS.PS_OVERVIEW, hideable, defaults: hideable });
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.PS_OVERVIEW,
+    hideable,
+    defaults: hideable,
+    defaultHidden: OVERVIEW_DEFAULT_HIDDEN,
+  });
 
   const openOffer = (r: Row) => startNav(() => router.push(offerHref(r, v)));
 

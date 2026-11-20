@@ -19,6 +19,8 @@ import { isoDate } from "@/lib/format";
 import { STATUS_ORDER } from "@/lib/creative-status";
 import { isCreativeStage, stageRank } from "@/lib/funnel-stages";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CreativeThumb } from "@/components/creative/creative-thumb";
+import { ExternalCell } from "@/components/creative/external-cell";
 
 /**
  * Per-creative summary for one campaign — the chart's series, tabulated. Each
@@ -96,6 +98,9 @@ export function CampaignCreativesTable({
     if (key === "stages") return earliestStageRank(r.stages);
     if (key === "priority") return r.priority;
     if (key === "launchDate") return r.launchDate;
+    if (key === "firstDate") return r.firstDate;
+    if (key === "notes") return r.notes;
+    if (key === "createdAt") return r.createdAt.toISOString();
     return (r[key as keyof CampaignCreativeRow] as number | null) ?? null;
   };
 
@@ -215,6 +220,58 @@ export function CampaignCreativesTable({
       ),
       csv: (r) => r.launchDate,
     },
+    // ── Offered, hidden by default (2026-11): what the grouped scan and the
+    // creative row already carry. NULL ≠ 0 — an unreported step is "—". ──
+    {
+      key: "thumbnail",
+      label: "Thumbnail",
+      render: (r) => <CreativeThumb url={r.thumbnailUrl} name={r.name} />,
+      csv: (r) => r.thumbnailUrl,
+    },
+    { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, align: "right", sortable: true, render: (r) => int(r.landingPageViews), csv: (r) => r.landingPageViews },
+    { key: "voc", label: METRIC_LABEL.voc, align: "right", sortable: true, render: (r) => fPct(r.voc), csv: (r) => r.voc },
+    { key: "cpm", label: METRIC_LABEL.cpm, align: "right", sortable: true, render: (r) => usd(r.cpm), csv: (r) => r.cpm },
+    { key: "cpc", label: METRIC_LABEL.cpc, align: "right", sortable: true, render: (r) => usd(r.cpc), csv: (r) => r.cpc },
+    { key: "addToCart", label: METRIC_LABEL.addToCart, align: "right", sortable: true, render: (r) => int(r.addToCart), csv: (r) => r.addToCart },
+    { key: "addPayment", label: METRIC_LABEL.addPayment, align: "right", sortable: true, render: (r) => int(r.addPayment), csv: (r) => r.addPayment },
+    { key: "hookRate", label: METRIC_LABEL.hookRate, align: "right", sortable: true, render: (r) => fPct(r.hookRate), csv: (r) => r.hookRate },
+    { key: "holdRate", label: METRIC_LABEL.holdRate, align: "right", sortable: true, render: (r) => fPct(r.holdRate), csv: (r) => r.holdRate },
+    {
+      key: "firstDate",
+      label: "First",
+      align: "right",
+      sortable: true,
+      render: (r) => (r.firstDate ? <span className="tabular-nums">{r.firstDate}</span> : DASH),
+      csv: (r) => r.firstDate,
+    },
+    {
+      key: "notes",
+      label: "Notes",
+      sortable: true,
+      defaultSortDir: "asc",
+      render: (r) =>
+        r.notes ? (
+          <span className="block max-w-[16rem] truncate text-ink-2" title={r.notes}>
+            {r.notes}
+          </span>
+        ) : (
+          <span className="text-ink-3">{DASH}</span>
+        ),
+      csv: (r) => r.notes,
+    },
+    {
+      key: "sourceLink",
+      label: "Source link",
+      render: (r) => <ExternalCell url={r.sourceLink} />,
+      csv: (r) => r.sourceLink,
+    },
+    {
+      key: "createdAt",
+      label: "Created at",
+      sortable: true,
+      render: (r) => <span className="tabular-nums text-ink-2">{isoDate(r.createdAt)}</span>,
+      csv: (r) => isoDate(r.createdAt),
+    },
   ];
 
   /** Hidden until somebody asks for them — adding a column to the CATALOG
@@ -226,6 +283,19 @@ export function CampaignCreativesTable({
     "stages",
     "priority",
     "launchDate",
+    "thumbnail",
+    "landingPageViews",
+    "voc",
+    "cpm",
+    "cpc",
+    "addToCart",
+    "addPayment",
+    "hookRate",
+    "holdRate",
+    "firstDate",
+    "notes",
+    "sourceLink",
+    "createdAt",
   ];
 
   // The columns control, from the live config — one key for this table.

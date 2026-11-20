@@ -37,7 +37,7 @@ import {
   coversAllPlatforms,
   seriesColor,
 } from "@/lib/palette";
-import { monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact, sarBare } from "@/lib/format";
+import { int, monthDay, roas as fmtRoas, sar, sarCompact, signedPct, usdCompact, sarBare } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_OBJECTIVES,
@@ -102,6 +102,14 @@ function deviationFill(code: string | number | null | undefined, seriesColor: st
 
 type Metric = "spend" | "revenue" | "roas";
 
+/**
+ * The period table's OPTIONAL columns (defaultHidden): every key the spend
+ * blocks, the revenue view and the ROAS view add beyond their verdict
+ * columns. (`revenue_cum` is a default column, hence the exclusion.)
+ */
+const PACING_OPTIONAL_COLUMN =
+  /^(?!revenue_cum$).*(_period_plan|_cum|_expected|_expected_cum|_purchases|_value)$|^(revenue_target|revenue_expected|roas_period)$/;
+
 /** A platform's series key — the module's, so the board and the chart agree. */
 const platformKey = platformSeriesKey;
 
@@ -130,6 +138,13 @@ interface BucketRow {
   expectedCum: Map<string, number>;
   /** Series keys with nothing covered in this bucket (a lagging platform). */
   spendUnknownBy: Set<string>;
+  /**
+   * Platform-reported purchases / purchase value (USD) in the bucket, per
+   * series key, over the same covered days as `spend` — null when no part of
+   * the series reports the field there (NULL ≠ 0).
+   */
+  purchases: Map<string, number | null>;
+  purchaseValue: Map<string, number | null>;
   /** Revenue is a single all-platforms series — no attribution here. */
   revenue: number;
   revenueCum: number;
@@ -386,6 +401,7 @@ export function BudgetPacing({
     roasThrough,
     horizon,
     expectedPerDay,
+    resultsPerDay,
   } = model;
 
   // ── Series ─────────────────────────────────────────────────────────────────
@@ -485,6 +501,8 @@ export function BudgetPacing({
       const expected = new Map<string, number>();
       const expectedCum = new Map<string, number>();
       const spendUnknownBy = new Set<string>();
+      const purchases = new Map<string, number | null>();
+      const purchaseValue = new Map<string, number | null>();
 
       // A bucket is known only as far as its side's covered day reaches —
       // per series: a platform through ITS day, a total or objective through
@@ -508,12 +526,25 @@ export function BudgetPacing({
         const keyUnknown = keyThrough === null || bucket.start > keyThrough;
         if (keyUnknown) spendUnknownBy.add(key);
         let actual = 0;
+        let bought: number | null = null;
+        let boughtValue: number | null = null;
         if (!keyUnknown) {
           const days = spendPerDay.get(key);
           const last = keyThrough < bucket.end ? keyThrough : bucket.end;
           if (days) eachDay(last, (iso) => (actual += days.get(iso) ?? 0));
+          // The platforms' own results over the SAME days as the spend.
+          const pDays = resultsPerDay.purchases.get(key);
+          const vDays = resultsPerDay.value.get(key);
+          for (const iso of isoDaysBetween(bucket.start, last)) {
+            const p = pDays?.get(iso);
+            if (p !== undefined) bought = (bought ?? 0) + p;
+            const v = vDays?.get(iso);
+            if (v !== undefined) boughtValue = (boughtValue ?? 0) + v;
+          }
         }
         spend.set(key, actual);
+        purchases.set(key, bought);
+        purchaseValue.set(key, boughtValue);
         const nextActual = (spendRun.get(key) ?? 0) + actual;
         spendRun.set(key, nextActual);
         spendCum.set(key, nextActual);
@@ -587,6 +618,8 @@ export function BudgetPacing({
         expected,
         expectedCum,
         spendUnknownBy,
+        purchases,
+        purchaseValue,
         revenue,
         revenueCum: revenueRun,
         planRevenue,
@@ -601,7 +634,7 @@ export function BudgetPacing({
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buckets, spendPerDay, planSpendPerDay, expectedPerDay, revenuePerDay, planRevenuePerDay, spendThrough, revenueThrough, roasThrough, throughByPlatform, platformKeys]);
+  }, [buckets, spendPerDay, planSpendPerDay, expectedPerDay, revenuePerDay, planRevenuePerDay, spendThrough, revenueThrough, roasThrough, throughByPlatform, platformKeys, resultsPerDay]);
 
   // ── Chart ──────────────────────────────────────────────────────────────────
   const toDisplay = (usdAmount: number) => spendInDisplayCurrency(usdAmount, currency, rate);
@@ -720,6 +753,8 @@ export function BudgetPacing({
       const actualRoas = (r: BucketRow) =>
         r.roasUnknown ? null : roasOf(r.roasRevenueCum, r.roasSpendCum);
       const planRoas = (r: BucketRow) => roasOf(r.roasPlanRevenueCum, r.roasPlanSpendCum);
+      const periodRoas = (r: BucketRow) =>
+        r.roasUnknown ? null : roasOf(r.roasRevenue, r.roasSpend);
       return [
         periodCol,
         {
@@ -738,6 +773,17 @@ export function BudgetPacing({
               <span className="tabular-nums font-semibold">{fmtRoas(v)}</span>
             );
           },
+        },
+        {
+          key: "roas_period",
+          label: "Period ROAS",
+          align: "right",
+          info: "This period alone, not cumulative.",
+          render: (r) => {
+            const v = periodRoas(r);
+            return v === null ? dash : <span className="tabular-nums">{fmtRoas(v)}</span>;
+          },
+          csv: (r) => periodRoas(r)?.toFixed(2) ?? "",
         },
         {
           key: "roas_plan",
@@ -832,6 +878,33 @@ export function BudgetPacing({
             ) : (
               dash
             ),
+        },
+        {
+          key: "revenue_target",
+          label: "Target (SAR)",
+          align: "right",
+          info: "This period's revenue target.",
+          render: (r) =>
+            r.planRevenue > 0 ? (
+              <span className="tabular-nums text-ink-3">{sarBare(r.planRevenue)}</span>
+            ) : (
+              dash
+            ),
+          csv: (r) => (r.planRevenue > 0 ? r.planRevenue.toFixed(2) : ""),
+        },
+        {
+          key: "revenue_expected",
+          label: "Expected (SAR)",
+          align: "right",
+          info: "This period's target through the store's last day of data.",
+          render: (r) =>
+            r.revenueUnknown || r.expectedRevenue <= 0 ? (
+              dash
+            ) : (
+              <span className="tabular-nums text-ink-3">{sarBare(r.expectedRevenue)}</span>
+            ),
+          csv: (r) =>
+            r.revenueUnknown || r.expectedRevenue <= 0 ? "" : r.expectedRevenue.toFixed(2),
         },
         {
           key: "revenue_dev",
@@ -942,6 +1015,101 @@ export function BudgetPacing({
                   pacingDeviation(r.spendCum.get(key) ?? 0, r.expectedCum.get(key) ?? 0),
                 ),
         },
+        // ── Optional (defaultHidden): figures the rows already carry. ──
+        {
+          key: `${key}_period_plan`,
+          label: isSplit ? `${name} plan` : `Plan (${currency})`,
+          align: "right",
+          info: "This period's plan.",
+          render: (r) =>
+            hasSpendPlan ? (
+              <span className="tabular-nums text-ink-3">{fmtSpend(r.planSpend.get(key) ?? 0)}</span>
+            ) : (
+              dash
+            ),
+          csv: (r) =>
+            hasSpendPlan
+              ? spendInDisplayCurrency(r.planSpend.get(key) ?? 0, currency, rate).toFixed(2)
+              : "",
+        },
+        {
+          key: `${key}_cum`,
+          label: isSplit ? `${name} cumulative` : `Cumulative (${currency})`,
+          align: "right",
+          render: (r) =>
+            r.spendUnknownBy.has(key) ? dash : (
+              <span className="tabular-nums">{fmtSpend(r.spendCum.get(key) ?? 0)}</span>
+            ),
+          csv: (r) =>
+            r.spendUnknownBy.has(key)
+              ? ""
+              : spendInDisplayCurrency(r.spendCum.get(key) ?? 0, currency, rate).toFixed(2),
+        },
+        {
+          key: `${key}_expected`,
+          label: isSplit ? `${name} expected` : `Expected (${currency})`,
+          align: "right",
+          info: "This period's plan through each platform's last day of data.",
+          render: (r) =>
+            hasSpendPlan ? (
+              <span className="tabular-nums text-ink-3">{fmtSpend(r.expected.get(key) ?? 0)}</span>
+            ) : (
+              dash
+            ),
+          csv: (r) =>
+            hasSpendPlan
+              ? spendInDisplayCurrency(r.expected.get(key) ?? 0, currency, rate).toFixed(2)
+              : "",
+        },
+        {
+          key: `${key}_expected_cum`,
+          label: isSplit ? `${name} expected-to-date` : `Expected-to-date (${currency})`,
+          align: "right",
+          info: "What the Pacing column compares with.",
+          render: (r) =>
+            hasSpendPlan ? (
+              <span className="tabular-nums text-ink-3">{fmtSpend(r.expectedCum.get(key) ?? 0)}</span>
+            ) : (
+              dash
+            ),
+          csv: (r) =>
+            hasSpendPlan
+              ? spendInDisplayCurrency(r.expectedCum.get(key) ?? 0, currency, rate).toFixed(2)
+              : "",
+          total: () =>
+            lastRow && hasSpendPlan ? (
+              <span className="tabular-nums font-semibold">
+                {fmtSpend(lastRow.expectedCum.get(key) ?? 0)}
+              </span>
+            ) : (
+              dash
+            ),
+        },
+        {
+          key: `${key}_purchases`,
+          label: isSplit ? `${name} purchases (platform)` : "Purchases (platform)",
+          align: "right",
+          render: (r) => {
+            const v = r.spendUnknownBy.has(key) ? null : (r.purchases.get(key) ?? null);
+            return v === null ? dash : <span className="tabular-nums">{int(v)}</span>;
+          },
+          csv: (r) => (r.spendUnknownBy.has(key) ? "" : (r.purchases.get(key) ?? "")),
+        },
+        {
+          key: `${key}_value`,
+          label: isSplit
+            ? `${name} purchase value (platform)`
+            : `Purchase value (platform, ${currency})`,
+          align: "right",
+          render: (r) => {
+            const v = r.spendUnknownBy.has(key) ? null : (r.purchaseValue.get(key) ?? null);
+            return v === null ? dash : <span className="tabular-nums">{fmtSpend(v)}</span>;
+          },
+          csv: (r) => {
+            const v = r.spendUnknownBy.has(key) ? null : (r.purchaseValue.get(key) ?? null);
+            return v === null ? "" : spendInDisplayCurrency(v, currency, rate).toFixed(2);
+          },
+        },
       );
     }
     return cols;
@@ -949,10 +1117,17 @@ export function BudgetPacing({
   }, [activeMetric, split, platformKeys, currency, rate, rows, groupBy, hasSpendPlan]);
   // The table's own columns control, remembered per user per brand.
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
+  // The figures the rows carry beyond the verdict columns — offered, collapsed.
+  const columnKeyList = columnKeys.join(",");
+  const pacingDefaultHidden = useMemo(
+    () => columnKeyList.split(",").filter((k) => PACING_OPTIONAL_COLUMN.test(k)),
+    [columnKeyList],
+  );
   const cols = useTableColumns({
     tableKey: TABLE_KEYS.BUDGET_PACING,
     hideable: columnKeys,
     defaults: columnKeys,
+    defaultHidden: pacingDefaultHidden,
   });
 
 

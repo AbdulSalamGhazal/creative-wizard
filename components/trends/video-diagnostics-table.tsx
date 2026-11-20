@@ -7,10 +7,13 @@ import { withDateRange } from "@/lib/url";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
-import { int, pct, roas, usd } from "@/lib/format";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { StatusBadge } from "@/components/creative/status-badge";
 import { STATUS_ORDER } from "@/lib/creative-status";
+import { PriorityStars } from "@/components/creative/priority-stars";
+import { StageChips } from "@/components/creative/stage-chips";
+import { ExternalCell } from "@/components/creative/external-cell";
 import type { VideoDiagnosticRow } from "@/db/queries/trends";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -25,7 +28,7 @@ type Key = Exclude<keyof VideoDiagnosticRow, "creativeId" | "name">;
 interface Col {
   key: Key;
   label: string;
-  kind: "num" | "text" | "status";
+  kind: "num" | "text" | "status" | "date" | "priority" | "stages" | "url";
   fmt?: (v: Num) => string;
   /** Flag amber when below this median (the funnel-rate columns). */
   median?: "hook" | "hold" | "complete";
@@ -59,6 +62,16 @@ const COLS: Col[] = [
   { key: "clicks", label: "Clicks", kind: "num", fmt: fInt },
   { key: "conversions", label: METRIC_LABEL.conversions, kind: "num", fmt: fInt },
   { key: "revenue", label: METRIC_LABEL.revenue, kind: "num", fmt: usd },
+  // ── Offered, hidden by default (2026-11): LP views the query already sums,
+  // three ratios of sums it carries, and the creative's own columns ──
+  { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, kind: "num", fmt: fInt },
+  { key: "voc", label: METRIC_LABEL.voc, kind: "num", fmt: fPct },
+  { key: "cpm", label: METRIC_LABEL.cpm, kind: "num", fmt: usd },
+  { key: "cpc", label: METRIC_LABEL.cpc, kind: "num", fmt: usd },
+  { key: "launchDate", label: "Launch date", kind: "date" },
+  { key: "priority", label: "Priority", kind: "priority" },
+  { key: "stages", label: "Stage", kind: "stages" },
+  { key: "thumbnailUrl", label: "Thumbnail", kind: "url" },
 ];
 
 const DEFAULT_VISIBLE = new Set<Key>([
@@ -129,18 +142,39 @@ export function VideoDiagnosticsTable({
       key: c.key,
       label: c.label,
       align: c.kind === "num" ? "right" : "left",
-      sortable: true,
-      defaultSortDir: c.kind === "num" ? "desc" : "asc",
+      sortable: c.kind !== "url",
+      defaultSortDir: c.kind === "num" || c.kind === "priority" ? "desc" : "asc",
       sortValue: (r) => {
         if (c.kind === "status") return STATUS_ORDER[r.status];
         if (c.kind === "text") return String(r[c.key] ?? "");
+        // Unset sorts as null, which the primitive sinks in both directions.
+        if (c.kind === "date") return r.launchDate;
+        if (c.kind === "priority") return r.priority;
+        if (c.kind === "stages") return r.stages.length ? r.stages.join(", ") : null;
+        if (c.kind === "url") return null;
         return (r[c.key] as Num) ?? null;
       },
-      csv: c.kind === "status" ? (r: VideoDiagnosticRow) => r.status : undefined,
+      csv:
+        c.kind === "status"
+          ? (r: VideoDiagnosticRow) => r.status
+          : c.kind === "stages"
+            ? (r: VideoDiagnosticRow) => r.stages.join(", ")
+            : c.kind === "priority"
+              ? (r: VideoDiagnosticRow) => r.priority
+              : c.kind === "date"
+                ? (r: VideoDiagnosticRow) => r.launchDate
+                : c.kind === "url"
+                  ? (r: VideoDiagnosticRow) => r.thumbnailUrl
+                  : undefined,
       render: (r) => {
         if (c.kind === "status") return <StatusBadge status={r.status} />;
         if (c.kind === "text")
           return <span className="text-ink-2">{String(r[c.key] ?? DASH)}</span>;
+        if (c.kind === "date")
+          return <span className="whitespace-nowrap text-ink-2">{isoDate(r.launchDate)}</span>;
+        if (c.kind === "priority") return <PriorityStars value={r.priority} />;
+        if (c.kind === "stages") return <StageChips stages={r.stages} />;
+        if (c.kind === "url") return <ExternalCell url={r.thumbnailUrl} />;
         const v = r[c.key] as Num;
         const med = medianFor(c.median);
         const below = c.median && v !== null && med !== null && v < med;

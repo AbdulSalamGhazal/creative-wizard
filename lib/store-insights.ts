@@ -85,6 +85,9 @@ export interface BreakdownValue {
   value: string | null;
   orders: number;
   revenue: number;
+  /** The group's first / last order date (YYYY-MM-DD) — MIN/MAX of the same GROUP BY. */
+  firstOrder?: string | null;
+  lastOrder?: string | null;
 }
 
 export interface FoldedRow extends BreakdownValue {
@@ -125,6 +128,13 @@ export function foldTopValues(
   const tail = byOrders.slice(limit);
   const shownOrders = head.reduce((a, r) => a + r.orders, 0);
   const shownRevenue = head.reduce((a, r) => a + r.revenue, 0);
+  // Other's first/last order is the tail's — only when the tail is ALL of it
+  // (past the query's group cap the unreturned values' dates are unknown).
+  const tailComplete = byOrders.length >= values;
+  const dates = (pick: (r: BreakdownValue) => string | null | undefined) =>
+    tail.map(pick).filter((d): d is string => typeof d === "string").sort();
+  const firsts = tailComplete ? dates((r) => r.firstOrder) : [];
+  const lasts = tailComplete ? dates((r) => r.lastOrder) : [];
   return [
     ...head,
     {
@@ -136,6 +146,8 @@ export function foldTopValues(
         ? Math.max(0, Math.round((range.revenue - shownRevenue) * 100) / 100)
         : tail.reduce((a, r) => a + r.revenue, 0),
       foldedCount: values - head.length,
+      firstOrder: firsts[0] ?? null,
+      lastOrder: lasts.at(-1) ?? null,
     },
   ];
 }

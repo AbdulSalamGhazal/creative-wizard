@@ -16,6 +16,11 @@ function rollbackHoursLeft(uploadedAt: string): number {
   return Math.max(1, Math.ceil(left / 3_600_000));
 }
 
+/** How a Store batch wrote: an upsert, or new orders only. */
+function modeLabel(upsert: boolean | undefined): string {
+  return upsert === undefined ? "—" : upsert ? "Upsert" : "New only";
+}
+
 /** One upload batch, as both histories show it. */
 export interface BatchHistoryRow {
   id: string;
@@ -29,7 +34,12 @@ export interface BatchHistoryRow {
   rows: number;
   /** Rows an upsert batch updated (Store); omitted for ads. */
   updated?: number;
+  /** Store only: the batch ran as an upsert. */
+  upsert?: boolean;
   status: string;
+  /** ISO timestamp of the rollback, and who did it (null = not rolled back / unknown). */
+  rolledBackAt: string | null;
+  rolledBackBy: string | null;
   /** The row's rollback control while it is eligible, else null. */
   rollback: ReactNode;
 }
@@ -56,15 +66,30 @@ export function BatchHistoryTable({
   rollbackInfo?: string;
   empty?: ReactNode;
 }) {
+  // The Store's history (the one without a platform per batch) counts
+  // updated rows and records the upsert mode.
+  const storeShape = !showPlatform;
+  const optional = useMemo(
+    () => [...(storeShape ? ["updated", "mode"] : []), "rolledBackAt", "rolledBackBy"],
+    [storeShape],
+  );
   const keys = useMemo(
-    () => ["uploadedAt", ...(showPlatform ? ["platform"] : []), "uploadedBy", "rows", "status"],
-    [showPlatform],
+    () => [
+      "uploadedAt",
+      ...(showPlatform ? ["platform"] : []),
+      "uploadedBy",
+      "rows",
+      "status",
+      ...optional,
+    ],
+    [showPlatform, optional],
   );
   const cols = useTableColumns({
     tableKey,
     // Status carries the rollback control now — never hideable.
     hideable: keys.filter((k) => k !== "status"),
     defaults: keys,
+    defaultHidden: optional,
   });
   const [sortKey, setSortKey] = useState("uploadedAt");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -174,8 +199,52 @@ export function BatchHistoryTable({
           </span>
         ),
       },
+      // ── Optional (defaultHidden): what the batch row already carries. ──
+      ...(storeShape
+        ? [
+            {
+              key: "updated",
+              label: "Updated",
+              align: "right",
+              sortable: true,
+              sortValue: (r) => r.updated ?? null,
+              csv: (r) => r.updated ?? "",
+              render: (r) => <span className="tabular-nums text-ink-2">{int(r.updated ?? 0)}</span>,
+            } satisfies DataColumn<BatchHistoryRow>,
+            {
+              key: "mode",
+              label: "Mode",
+              sortable: true,
+              defaultSortDir: "asc",
+              sortValue: (r) => modeLabel(r.upsert),
+              csv: (r) => modeLabel(r.upsert),
+              render: (r) => <span className="whitespace-nowrap text-ink-2">{modeLabel(r.upsert)}</span>,
+            } satisfies DataColumn<BatchHistoryRow>,
+          ]
+        : []),
+      {
+        key: "rolledBackAt",
+        label: "Rolled back",
+        sortable: true,
+        sortValue: (r) => r.rolledBackAt,
+        csv: (r) => (r.rolledBackAt ? isoDate(r.rolledBackAt) : ""),
+        render: (r) => (
+          <span className="whitespace-nowrap tabular-nums text-ink-2">
+            {r.rolledBackAt ? isoDate(r.rolledBackAt) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "rolledBackBy",
+        label: "Rolled back by",
+        sortable: true,
+        defaultSortDir: "asc",
+        sortValue: (r) => r.rolledBackBy,
+        csv: (r) => r.rolledBackBy ?? "",
+        render: (r) => <span className="whitespace-nowrap text-ink-2">{r.rolledBackBy ?? "—"}</span>,
+      },
     ],
-    [showPlatform, rollbackInfo],
+    [showPlatform, rollbackInfo, storeShape],
   );
 
   return (

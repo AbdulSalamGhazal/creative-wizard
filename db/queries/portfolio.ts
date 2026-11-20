@@ -24,7 +24,11 @@ import {
   ctr as ctrSql,
   cvr as cvrSql,
   cpa as cpaSql,
+  cpc as cpcSql,
   roas as roasSql,
+  voc as vocSql,
+  sumAddPayment,
+  sumAddToCart,
   sumClicks,
   sumConversionValue,
   sumConversions,
@@ -111,7 +115,8 @@ export interface PortfolioCampaignRow {
   spend: number;
   impressions: number;
   clicks: number;
-  lpv: number;
+  /** NULL when the platform never reports LP views (google) — NULL ≠ 0. */
+  lpv: number | null;
   orders: number;
   revenue: number;
   cpa: number | null;
@@ -121,6 +126,17 @@ export interface PortfolioCampaignRow {
   cpm: number | null;
   cvr: number | null;
   lastDate: string | null;
+  // ── Offered, hidden by default (2026-11): free at this grain ──
+  /** Views over clicks — google's rows sit out of both sides (lib/metrics). */
+  voc: number | null;
+  cpc: number | null;
+  /** NULL when the campaign's platform never reports the step (NULL ≠ 0). */
+  addToCart: number | null;
+  addPayment: number | null;
+  /** The first day in the range with a record (MIN(date)). */
+  firstDate: string | null;
+  /** When the campaign was registered — a PK-join column. */
+  createdAt: string;
 }
 
 export async function portfolioCampaigns(
@@ -149,6 +165,12 @@ export async function portfolioCampaigns(
       cpm: cpmSql,
       cvr: cvrSql,
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+      voc: vocSql,
+      cpc: cpcSql,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      createdAt: campaigns.createdAt,
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
@@ -164,7 +186,7 @@ export async function portfolioCampaigns(
     spend: num(row.spend),
     impressions: num(row.impressions),
     clicks: num(row.clicks),
-    lpv: num(row.lpv),
+    lpv: numOrNull(row.lpv),
     orders: num(row.orders),
     revenue: num(row.revenue),
     cpa: numOrNull(row.cpa),
@@ -174,6 +196,12 @@ export async function portfolioCampaigns(
     cpm: numOrNull(row.cpm),
     cvr: numOrNull(row.cvr),
     lastDate: row.lastDate,
+    voc: numOrNull(row.voc),
+    cpc: numOrNull(row.cpc),
+    addToCart: numOrNull(row.addToCart),
+    addPayment: numOrNull(row.addPayment),
+    firstDate: row.firstDate,
+    createdAt: row.createdAt.toISOString(),
   }));
 
   // Attach dynamic status (computed over ALL data — current liveness, not the

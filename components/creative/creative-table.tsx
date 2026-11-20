@@ -19,6 +19,8 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { DEFAULT_CREATIVE_SORT } from "@/lib/creative-sort";
 import { useLibrarySort, writeLibrarySort } from "@/components/creative/use-library-sort";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Chip } from "@/components/ui/chip";
+import { ExternalCell } from "@/components/creative/external-cell";
 
 const TYPE_LABEL: Record<CreativeListRow["type"], string> = {
   video: "Video",
@@ -96,7 +98,16 @@ const DEFAULT_HIDDEN = [
   "thumbnailUrl",
   "createdBy",
   "createdAt",
+  // Free offers (the listing already reads them): the creative row's own
+  // edit stamp, and the product's status off the products PK join.
+  "updatedAt",
+  "productStatus",
 ] as const;
+
+const PRODUCT_STATUS_LABEL: Record<CreativeListRow["productStatus"], string> = {
+  active: "Active",
+  archived: "Archived",
+};
 
 export function CreativeTable({
   rows: serverRows,
@@ -274,6 +285,23 @@ export function CreativeTable({
           <span className="tabular-nums text-ink-2">{isoDate(r.createdAt)}</span>
         ),
       },
+      {
+        key: "updatedAt",
+        label: "Last edited",
+        render: (r) => (
+          <span className="tabular-nums text-ink-2">{isoDate(r.updatedAt)}</span>
+        ),
+      },
+      {
+        key: "productStatus",
+        label: "Product status",
+        render: (r) =>
+          r.productStatus === "archived" ? (
+            <Chip tone="neutral">{PRODUCT_STATUS_LABEL[r.productStatus]}</Chip>
+          ) : (
+            <span className="text-ink-2">{PRODUCT_STATUS_LABEL[r.productStatus]}</span>
+          ),
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [listCtx],
@@ -317,22 +345,5 @@ export function CreativeTable({
         }
       />
     </div>
-  );
-}
-
-/** A URL cell: a short link out, never the raw URL stretching the column. */
-function ExternalCell({ url }: { url: string | null }) {
-  if (!url) return <span className="text-ink-3">—</span>;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={url}
-      onClick={(e) => e.stopPropagation()}
-      className="text-ink-2 underline decoration-line underline-offset-2 hover:text-ink"
-    >
-      Open
-    </a>
   );
 }

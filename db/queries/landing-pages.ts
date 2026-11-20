@@ -5,14 +5,22 @@ import { creatives, landingPages, performanceRecords, products } from "@/db/sche
 import { getActiveAccountId } from "@/lib/tenant";
 import {
   cpa,
+  cpc,
+  cpm,
   ctr,
   cvr,
+  holdRate,
+  hookRate,
   roas,
+  sumAddPayment,
+  sumAddToCart,
   sumClicks,
   sumConversionValue,
   sumConversions,
   sumImpressions,
+  sumLandingPageViews,
   sumSpend,
+  voc,
 } from "@/lib/metrics";
 import { numOrNull } from "@/db/queries/values";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
@@ -162,6 +170,19 @@ export async function landingPageCreatives(
       cpa,
       roas,
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+      // The same free offers as campaignCreatives — this table is that table.
+      landingPageViews: sumLandingPageViews,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
+      voc,
+      cpm,
+      cpc,
+      hookRate,
+      holdRate,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      notes: creatives.notes,
+      sourceLink: creatives.sourceLink,
+      createdAt: creatives.createdAt,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -176,6 +197,9 @@ export async function landingPageCreatives(
       creatives.stages,
       creatives.priority,
       creatives.launchDate,
+      creatives.notes,
+      creatives.sourceLink,
+      creatives.createdAt,
     )
     .orderBy(desc(sumSpend));
 
@@ -201,5 +225,17 @@ export async function landingPageCreatives(
     cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),
     lastDate: r.lastDate,
+    landingPageViews: numOrNull(r.landingPageViews),
+    addToCart: numOrNull(r.addToCart),
+    addPayment: numOrNull(r.addPayment),
+    voc: numOrNull(r.voc),
+    cpm: numOrNull(r.cpm),
+    cpc: numOrNull(r.cpc),
+    hookRate: numOrNull(r.hookRate),
+    holdRate: numOrNull(r.holdRate),
+    firstDate: r.firstDate,
+    notes: r.notes,
+    sourceLink: r.sourceLink,
+    createdAt: r.createdAt,
   }));
 }

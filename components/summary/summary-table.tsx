@@ -10,7 +10,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { withDateRange } from "@/lib/url";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
-import { int, pct, roas, usd } from "@/lib/format";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import {
   RATING_META,
@@ -24,22 +24,29 @@ import type {
   SummaryRow,
 } from "@/db/queries/summary";
 import {
+  type AdsOptInKey,
   type IdentityColumnKey,
   type MetricColumnKey,
   type SortDir,
 } from "@/validators/summary";
+import { AngleChips } from "@/components/creative/angle-chips";
+import { ExternalCell } from "@/components/creative/external-cell";
 import { StatusSquare } from "@/components/creative/status-badge";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { TableColumnsControl, TableCorner } from "@/components/ui/table-columns-control";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import {
+  ADS_DEFAULT_HIDDEN,
   ADS_HIDEABLE_KEYS,
   ADS_RATE_KEY,
   ADS_TOTAL_KEY,
   IDENTITY_LABELS,
+  IDENTITY_OPT_IN_LABELS,
   METRIC_LABELS,
+  METRIC_OPT_IN_LABELS,
   adsColumnsFromParams,
+  adsHiddenKeys,
   joinAdsHidden,
   splitAdsHidden,
   writeAdsColumnParams,
@@ -62,6 +69,8 @@ interface Props {
   columnOrder?: string[];
   /** Metric columns to suppress — applies to every platform + total group. */
   hiddenMetrics?: Set<MetricColumnKey>;
+  /** The default-hidden (offered) columns this state OPENS (2026-11). */
+  shownColumns?: AdsOptInKey[];
   /** Rating config (default + per-platform overrides) driving the Rate column. */
   ratingConfig: RatingConfig;
   /** Whether to render the Rate column (first in each group). Default true. */
@@ -94,6 +103,8 @@ const METRIC_COLUMNS: Array<{
   key: string;
   label: string;
   format: MetricFormatter;
+  /** A default-hidden column: visible only when the state opens it. */
+  optIn?: boolean;
 }> = [
   { key: "spend", label: "Spend", format: (v) => usd(v) },
   { key: "impressions", label: METRIC_LABEL.impressions, format: (v) => int(v) },
@@ -110,6 +121,9 @@ const METRIC_COLUMNS: Array<{
   { key: "landing_page_views", label: "LP views", format: (v) => int(v) },
   { key: "voc", label: "VOC", format: (v) => pct(v) },
   { key: "cvr", label: "CvR", format: (v) => pct(v) },
+  // ── Offered, hidden by default (2026-11): shown only when opted in ──
+  { key: "revenue", label: METRIC_LABEL.revenue, format: (v) => usd(v), optIn: true },
+  { key: "aov", label: "AOV", format: (v) => usd(v), optIn: true },
 ];
 
 /** Picks the right field from a metric block given the column key. */
@@ -145,6 +159,10 @@ function pickMetric(block: PlatformMetricBlock, key: string): number | null {
       return block.voc;
     case "cvr":
       return block.cvr;
+    case "revenue":
+      return block.conversionValue;
+    case "aov":
+      return block.aov;
   }
   return null;
 }
@@ -181,6 +199,7 @@ export function SummaryTable({
   platforms,
   hiddenIdentity: serverHiddenIdentity,
   hiddenMetrics: serverHiddenMetrics,
+  shownColumns: serverShownColumns,
   columnOrder,
   ratingConfig,
   showRate: serverShowRate = true,
@@ -212,11 +231,13 @@ export function SummaryTable({
     metrics: [...(serverHiddenMetrics ?? [])],
     rate: !serverShowRate,
     blended: serverShowBlended === false,
+    shown: [...(serverShownColumns ?? [])],
   };
   const urlColumns = adsColumnsFromParams(searchParams);
   const columnState = urlColumns ?? toggled ?? serverColumns;
   const hiddenIdentity = new Set(columnState.identity);
   const hiddenMetrics = new Set(columnState.metrics);
+  const shownColumns = new Set<string>(columnState.shown ?? []);
   const showRate = !columnState.rate;
   const showBlended = serverShowBlended === undefined && !columnState.blended
     ? undefined
@@ -231,8 +252,8 @@ export function SummaryTable({
 
   const showTotal =
     showBlended === undefined ? platforms.length >= 2 : showBlended;
-  const visibleMetrics = METRIC_COLUMNS.filter(
-    (m) => !hiddenMetrics?.has(m.key as MetricColumnKey),
+  const visibleMetrics = METRIC_COLUMNS.filter((m) =>
+    m.optIn ? shownColumns.has(m.key) : !hiddenMetrics?.has(m.key as MetricColumnKey),
   );
   const visibleMetricCount = visibleMetrics.length;
   // Each platform/total group leads with a thin Status column then the Rate
@@ -262,15 +283,19 @@ export function SummaryTable({
     ...(platforms as string[]),
     ...(showTotal ? [ADS_TOTAL_KEY] : []),
   ];
-  const currentHidden = joinAdsHidden({
+  // DECODED: every closed default-hidden column is listed by name, which is
+  // what the hook (given `defaultHidden`) holds; the URL gets `!key` opt-ins.
+  const currentHidden = adsHiddenKeys({
     identity: [...(hiddenIdentity ?? [])],
     metrics: [...(hiddenMetrics ?? [])],
     rate: !showRate,
     blended: showBlended === false,
+    shown: [...(columnState.shown ?? [])],
   });
   const cols = useTableColumns({
     tableKey: TABLE_KEYS.ADS_SUMMARY,
     hideable: ADS_HIDEABLE_KEYS,
+    defaultHidden: ADS_DEFAULT_HIDDEN,
     // The ORDER universe is the GROUPS; the hidden universe is the columns.
     defaults: groupKeys,
     value: { hidden: currentHidden, order: platformOrder },
@@ -307,6 +332,12 @@ export function SummaryTable({
       section: "Identity columns",
       reorderable: false,
     })),
+    ...Object.entries(IDENTITY_OPT_IN_LABELS).map(([key, label]) => ({
+      key,
+      label,
+      section: "Identity columns",
+      reorderable: false,
+    })),
     {
       key: ADS_RATE_KEY,
       label: "Rate",
@@ -314,6 +345,12 @@ export function SummaryTable({
       reorderable: false,
     },
     ...Object.entries(METRIC_LABELS).map(([key, label]) => ({
+      key,
+      label,
+      section: "In every group",
+      reorderable: false,
+    })),
+    ...Object.entries(METRIC_OPT_IN_LABELS).map(([key, label]) => ({
       key,
       label,
       section: "In every group",
@@ -400,6 +437,10 @@ export function SummaryTable({
     key: string;
     label: string;
     hideKey?: IdentityColumnKey;
+    /** A default-hidden (offered) column — shown only when opened. */
+    optIn?: AdsOptInKey;
+    /** Header is plain text (no sort link). */
+    unsortable?: boolean;
   }> = [
     { key: "name", label: "Creative" },
     { key: "product", label: "Product", hideKey: "product" },
@@ -411,9 +452,15 @@ export function SummaryTable({
     { key: "stage", label: "Stage", hideKey: "stage" },
     { key: "launch", label: "Launch date", hideKey: "launch" },
     { key: "creator", label: "Creator", hideKey: "creator" },
+    // ── Offered, hidden by default (2026-11) ──
+    { key: "email", label: IDENTITY_OPT_IN_LABELS.email, optIn: "email" },
+    { key: "angles", label: IDENTITY_OPT_IN_LABELS.angles, optIn: "angles" },
+    { key: "notes", label: IDENTITY_OPT_IN_LABELS.notes, optIn: "notes" },
+    { key: "thumbnail", label: IDENTITY_OPT_IN_LABELS.thumbnail, optIn: "thumbnail", unsortable: true },
+    { key: "created", label: IDENTITY_OPT_IN_LABELS.created, optIn: "created" },
   ];
-  const identityCols = ALL_IDENTITY_COLS.filter(
-    (c) => !c.hideKey || !hiddenIdentity?.has(c.hideKey),
+  const identityCols = ALL_IDENTITY_COLS.filter((c) =>
+    c.optIn ? shownColumns.has(c.optIn) : !c.hideKey || !hiddenIdentity?.has(c.hideKey),
   );
 
   // Reorderable column groups: each selected platform PLUS (when shown) the
@@ -447,7 +494,8 @@ export function SummaryTable({
   const csvColumns: CsvColumn<SummaryRow>[] = [
     { key: "name", label: "Creative", value: (r) => r.name },
     ...identityCols
-      .filter((c) => c.key !== "name")
+      // Angles already has its own CSV column (below), shown or not.
+      .filter((c) => c.key !== "name" && c.key !== "angles")
       .map((c) => ({
         key: c.key,
         label: c.label,
@@ -466,7 +514,15 @@ export function SummaryTable({
                     ? r.launchDate
                     : c.key === "creator"
                       ? r.creatorName
-                      : null,
+                      : c.key === "email"
+                        ? r.creatorEmail
+                        : c.key === "notes"
+                          ? r.notes
+                          : c.key === "thumbnail"
+                            ? r.thumbnailUrl
+                            : c.key === "created"
+                              ? isoDate(r.createdAt)
+                              : null,
       })),
     { key: "status", label: "Status", value: (r: SummaryRow) => r.generalStatus },
     { key: "angles", label: "Angles", value: (r: SummaryRow) => r.angles.join(" | ") },
@@ -587,6 +643,7 @@ export function SummaryTable({
                   width={widths[c.key]}
                   style={widthStyle(c.key)}
                   resizable={resizable}
+                  sortable={!c.unsortable}
                   pinned={c.key === "name"}
                   onResizeStart={(e) => startResize(c.key, e)}
                   thRef={(el) => {
@@ -717,6 +774,48 @@ export function SummaryTable({
                         {r.creatorName ?? "—"}
                       </td>
                     );
+                  case "email":
+                    return (
+                      <td
+                        key="email"
+                        className="px-3 py-2 text-ink-3 whitespace-nowrap"
+                      >
+                        {r.creatorEmail ?? "—"}
+                      </td>
+                    );
+                  case "angles":
+                    return (
+                      <td key="angles" className="px-3 py-2 whitespace-nowrap">
+                        <AngleChips angles={r.angles} />
+                      </td>
+                    );
+                  case "notes":
+                    return (
+                      <td key="notes" className="px-3 py-2">
+                        {r.notes ? (
+                          <span className="block max-w-[16rem] truncate text-ink-2" title={r.notes}>
+                            {r.notes}
+                          </span>
+                        ) : (
+                          <span className="text-ink-3">—</span>
+                        )}
+                      </td>
+                    );
+                  case "thumbnail":
+                    return (
+                      <td key="thumbnail" className="px-3 py-2 whitespace-nowrap">
+                        <ExternalCell url={r.thumbnailUrl} />
+                      </td>
+                    );
+                  case "created":
+                    return (
+                      <td
+                        key="created"
+                        className="px-3 py-2 text-ink-2 whitespace-nowrap tabular-nums"
+                      >
+                        {isoDate(r.createdAt)}
+                      </td>
+                    );
                   default:
                     return null;
                 }
@@ -810,6 +909,7 @@ function IdentityTh({
   width,
   style,
   resizable,
+  sortable = true,
   pinned = false,
   onResizeStart,
   thRef,
@@ -822,6 +922,8 @@ function IdentityTh({
   width?: number;
   style?: React.CSSProperties;
   resizable: boolean;
+  /** False → a plain label, no sort link (the thumbnail column). */
+  sortable?: boolean;
   /** Freeze this header to the left edge during horizontal scroll. */
   pinned?: boolean;
   onResizeStart: (e: React.MouseEvent) => void;
@@ -831,23 +933,27 @@ function IdentityTh({
     <th
       ref={thRef}
       style={style}
-      aria-sort={ariaSort(active, dir)}
+      aria-sort={sortable ? ariaSort(active, dir) : undefined}
       className={cn(
         "relative font-medium px-3 py-2 text-left",
         !width && "whitespace-nowrap",
         pinned && "sticky left-0 z-30 bg-surface",
       )}
     >
-      <SortLink
-        href={href}
-        className={
-          "inline-flex items-center gap-1 max-w-full hover:text-ink transition-colors " +
-          (active ? "text-brand" : "")
-        }
-      >
+      {sortable ? (
+        <SortLink
+          href={href}
+          className={
+            "inline-flex items-center gap-1 max-w-full hover:text-ink transition-colors " +
+            (active ? "text-brand" : "")
+          }
+        >
+          <span className={width ? "truncate" : ""}>{label}</span>
+          <SortIcon active={active} dir={dir} />
+        </SortLink>
+      ) : (
         <span className={width ? "truncate" : ""}>{label}</span>
-        <SortIcon active={active} dir={dir} />
-      </SortLink>
+      )}
       {resizable && (
         <span
           role="separator"
@@ -1096,6 +1202,7 @@ function aggregateBlocks(
     cpc: clicks > 0 ? spend / clicks : null,
     cpa: hasConv && conversions > 0 ? spend / conversions : null,
     roas: hasConvVal && spend > 0 ? conversionValue / spend : null,
+    aov: hasConvVal && hasConv && conversions > 0 ? conversionValue / conversions : null,
     hookRate: null,
     holdRate: null,
     completeRate: null,

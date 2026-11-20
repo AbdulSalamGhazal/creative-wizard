@@ -7,9 +7,13 @@ import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS, type TableColumnPref } from "@/lib/table-columns";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { rowsToCsv } from "@/lib/csv-export";
-import { int, usd } from "@/lib/format";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
 import { METRIC_LABEL } from "@/lib/metric-labels";
-import { PLATFORM_LABEL } from "@/lib/palette";
+import { PLATFORM_LABEL, TYPE_LABEL } from "@/lib/palette";
+import { recordRatios, type RecordRatios } from "@/lib/record-ratios";
+import { isCreativeStage, stageRank } from "@/lib/funnel-stages";
+import { PriorityStars } from "@/components/creative/priority-stars";
+import { StageChips } from "@/components/creative/stage-chips";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { cn } from "@/lib/utils";
 import type { CampaignDayRow, CampaignRecordRow } from "@/db/queries/campaign";
@@ -78,12 +82,77 @@ function sortRows<T>(rows: T[], getVal: (r: T) => SortVal, dir: SortDir): T[] {
  * Both modes share ONE preference: they are the same table with the same
  * metrics, and remembering "hide the video columns" twice would be a trap.
  */
+/**
+ * The row's own ratios, derived from its own components (`recordRatios`, the
+ * house JS mirror of lib/metrics) — a raw record's, or a day's sums. Which
+ * ones a mode offers is that mode's call: CTR/CPA/ROAS per record, CPM/CPA/
+ * ROAS per day.
+ */
+const RATIO_COLS: Record<
+  keyof RecordRatios,
+  { label: string; fmt: (v: number | null) => string }
+> = {
+  ctr: { label: METRIC_LABEL.ctr, fmt: pct },
+  cpm: { label: METRIC_LABEL.cpm, fmt: usd },
+  cpa: { label: METRIC_LABEL.cpa, fmt: usd },
+  roas: { label: METRIC_LABEL.roas, fmt: roas },
+};
+const RAW_RATIOS: Array<keyof RecordRatios> = ["ctr", "cpa", "roas"];
+const DAY_RATIOS: Array<keyof RecordRatios> = ["cpm", "cpa", "roas"];
+
+/**
+ * Offered, hidden by default (2026-11): what the query already carries at the
+ * row's grain. A key that doesn't exist in one mode (a day has no creative)
+ * is simply absent from that mode's config — as `creativeName` always was.
+ */
+const FREE_KEYS = [
+  "ctr",
+  "cpm",
+  "cpa",
+  "roas",
+  "landingPage",
+  "productName",
+  "creativeType",
+  "creativeStages",
+  "creativePriority",
+  "creativeLaunchDate",
+  "excludedSource",
+  "excludedReason",
+  "excludedAt",
+];
+const DEFAULT_HIDDEN = FREE_KEYS;
+
 const RECORD_COLUMN_KEYS = [
   "creativeName",
   "platform",
   "records",
   ...METRIC_COLS.map((c) => c.key as string),
+  ...FREE_KEYS,
 ];
+
+/** A creative's stage set as ONE comparable number — its earliest stage in
+ *  funnel order; `null` (sinks) when nothing is declared. */
+function earliestStageRank(stages: readonly string[]): number | null {
+  const ranks = stages.filter(isCreativeStage).map(stageRank);
+  return ranks.length === 0 ? null : Math.min(...ranks);
+}
+
+/** The rule behind a rule-excluded row, in words. */
+function ruleLabelOf(r: CampaignRecordRow): string {
+  return exclusionRuleLabel(
+    { kind: r.excludedRuleKind, objective: r.excludedRuleObjective },
+    { creativeName: r.creativeName },
+  );
+}
+
+/** How the row was excluded, in words — "Manual", "Rule · <rule>", or null. */
+function exclusionSourceText(r: CampaignRecordRow): string | null {
+  if (r.excludedSource === "rule") return `Rule · ${ruleLabelOf(r)}`;
+  if (r.excludedSource === "manual") return "Manual";
+  return null;
+}
+
+const DASH_CELL = <span className="text-ink-3">—</span>;
 
 export function CampaignRecordsTable({
   records,
@@ -104,6 +173,7 @@ export function CampaignRecordsTable({
     tableKey: TABLE_KEYS.CAMPAIGN_RECORDS,
     hideable: RECORD_COLUMN_KEYS,
     defaults: RECORD_COLUMN_KEYS,
+    defaultHidden: DEFAULT_HIDDEN,
     initial: columnPref,
   });
 
@@ -112,6 +182,21 @@ export function CampaignRecordsTable({
     if (key === "creativeName") return "creativeName" in r ? r.creativeName : null;
     if (key === "platform") return "platform" in r ? r.platform : null;
     if (key === "records") return "records" in r ? r.records : null;
+    if (key === "ctr" || key === "cpm" || key === "cpa" || key === "roas") {
+      return recordRatios(r)[key];
+    }
+    if ("creativeName" in r) {
+      // The raw-only identity / provenance columns. Absence sorts last.
+      if (key === "landingPage") return r.landingPageCode;
+      if (key === "productName") return r.productName;
+      if (key === "creativeType") return TYPE_LABEL[r.creativeType];
+      if (key === "creativeStages") return earliestStageRank(r.creativeStages);
+      if (key === "creativePriority") return r.creativePriority;
+      if (key === "creativeLaunchDate") return r.creativeLaunchDate;
+      if (key === "excludedSource") return exclusionSourceText(r);
+      if (key === "excludedReason") return r.excludedReason;
+      if (key === "excludedAt") return r.excludedAt ? r.excludedAt.toISOString() : null;
+    }
     return (r as unknown as Record<string, number | null>)[key] ?? null;
   };
 
@@ -173,6 +258,19 @@ export function CampaignRecordsTable({
         fmtMetric((r as unknown as Record<string, number | null>)[c.key] ?? null, c.money),
     }));
 
+  /** A day's ratios are Σ ÷ Σ over that day's sums — the same helper, since a
+   *  day row carries exactly the components a record does. */
+  const ratioColumns = <T extends CampaignRecordRow | CampaignDayRow>(
+    keys: Array<keyof RecordRatios>,
+  ): DataColumn<T>[] =>
+    keys.map((k) => ({
+      key: k,
+      label: RATIO_COLS[k].label,
+      align: "right" as const,
+      sortable: true,
+      render: (r: T) => RATIO_COLS[k].fmt(recordRatios(r)[k]),
+    }));
+
   const rawColumns: DataColumn<CampaignRecordRow>[] = [
     {
       key: "date",
@@ -225,6 +323,115 @@ export function CampaignRecordsTable({
       ),
     },
     ...metricColumns<CampaignRecordRow>(),
+    ...ratioColumns<CampaignRecordRow>(RAW_RATIOS),
+    // ── Offered, hidden by default: identity and provenance ──
+    {
+      key: "landingPage",
+      label: "Landing page",
+      align: "left",
+      sortable: true,
+      // The code is what the ad name carries; the page's name rides the
+      // title. A dash is the product's own page — as on creative records.
+      render: (r) =>
+        r.landingPageCode ? (
+          <span
+            className="block max-w-[8rem] truncate font-mono text-xs text-ink-2 sm:max-w-[12rem]"
+            title={r.landingPageName ?? undefined}
+          >
+            @{r.landingPageCode}
+          </span>
+        ) : (
+          <span className="text-ink-3" title="The product's own page">
+            —
+          </span>
+        ),
+    },
+    {
+      key: "productName",
+      label: "Product",
+      align: "left",
+      sortable: true,
+      render: (r) => (
+        <span className="block max-w-[12rem] truncate text-ink-2" title={r.productName}>
+          {r.productName}
+        </span>
+      ),
+    },
+    {
+      key: "creativeType",
+      label: "Type",
+      align: "left",
+      sortable: true,
+      render: (r) => <span className="text-ink-2">{TYPE_LABEL[r.creativeType]}</span>,
+    },
+    {
+      key: "creativeStages",
+      label: "Stage",
+      align: "left",
+      sortable: true,
+      render: (r) => <StageChips stages={r.creativeStages} nowrap />,
+    },
+    {
+      key: "creativePriority",
+      label: "Priority",
+      align: "left",
+      sortable: true,
+      render: (r) => <PriorityStars value={r.creativePriority} />,
+    },
+    {
+      key: "creativeLaunchDate",
+      label: "Launch date",
+      align: "left",
+      sortable: true,
+      render: (r) =>
+        r.creativeLaunchDate ? (
+          <span className="tabular-nums text-ink-2">{isoDate(r.creativeLaunchDate)}</span>
+        ) : (
+          DASH_CELL
+        ),
+    },
+    {
+      key: "excludedSource",
+      label: "Exclusion",
+      align: "left",
+      sortable: true,
+      render: (r) => {
+        const text = exclusionSourceText(r);
+        return text ? (
+          <span className="block max-w-[16rem] truncate text-ink-2" title={text}>
+            {text}
+          </span>
+        ) : (
+          DASH_CELL
+        );
+      },
+    },
+    {
+      key: "excludedReason",
+      label: "Excluded reason",
+      align: "left",
+      sortable: true,
+      render: (r) =>
+        r.excludedReason ? (
+          <span className="block max-w-[16rem] truncate text-ink-2" title={r.excludedReason}>
+            {r.excludedReason}
+          </span>
+        ) : (
+          DASH_CELL
+        ),
+    },
+    {
+      key: "excludedAt",
+      label: "Excluded at",
+      align: "left",
+      sortable: true,
+      render: (r) =>
+        r.excludedAt ? (
+          <span className="whitespace-nowrap tabular-nums text-ink-2">{isoDate(r.excludedAt)}</span>
+        ) : (
+          DASH_CELL
+        ),
+    },
   ];
 
   const dayColumns: DataColumn<CampaignDayRow>[] = [
@@ -245,6 +452,7 @@ export function CampaignRecordsTable({
       render: (r) => <span className="text-ink-3">{r.records}</span>,
     },
     ...metricColumns<CampaignDayRow>(),
+    ...ratioColumns<CampaignDayRow>(DAY_RATIOS),
   ];
 
   const onSort = (key: string, d: "asc" | "desc") => {

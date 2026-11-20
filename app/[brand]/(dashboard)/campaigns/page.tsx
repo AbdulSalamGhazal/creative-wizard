@@ -33,6 +33,7 @@ import { PortfolioTable } from "@/components/portfolio/portfolio-table";
 // a client-reference proxy here, and reading it throws at request time —
 // invisible to typecheck and to `next build`).
 import { CAMPAIGN_TABLE_COLUMNS } from "@/components/portfolio/portfolio-columns";
+import { CAMPAIGN_DEFAULT_HIDDEN } from "@/components/portfolio/portfolio-columns";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { FilterBarSkeleton } from "@/components/layout/page-skeletons";
@@ -95,6 +96,8 @@ export default async function CampaignsPage({
     pref: tablePrefs[TABLE_KEYS.CAMPAIGNS],
     hideable: CAMPAIGN_TABLE_COLUMNS.map((c) => c.key),
     defaults: CAMPAIGN_TABLE_COLUMNS.map((c) => c.key),
+    // The free columns (2026-11) start hidden; `hide` opts one in as `!key`.
+    defaultHidden: CAMPAIGN_DEFAULT_HIDDEN,
   });
 
   const parsed = portfolioFiltersSchema.parse({

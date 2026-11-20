@@ -118,9 +118,9 @@ export function useTableColumns({
   const current = useMemo<TableColumnPref>(() => {
     const src = controlled ? (optimistic ?? value!) : local;
     return {
-      // Already decoded (local) or plain URL keys (controlled — and no
-      // URL-backed table ships a `defaultHidden` set, by construction: its
-      // columns live in saved views, which state them in full).
+      // Already decoded: local state, or the controlled value the consumer
+      // resolved from its URL (Campaigns and Ads decode their `!key` opt-ins
+      // against their own `defaultHidden` set before handing it here).
       hidden: mergeHiddenColumns(src.hidden, hideable),
       order: src.order.length > 0 ? mergeColumnOrder(src.order, defaults) : [],
     };

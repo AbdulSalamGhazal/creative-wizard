@@ -40,6 +40,7 @@ export interface FunnelTotalsResult {
   addPayment: number | null;
   cpm: number | null;
   cpa: number | null;
+  cpc: number | null;
   ctr: number | null;
   voc: number | null;
   atcRate: number | null;
@@ -104,10 +105,11 @@ export function funnelTotals(rows: readonly FunnelSumsRow[]): FunnelTotalsResult
     landingPageViews: sumReported(rows, (r) => r.landingPageViews),
     addToCart: sumReported(rows, (r) => r.addToCart ?? null),
     addPayment: sumReported(rows, (r) => r.addPayment ?? null),
-    // CPM/CTR/ROAS: every platform reports these inputs, so every row counts.
+    // CPM/CTR/CPA/CPC/ROAS: every platform reports these inputs, so every row counts.
     cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
     ctr: impressions > 0 ? clicks / impressions : null,
     cpa: conversions > 0 ? spend / conversions : null,
+    cpc: clicks > 0 ? spend / clicks : null,
     roas: spend > 0 ? conversionValue / spend : null,
     // The funnel steps: guarded both sides.
     voc: ratio(rows, (r) => r.landingPageViews, (r) => r.clicks),

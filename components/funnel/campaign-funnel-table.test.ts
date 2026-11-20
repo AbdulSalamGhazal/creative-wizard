@@ -28,6 +28,7 @@ const row = (
 ): CampaignFunnelRow => ({
   campaign,
   platform,
+  objective: "Sales",
   spend: 100,
   impressions: 1000,
   clicks: 10,
@@ -44,6 +45,10 @@ const row = (
   purchaseRate: 0.5,
   cvr: 0.125,
   roas: 3,
+  cpa: 100,
+  cpc: 10,
+  priorSpend: null,
+  lastDate: "2026-10-31",
   spendDelta: { pct: null, mode: "absent" },
   ...over,
 });
@@ -55,10 +60,21 @@ const order = (rows: CampaignFunnelRow[], key: SortKey, dir: "asc" | "desc") =>
 
 describe("first-click direction", () => {
   it("text ascends, numbers descend", () => {
-    expect([...TEXT_KEYS]).toEqual(["campaign", "platform"]);
+    expect([...TEXT_KEYS]).toEqual(["campaign", "platform", "objective"]);
     expect(firstDir("campaign")).toBe("asc");
     expect(firstDir("platform")).toBe("asc");
-    for (const key of ["spend", "roas", "cvr", "impressions", "clicks"] as SortKey[]) {
+    expect(firstDir("objective")).toBe("asc");
+    for (const key of [
+      "spend",
+      "roas",
+      "cvr",
+      "impressions",
+      "clicks",
+      "cpa",
+      "cpc",
+      "priorSpend",
+      "lastDate",
+    ] as SortKey[]) {
       expect(firstDir(key), key).toBe("desc");
     }
   });
@@ -136,6 +152,16 @@ describe("compareRows — the order this table has always had", () => {
       "Zero rate",
     ]);
     expect(order(withNulls, "atcRate", "desc")[0]).toBe("Has rate");
+  });
+
+  it("sorts the offered text/date columns as text", () => {
+    const mixed = [
+      row("B", "instagram", { objective: "Sales", lastDate: "2026-10-02" }),
+      row("A", "instagram", { objective: "Awareness", lastDate: null }),
+      row("C", "tiktok", { objective: "Sales", lastDate: "2026-10-09" }),
+    ];
+    expect(order(mixed, "objective", "asc")).toEqual(["A", "B", "C"]);
+    expect(order(mixed, "lastDate", "desc")).toEqual(["C", "B", "A"]);
   });
 
   it("is stable enough to reverse exactly", () => {

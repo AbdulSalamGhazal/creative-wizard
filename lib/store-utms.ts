@@ -136,6 +136,31 @@ export interface UtmSourceRow {
   application: number;
 }
 
+/** A source row's channel split — counts, and shares of counts or of SAR. */
+export interface ChannelSplit {
+  website: number;
+  application: number;
+  /** Orders whose channel maps to neither (Reconciliation's Unmapped). */
+  unmappedChannel: number;
+  /** App orders ÷ the row's orders. */
+  appShare: number | null;
+  /** The row's revenue ÷ the range's (store SAR over store SAR). */
+  revenueShare: number | null;
+}
+
+export function channelSplit(
+  r: { orders: number; revenue: number; website: number; application: number },
+  totalRevenue: number,
+): ChannelSplit {
+  return {
+    website: r.website,
+    application: r.application,
+    unmappedChannel: Math.max(0, r.orders - r.website - r.application),
+    appShare: share(r.application, r.orders),
+    revenueShare: share(r.revenue, totalRevenue),
+  };
+}
+
 export interface FoldedSourceRow extends Omit<UtmSourceRow, "bucket"> {
   /** NULL on the "Other" fold — it stands for values in several buckets. */
   bucket: UtmBucket | null;

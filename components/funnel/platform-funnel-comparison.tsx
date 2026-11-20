@@ -43,19 +43,41 @@ const NUMBERS: Array<{ key: MetricKey; label: string; fmt: (v: number | null) =>
   { key: "conversions", label: METRIC_LABEL.conversions, fmt: int, quiet: true },
   { key: "cpa", label: METRIC_LABEL.cpa, fmt: usd },
   { key: "roas", label: METRIC_LABEL.roas, fmt: roas },
+  // Offered, hidden by default (2026-11): revenue and CPC ride the same scan.
+  { key: "conversionValue", label: METRIC_LABEL.revenue, fmt: usd },
+  { key: "cpc", label: METRIC_LABEL.cpc, fmt: usd },
   { key: "impressions", label: METRIC_LABEL.impressions, fmt: int, quiet: true },
   { key: "clicks", label: METRIC_LABEL.clicks, fmt: int, quiet: true },
   { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, fmt: int, quiet: true },
   { key: "addToCart", label: METRIC_LABEL.addToCart, fmt: int, quiet: true },
   { key: "addPayment", label: METRIC_LABEL.addPayment, fmt: int, quiet: true },
 ];
-const DEFAULT_HIDDEN = ["impressions", "clicks", "landingPageViews", "addToCart", "addPayment"];
-const COLUMN_KEYS = [...NUMBERS.map((n) => n.key as string), ...RATES.map((r) => r.key)];
+const DEFAULT_HIDDEN = [
+  "impressions",
+  "clicks",
+  "landingPageViews",
+  "addToCart",
+  "addPayment",
+  "conversionValue",
+  "cpc",
+  "objective",
+];
+const COLUMN_KEYS = [
+  "objective",
+  ...NUMBERS.map((n) => n.key as string),
+  ...RATES.map((r) => r.key),
+];
 
 /** One table row: a platform, or (while it is expanded) one of its campaigns. */
 type Row =
   | ({ kind: "platform"; key: string; platform: PlatformFunnelRow["platform"]; campaigns: number } & Metrics)
-  | ({ kind: "campaign"; key: string; platform: PlatformFunnelRow["platform"]; campaign: string } & Metrics)
+  | ({
+      kind: "campaign";
+      key: string;
+      platform: PlatformFunnelRow["platform"];
+      campaign: string;
+      objective: PlatformCampaignRow["objective"];
+    } & Metrics)
   | { kind: "none"; key: string; platform: PlatformFunnelRow["platform"] };
 
 const metricOf = (r: Row, k: MetricKey): number | null =>
@@ -134,7 +156,11 @@ export function PlatformFunnelComparison({
         ? r.kind === "campaign"
           ? r.campaign.toLowerCase()
           : PLATFORM_LABEL[r.platform]
-        : metricOf(r, sortKey as MetricKey);
+        : sortKey === "objective"
+          ? r.kind === "campaign"
+            ? r.objective
+            : null
+          : metricOf(r, sortKey as MetricKey);
     const byKey = (a: Row, b: Row) => compareSortValues(value(a), value(b), dir);
     const out: Row[] = [];
     const parents: Row[] = platforms.map((p) => ({
@@ -200,6 +226,18 @@ export function PlatformFunnelComparison({
         );
       },
     };
+    // A CAMPAIGN's objective; a platform row has none (it spans many).
+    const objective: DataColumn<Row> = {
+      key: "objective",
+      label: "Objective",
+      sortable: true,
+      defaultSortDir: "asc",
+      csv: (r) => (r.kind === "campaign" ? r.objective : null),
+      render: (r) =>
+        r.kind === "campaign" ? (
+          <span className="whitespace-nowrap text-xs text-ink-2">{r.objective}</span>
+        ) : null,
+    };
     const numbers = NUMBERS.map(
       (n): DataColumn<Row> => ({
         key: n.key,
@@ -257,7 +295,7 @@ export function PlatformFunnelComparison({
         },
       }),
     );
-    return [identity, ...numbers, ...rates];
+    return [identity, objective, ...numbers, ...rates];
   }, [expanded, best, maxAbs]);
 
   return (

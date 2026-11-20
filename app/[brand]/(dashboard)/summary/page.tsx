@@ -20,8 +20,10 @@ import { resolveTablePrefs } from "@/db/queries/user-prefs";
 // Plain modules, never the `"use client"` table: a server component may import
 // a client COMPONENT, never a VALUE out of a client module.
 import {
+  ADS_DEFAULT_HIDDEN,
   ADS_HIDEABLE_KEYS,
   ADS_TOTAL_KEY,
+  adsColumnsFromLists,
   joinAdsHidden,
   splitAdsHidden,
 } from "@/components/summary/summary-columns";
@@ -169,18 +171,24 @@ export default async function SummaryPage({
   const adsPrefs = await resolveTablePrefs([TABLE_KEYS.ADS_SUMMARY]);
   const columnState = resolveColumnPrefs({
     url: {
-      hidden: joinAdsHidden({
-        identity: parsed.hideIdentity,
-        metrics: parsed.hideMetrics,
-        rate: parsed.hideRate,
-        blended: parsed.hideBlended,
-      }),
+      // `hideIdentity`/`hideMetrics` may carry `!key` opt-ins for the
+      // default-hidden columns (2026-11); `joinAdsHidden` keeps them encoded
+      // and the resolver decodes against `ADS_DEFAULT_HIDDEN`.
+      hidden: joinAdsHidden(
+        adsColumnsFromLists(
+          parsed.hideIdentity,
+          parsed.hideMetrics,
+          parsed.hideRate,
+          parsed.hideBlended,
+        ),
+      ),
       // Group order has no URL param — it is preference-only.
       order: [],
     },
     viewApplied: isSavedViewApplied((key: string) => pickFirst(params[key])),
     pref: adsPrefs[TABLE_KEYS.ADS_SUMMARY],
     hideable: ADS_HIDEABLE_KEYS,
+    defaultHidden: ADS_DEFAULT_HIDDEN,
     // The ORDER universe is the platform groups (plus the blended total),
     // which is what the control reorders.
     defaults: [...selectedPlatforms, ADS_TOTAL_KEY],
@@ -220,6 +228,7 @@ export default async function SummaryPage({
           platforms={selectedPlatforms}
           hiddenIdentity={new Set(columns.identity)}
           hiddenMetrics={new Set(columns.metrics)}
+          shownColumns={columns.shown ?? []}
           columnOrder={columnState.order}
           ratingConfig={ratingConfig}
           showRate={!columns.rate}

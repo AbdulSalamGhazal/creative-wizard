@@ -1,4 +1,13 @@
-import type { IdentityColumnKey, MetricColumnKey } from "@/validators/summary";
+import {
+  IDENTITY_OPT_IN_KEYS,
+  METRIC_OPT_IN_KEYS,
+  type AdsOptInKey,
+  type IdentityColumnKey,
+  type IdentityOptInKey,
+  type MetricColumnKey,
+  type MetricOptInKey,
+} from "@/validators/summary";
+import { METRIC_LABEL } from "@/lib/metric-labels";
 
 /**
  * The Ads table's column LABELS — pure data, in a module with no
@@ -33,6 +42,28 @@ export const METRIC_LABELS: Record<MetricColumnKey, string> = {
   cvr: "CvR",
 };
 
+/**
+ * The OFFERED columns (2026-11): hidden until a URL / view / preference opts
+ * one in with `!key` — see `IDENTITY_OPT_IN_KEYS` in validators/summary.
+ */
+export const IDENTITY_OPT_IN_LABELS: Record<IdentityOptInKey, string> = {
+  angles: "Angles",
+  email: "Creator email",
+  thumbnail: "Thumbnail",
+  notes: "Notes",
+  created: "Created at",
+};
+export const METRIC_OPT_IN_LABELS: Record<MetricOptInKey, string> = {
+  revenue: METRIC_LABEL.revenue,
+  aov: "AOV",
+};
+/** Every default-hidden key — the columns hook's `defaultHidden`. */
+export const ADS_DEFAULT_HIDDEN: readonly AdsOptInKey[] = [
+  ...IDENTITY_OPT_IN_KEYS,
+  ...METRIC_OPT_IN_KEYS,
+];
+const OPT_IN = "!";
+
 
 /**
  * The Ads table's column state is FOUR URL params of three different shapes
@@ -49,17 +80,39 @@ export interface AdsHiddenColumns {
   metrics: MetricColumnKey[];
   rate: boolean;
   blended: boolean;
+  /** The default-hidden columns this state OPENS (absent = none opened). */
+  shown?: AdsOptInKey[];
 }
 
+/**
+ * The column state as the URL and the precedence resolver STATE it: hidden
+ * keys as themselves, an opened default-hidden column as `!key`. Decode it
+ * with `resolveColumnPrefs({ defaultHidden: ADS_DEFAULT_HIDDEN })`.
+ */
 export function joinAdsHidden(parts: AdsHiddenColumns): string[] {
   return [
     ...parts.identity,
     ...parts.metrics,
     ...(parts.rate ? [ADS_RATE_KEY] : []),
     ...(parts.blended ? [ADS_TOTAL_KEY] : []),
+    ...(parts.shown ?? []).map((k) => `${OPT_IN}${k}`),
   ];
 }
 
+/** The DECODED hidden list — what the columns hook holds: every closed
+ *  default-hidden column is in it, by name. */
+export function adsHiddenKeys(parts: AdsHiddenColumns): string[] {
+  const shown = new Set<string>(parts.shown ?? []);
+  return [
+    ...parts.identity,
+    ...parts.metrics,
+    ...(parts.rate ? [ADS_RATE_KEY] : []),
+    ...(parts.blended ? [ADS_TOTAL_KEY] : []),
+    ...ADS_DEFAULT_HIDDEN.filter((k) => !shown.has(k)),
+  ];
+}
+
+/** A DECODED hidden list (the hook's / the resolver's) back into parts. */
 export function splitAdsHidden(hidden: readonly string[]): AdsHiddenColumns {
   const set = new Set(hidden);
   return {
@@ -69,16 +122,43 @@ export function splitAdsHidden(hidden: readonly string[]): AdsHiddenColumns {
     metrics: (Object.keys(METRIC_LABELS) as MetricColumnKey[]).filter((k) => set.has(k)),
     rate: set.has(ADS_RATE_KEY),
     blended: set.has(ADS_TOTAL_KEY),
+    shown: ADS_DEFAULT_HIDDEN.filter((k) => !set.has(k)),
   };
 }
 
 /** Everything the Ads control can hide, in display order. */
 export const ADS_HIDEABLE_KEYS: readonly string[] = [
   ...Object.keys(IDENTITY_LABELS),
+  ...IDENTITY_OPT_IN_KEYS,
   ...Object.keys(METRIC_LABELS),
+  ...METRIC_OPT_IN_KEYS,
   ADS_RATE_KEY,
   ADS_TOTAL_KEY,
 ];
+
+/**
+ * The two csv params as lists (each may carry `!key` opt-ins) → parts. Shared
+ * by the server page (validated lists) and `adsColumnsFromParams` (raw URL).
+ */
+export function adsColumnsFromLists(
+  identity: readonly string[],
+  metrics: readonly string[],
+  rate: boolean,
+  blended: boolean,
+): AdsHiddenColumns {
+  const id = new Set(identity);
+  const me = new Set(metrics);
+  return {
+    identity: (Object.keys(IDENTITY_LABELS) as IdentityColumnKey[]).filter((k) => id.has(k)),
+    metrics: (Object.keys(METRIC_LABELS) as MetricColumnKey[]).filter((k) => me.has(k)),
+    rate,
+    blended,
+    shown: [
+      ...IDENTITY_OPT_IN_KEYS.filter((k) => id.has(`${OPT_IN}${k}`)),
+      ...METRIC_OPT_IN_KEYS.filter((k) => me.has(`${OPT_IN}${k}`)),
+    ],
+  };
+}
 
 /** The four column params' names — the URL shape every saved view carries. */
 export const ADS_COLUMN_PARAMS = ["hideIdentity", "hideMetrics", "hideRate", "hideBlended"] as const;
@@ -100,16 +180,12 @@ export function adsColumnsFromParams(params: {
     const v = params.get(key);
     return v === "1" || v === "true";
   };
-  return {
-    identity: (Object.keys(IDENTITY_LABELS) as IdentityColumnKey[]).filter((k) =>
-      csv("hideIdentity").includes(k),
-    ),
-    metrics: (Object.keys(METRIC_LABELS) as MetricColumnKey[]).filter((k) =>
-      csv("hideMetrics").includes(k),
-    ),
-    rate: flag("hideRate"),
-    blended: flag("hideBlended"),
-  };
+  return adsColumnsFromLists(
+    csv("hideIdentity"),
+    csv("hideMetrics"),
+    flag("hideRate"),
+    flag("hideBlended"),
+  );
 }
 
 /** Write a column choice into params, in the four-param URL shape. */
@@ -118,8 +194,11 @@ export function writeAdsColumnParams(params: URLSearchParams, parts: AdsHiddenCo
     if (values.length === 0) params.delete(key);
     else params.set(key, values.join(","));
   };
-  setCsv("hideIdentity", parts.identity);
-  setCsv("hideMetrics", parts.metrics);
+  const shown = new Set<string>(parts.shown ?? []);
+  const opened = (keys: readonly string[]) =>
+    keys.filter((k) => shown.has(k)).map((k) => `${OPT_IN}${k}`);
+  setCsv("hideIdentity", [...parts.identity, ...opened(IDENTITY_OPT_IN_KEYS)]);
+  setCsv("hideMetrics", [...parts.metrics, ...opened(METRIC_OPT_IN_KEYS)]);
   if (parts.rate) params.set("hideRate", "1");
   else params.delete("hideRate");
   if (parts.blended) params.set("hideBlended", "1");

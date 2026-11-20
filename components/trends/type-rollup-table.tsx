@@ -38,10 +38,29 @@ const METRICS: MetricCol[] = [
   { key: "cpa", label: METRIC_LABEL.cpa, fmt: usd },
   { key: "roas", label: METRIC_LABEL.roas, fmt: roas },
   { key: "cvr", label: METRIC_LABEL.cvr, fmt: pct },
+  // ── Offered, hidden by default (2026-11): same scan, lib/metrics fragments ──
+  { key: "conversions", label: METRIC_LABEL.conversions, fmt: int, quiet: true },
+  { key: "revenue", label: METRIC_LABEL.revenue, fmt: usd },
+  { key: "aov", label: "AOV", fmt: usd },
+  { key: "cpm", label: METRIC_LABEL.cpm, fmt: usd },
+  { key: "landingPageViews", label: METRIC_LABEL.landingPageViews, fmt: int, quiet: true },
+  { key: "voc", label: METRIC_LABEL.voc, fmt: pct },
+  { key: "hookRate", label: METRIC_LABEL.hookRate, fmt: pct },
+  { key: "holdRate", label: METRIC_LABEL.holdRate, fmt: pct },
 ];
 const COLUMN_KEYS = METRICS.map((m) => m.key as string);
-/** `clicks` is offered, not shown: the table looks as it did until opted in. */
-const DEFAULT_HIDDEN = ["clicks"];
+/** Offered, not shown: the table looks as it did until opted in. */
+const DEFAULT_HIDDEN = [
+  "clicks",
+  "conversions",
+  "revenue",
+  "aov",
+  "cpm",
+  "landingPageViews",
+  "voc",
+  "hookRate",
+  "holdRate",
+];
 
 /** The canonical order — platform, then type — as one sortable number. */
 const canonicalRank = (r: TypeRollupRow) =>

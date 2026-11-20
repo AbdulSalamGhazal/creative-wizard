@@ -231,7 +231,7 @@ export function VersionProvider({
       if (openIdRef.current !== id) return; // switched away meanwhile; the next open re-bases
       if (res.ok) {
         baseRef.current = { id, revision: res.revision, ...docOf(snapshot) };
-        patchRow(id, (r) => ({ ...r, revision: res.revision, updatedAt: res.updatedAt }));
+        patchRow(id, (r) => ({ ...r, revision: res.revision, updatedAt: res.updatedAt, updatedByName: res.updatedByName }));
         attemptRef.current = 0;
         mergesRef.current = 0;
         if (pendingRef.current.size > 0) void runSave();

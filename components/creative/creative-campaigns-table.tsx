@@ -185,8 +185,10 @@ function metricColumns<T extends PlatformMixRow>(totals: Totals): DataColumn<T>[
   ];
 }
 
-/** Hidden until opted in — the catalog grew, the default view did not. */
-const DEFAULT_HIDDEN = ["impressions", "clicks", "landingPageViews"];
+/** Hidden until opted in — the catalog grew, the default view did not.
+ *  `objective` exists in the By-campaign mode only (a platform row spans
+ *  several campaigns, so it has no one objective). */
+const DEFAULT_HIDDEN = ["impressions", "clicks", "landingPageViews", "objective"];
 
 /**
  * This creative's performance, one row per campaign it ran in (default) or per
@@ -244,6 +246,18 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
         ),
         total: () => <TotalLabel className="text-ink-3" />,
       },
+      // ── Offered, hidden by default: the campaign's own objective, a column
+      // of the row the query already groups by. By-campaign mode only. ──
+      {
+        key: "objective",
+        label: "Objective",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        sortValue: (r) => r.objective,
+        csv: (r) => r.objective,
+        render: (r) => <span className="whitespace-nowrap text-ink-2">{r.objective}</span>,
+      },
       ...metricColumns<CampaignMixRow>(totals),
     ],
     [totals, campaignHref],
@@ -276,11 +290,12 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
   );
 
   // Switching mode: the pinned key of one mode ("campaign"/"platform") doesn't
-  // exist in the other, so fall back to the default sort when it would dangle.
+  // exist in the other — nor does the campaign-only "objective" — so fall back
+  // to the default sort when it would dangle.
   const switchMode = (next: Mode) => {
     setMode(next);
     if (
-      (next === "platform" && sort === "campaign") ||
+      (next === "platform" && (sort === "campaign" || sort === "objective")) ||
       (next === "campaign" && sort === "platform")
     ) {
       setSort("spend");
@@ -296,9 +311,10 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
   /**
    * ONE key for both modes. Only the PINNED identity column differs
    * ("campaign" vs "platform") and a pinned column is never hidden or
-   * reordered, so the two modes offer exactly the same nine metric columns —
-   * remembering them twice would mean hiding CPA in one mode and finding it
-   * back in the other.
+   * reordered, so the two modes offer the same metric columns — remembering
+   * them twice would mean hiding CPA in one mode and finding it back in the
+   * other. The one mode-specific offer, `objective`, is simply absent from the
+   * By-platform config, as the pinned "campaign" column is.
    */
   const columnKeys = campaignColumns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({

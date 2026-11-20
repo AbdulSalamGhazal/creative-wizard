@@ -9,12 +9,16 @@ import {
   type platformEnum,
 } from "@/db/schema";
 import {
+  aov,
   cpa,
   cpc,
   cpm,
   ctr,
   cvr,
   roas,
+  voc,
+  sumAddPayment,
+  sumAddToCart,
   sumClicks,
   sumConversionValue,
   sumConversions,
@@ -92,6 +96,17 @@ export interface LandingPageRollupRow {
   cpa: number | null;
   roas: number | null;
   cvr: number | null;
+  // ── Offered, hidden by default (2026-11): the page's own registry fields
+  //    (1:1 with `landingPageId`, so grouping by them changes no grain) and
+  //    more of the same scan. NULL description/createdAt = the product page.
+  description: string | null;
+  /** ISO timestamp the page was registered. */
+  createdAt: string | null;
+  voc: number | null;
+  aov: number | null;
+  /** Optional upload columns — NULL when nothing reported them (NULL ≠ 0). */
+  addToCart: number | null;
+  addPayment: number | null;
 }
 
 /**
@@ -166,6 +181,8 @@ export async function landingPageRollup(
       name: landingPages.name,
       code: landingPages.code,
       url: landingPages.url,
+      description: landingPages.description,
+      createdAt: landingPages.createdAt,
       platform: byPlatform
         ? sql<string | null>`${performanceRecords.platform}`
         : sql<string | null>`NULL`,
@@ -182,6 +199,10 @@ export async function landingPageRollup(
       cpa,
       roas,
       cvr,
+      voc,
+      aov,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -201,6 +222,8 @@ export async function landingPageRollup(
       landingPages.name,
       landingPages.code,
       landingPages.url,
+      landingPages.description,
+      landingPages.createdAt,
       ...(byPlatform ? [performanceRecords.platform] : []),
     );
 
@@ -225,6 +248,12 @@ export async function landingPageRollup(
     cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),
     cvr: numOrNull(r.cvr),
+    description: r.description ?? null,
+    createdAt: r.createdAt ? r.createdAt.toISOString() : null,
+    voc: numOrNull(r.voc),
+    aov: numOrNull(r.aov),
+    addToCart: numOrNull(r.addToCart),
+    addPayment: numOrNull(r.addPayment),
   }));
 
   // Biggest spender first; the table re-groups by product on the client.

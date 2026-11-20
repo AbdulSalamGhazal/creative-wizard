@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "@/lib/brand-nav";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
-import { TABLE_KEYS } from "@/lib/table-columns";
+import { TABLE_KEYS, encodeHiddenColumns } from "@/lib/table-columns";
 import { useNavTransition } from "@/lib/nav-progress";
 import { shallowParams } from "@/lib/shallow-url";
 import { withDateRange } from "@/lib/url";
@@ -17,6 +17,7 @@ import { CAMPAIGN_STATUS_LABEL, CAMPAIGN_STATUS_ORDER } from "@/lib/campaign-sta
 import {
   CAMPAIGN_COLS_META,
   CAMPAIGN_COLUMN_KEYS,
+  CAMPAIGN_DEFAULT_HIDDEN,
 } from "@/components/portfolio/portfolio-columns";
 import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -83,11 +84,22 @@ export function PortfolioTable({
     tableKey: TABLE_KEYS.CAMPAIGNS,
     hideable: CAMPAIGN_COLUMN_KEYS,
     defaults: CAMPAIGN_COLUMN_KEYS,
+    // `hidden` arrives DECODED (the server resolved it with this set), so the
+    // hook sees plain keys; the URL gets the encoded form below.
+    defaultHidden: CAMPAIGN_DEFAULT_HIDDEN,
     value: { hidden, order },
     onChange: (next) =>
       pushParams((p) => {
-        if (next.hidden.length === 0) p.delete("hide");
-        else p.set("hide", next.hidden.join(","));
+        // ENCODE for the URL: a hidden key as itself, an opened default-hidden
+        // column as `!key` — so a view that never mentions it keeps it shut.
+        // A CLOSED default-hidden column is implied, so it is not written.
+        const hide = encodeHiddenColumns(
+          next.hidden,
+          CAMPAIGN_COLUMN_KEYS,
+          CAMPAIGN_DEFAULT_HIDDEN,
+        ).filter((k) => !CAMPAIGN_DEFAULT_HIDDEN.includes(k));
+        if (hide.length === 0) p.delete("hide");
+        else p.set("hide", hide.join(","));
         if (next.order.length === 0) p.delete("order");
         else p.set("order", next.order.join(","));
       }),
@@ -100,16 +112,38 @@ export function PortfolioTable({
         acc.spend += r.spend;
         acc.impressions += r.impressions;
         acc.clicks += r.clicks;
-        acc.lpv += r.lpv;
+        acc.lpv += r.lpv ?? 0;
         acc.orders += r.orders;
         acc.revenue += r.revenue;
         acc.creatives += r.creatives;
+        // NULL ≠ 0: a step only sums over the rows that report it, and VOC's
+        // clicks only over rows that report LP views (the SQL guard's mirror).
+        if (r.lpv !== null) {
+          acc.lpvReported = (acc.lpvReported ?? 0) + r.lpv;
+          acc.lpvClicks += r.clicks;
+        }
+        if (r.addToCart !== null) acc.addToCart = (acc.addToCart ?? 0) + r.addToCart;
+        if (r.addPayment !== null) acc.addPayment = (acc.addPayment ?? 0) + r.addPayment;
         return acc;
       },
-      { spend: 0, impressions: 0, clicks: 0, lpv: 0, orders: 0, revenue: 0, creatives: 0 },
+      {
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        lpv: 0,
+        orders: 0,
+        revenue: 0,
+        creatives: 0,
+        lpvReported: null as number | null,
+        lpvClicks: 0,
+        addToCart: null as number | null,
+        addPayment: null as number | null,
+      },
     );
     return {
       ...t,
+      voc: t.lpvReported !== null && t.lpvClicks > 0 ? t.lpvReported / t.lpvClicks : null,
+      cpc: t.clicks > 0 ? t.spend / t.clicks : null,
       cpa: t.orders > 0 ? t.spend / t.orders : null,
       roas: t.spend > 0 ? t.revenue / t.spend : null,
       aov: t.orders > 0 ? t.revenue / t.orders : null,
@@ -171,6 +205,20 @@ export function PortfolioTable({
           return r.cvr === null ? DASH : pct(r.cvr);
         case "lastDate":
           return r.lastDate ? isoDate(r.lastDate) : DASH;
+        case "lpv":
+          return int(r.lpv);
+        case "addToCart":
+          return int(r.addToCart);
+        case "addPayment":
+          return int(r.addPayment);
+        case "voc":
+          return pct(r.voc);
+        case "cpc":
+          return usd(r.cpc);
+        case "firstDate":
+          return isoDate(r.firstDate);
+        case "createdAt":
+          return isoDate(r.createdAt);
         default:
           return null;
       }
@@ -203,6 +251,16 @@ export function PortfolioTable({
           return usd(totals.cpm);
         case "cvr":
           return totals.cvr === null ? DASH : pct(totals.cvr);
+        case "lpv":
+          return int(totals.lpvReported);
+        case "addToCart":
+          return int(totals.addToCart);
+        case "addPayment":
+          return int(totals.addPayment);
+        case "voc":
+          return pct(totals.voc);
+        case "cpc":
+          return usd(totals.cpc);
         default:
           return null;
       }
@@ -212,6 +270,8 @@ export function PortfolioTable({
       if (key === "objective") return r.objective;
       if (key === "status") return CAMPAIGN_STATUS_ORDER[r.status];
       if (key === "lastDate") return r.lastDate ?? "";
+      if (key === "firstDate") return r.firstDate ?? "";
+      if (key === "createdAt") return r.createdAt;
       return (r[key as keyof PortfolioCampaignRow] as number | null) ?? null;
     };
 

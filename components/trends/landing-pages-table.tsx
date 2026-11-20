@@ -10,7 +10,7 @@ import { useTableColumns } from "@/components/ui/use-table-columns";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { METRIC_LABEL } from "@/lib/metric-labels";
-import { int, pct, plural, roas, usd } from "@/lib/format";
+import { int, isoDate, pct, plural, roas, usd } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { NO_PRODUCT_LABEL, landingPageLabel } from "@/lib/landing-code";
@@ -34,6 +34,11 @@ interface Metrics {
   cpa: Num;
   roas: Num;
   cvr: Num;
+  // Offered, hidden by default (2026-11).
+  voc: Num;
+  aov: Num;
+  addToCart: Num;
+  addPayment: Num;
 }
 type MetricKey = keyof Metrics;
 
@@ -63,10 +68,30 @@ const METRICS: MetricCol[] = [
   { key: "cpa", label: METRIC_LABEL.cpa, fmt: usd },
   { key: "conversionValue", label: METRIC_LABEL.revenue, fmt: usd },
   { key: "roas", label: METRIC_LABEL.roas, fmt: roas },
+  // ── Offered, hidden by default (2026-11): more of the same scan ──
+  { key: "voc", label: METRIC_LABEL.voc, fmt: pct },
+  { key: "aov", label: "AOV", fmt: usd },
+  { key: "addToCart", label: METRIC_LABEL.addToCart, fmt: int, quiet: true },
+  { key: "addPayment", label: METRIC_LABEL.addPayment, fmt: int, quiet: true },
 ];
-const COLUMN_KEYS = ["url", ...METRICS.map((m) => m.key as string)];
+/** The page's own registry fields — a page row's, never a product's. */
+const PAGE_FIELDS = ["description", "createdAt"];
+const COLUMN_KEYS = ["url", ...PAGE_FIELDS, ...METRICS.map((m) => m.key as string)];
 /** Offered, not shown: the table opens on the eight metrics the user named. */
-const DEFAULT_HIDDEN = ["url", "creatives", "cpc", "cpm", "landingPageViews", "cvr"];
+const DEFAULT_HIDDEN = [
+  "url",
+  "creatives",
+  "cpc",
+  "cpm",
+  "landingPageViews",
+  "cvr",
+  "description",
+  "createdAt",
+  "voc",
+  "aov",
+  "addToCart",
+  "addPayment",
+];
 
 const ratio = (n: number, d: number): Num => (d > 0 ? n / d : null);
 
@@ -84,6 +109,9 @@ function blend(rows: readonly LandingPageRollupRow[]): Metrics {
     conversionValue: 0,
     landingPageViews: 0,
   };
+  // Optional steps: summed over the rows that report them, NULL when none do.
+  let addToCart: Num = null;
+  let addPayment: Num = null;
   for (const r of rows) {
     t.spend += r.spend;
     t.impressions += r.impressions;
@@ -91,9 +119,15 @@ function blend(rows: readonly LandingPageRollupRow[]): Metrics {
     t.conversions += r.conversions;
     t.conversionValue += r.conversionValue;
     t.landingPageViews += r.landingPageViews;
+    if (r.addToCart !== null) addToCart = (addToCart ?? 0) + r.addToCart;
+    if (r.addPayment !== null) addPayment = (addPayment ?? 0) + r.addPayment;
   }
   return {
     ...t,
+    addToCart,
+    addPayment,
+    voc: ratio(t.landingPageViews, t.clicks),
+    aov: ratio(t.conversionValue, t.conversions),
     creatives: null,
     ctr: ratio(t.clicks, t.impressions),
     cpc: ratio(t.spend, t.clicks),
@@ -172,7 +206,11 @@ export function LandingPagesTable({
         ? r.kind === "product"
           ? productLabel(r.productName).toLowerCase()
           : pageLabel(r.page).toLowerCase()
-        : (r[sortKey as MetricKey] as Num);
+        : sortKey === "createdAt"
+          ? r.kind === "page"
+            ? r.page.createdAt
+            : null
+          : (r[sortKey as MetricKey] as Num);
     const byKey = (a: Row, b: Row) => compareSortValues(value(a), value(b), dir);
 
     const parents: Row[] = [...byProduct.entries()].map(([key, pages]) => ({
@@ -295,6 +333,30 @@ export function LandingPagesTable({
           ) : r.kind === "page" ? (
             <span className="text-ink-3">—</span>
           ) : null,
+      },
+      {
+        key: "description",
+        label: "Description",
+        sortable: false,
+        csv: (r) => (r.kind === "page" ? (r.page.description ?? "") : ""),
+        render: (r) =>
+          r.kind !== "page" ? null : r.page.description ? (
+            <span className="block max-w-[16rem] truncate text-xs text-ink-2" title={r.page.description}>
+              {r.page.description}
+            </span>
+          ) : (
+            <span className="text-ink-3">—</span>
+          ),
+      },
+      {
+        key: "createdAt",
+        label: "Created at",
+        sortable: true,
+        csv: (r) => (r.kind === "page" && r.page.createdAt ? isoDate(r.page.createdAt) : ""),
+        render: (r) =>
+          r.kind !== "page" ? null : (
+            <span className="whitespace-nowrap text-xs text-ink-2">{isoDate(r.page.createdAt)}</span>
+          ),
       },
       ...METRICS.map(
         (m): DataColumn<Row> => ({

@@ -63,6 +63,28 @@ export const METRIC_COLUMN_KEYS = [
 export type MetricColumnKey = (typeof METRIC_COLUMN_KEYS)[number];
 
 /**
+ * OFFERED, HIDDEN BY DEFAULT (2026-11) — fields the Ads query already carries
+ * (the catalog rule: an existing SELECT, or a PK join off a column already
+ * read). They are NOT `IDENTITY_COLUMN_KEYS` / `METRIC_COLUMN_KEYS`: those
+ * lists mean "shown unless hidden", and every saved view is a stored query
+ * string that never mentions these, so a view must keep them shut. A URL opts
+ * one IN with the house `!key` marker inside the param it belongs to
+ * (`hideIdentity=!angles`, `hideMetrics=!revenue`) — a new VALUE, so every
+ * existing value of those params means exactly what it meant. The metric
+ * extras are deliberately not metric-FILTER vocabulary (that list is
+ * `METRIC_COLUMN_KEYS`).
+ */
+export const IDENTITY_OPT_IN_KEYS = ["angles", "email", "thumbnail", "notes", "created"] as const;
+export type IdentityOptInKey = (typeof IDENTITY_OPT_IN_KEYS)[number];
+export const METRIC_OPT_IN_KEYS = ["revenue", "aov"] as const;
+export type MetricOptInKey = (typeof METRIC_OPT_IN_KEYS)[number];
+export type AdsOptInKey = IdentityOptInKey | MetricOptInKey;
+
+/** `!key` — the opt-in marker (`SHOW_MARKER` in lib/table-columns). */
+const optIns = <T extends string>(keys: readonly T[]): Array<`!${T}`> =>
+  keys.map((k) => `!${k}` as const);
+
+/**
  * Display metadata for each metric — drives the unit hint in the filter UI
  * and tells the query which metrics are stored as ratios (and so need
  * ×100 before comparing against a user-entered percentage).
@@ -318,8 +340,15 @@ export const summaryFiltersSchema = z.object({
   dir: z.enum(SORT_DIRS).optional(),
   // Opt-out column visibility — URL only carries hidden columns, so the
   // default ("show everything") needs no URL params.
-  hideIdentity: csvEnum(IDENTITY_COLUMN_KEYS),
-  hideMetrics: csvEnum(METRIC_COLUMN_KEYS),
+  // Plus the `!key` opt-ins of the default-hidden columns (2026-11).
+  hideIdentity: csvEnum<IdentityColumnKey | `!${IdentityOptInKey}`>([
+    ...IDENTITY_COLUMN_KEYS,
+    ...optIns(IDENTITY_OPT_IN_KEYS),
+  ]),
+  hideMetrics: csvEnum<MetricColumnKey | `!${MetricOptInKey}`>([
+    ...METRIC_COLUMN_KEYS,
+    ...optIns(METRIC_OPT_IN_KEYS),
+  ]),
   // The Rate column is shown by default; `hideRate=1` opts out (boolean, so
   // it stays out of the per-metric hide list which is numeric-only).
   hideRate: z

@@ -26,6 +26,7 @@ import {
   platformEnum,
   type creativeTypeEnum,
   exclusionRules,
+  uploadBatches,
 } from "@/db/schema";
 import type { CreativeSort } from "@/validators/creative";
 import { getActiveAccountId } from "@/lib/tenant";
@@ -84,6 +85,11 @@ export interface CreativeListRow {
   /** Display name of the creator (joined from `users`), null if unresolvable. */
   createdByName: string | null;
   createdAt: Date;
+  /** Last edit to the creative row — offered as a defaultHidden column. */
+  updatedAt: Date;
+  /** The product's own status (active / archived), off the PK join the
+   *  listing already makes — offered as a defaultHidden column. */
+  productStatus: "active" | "archived";
 }
 
 export interface CreativeListResult {
@@ -303,6 +309,8 @@ export async function listCreatives(
       notes: creatives.notes,
       sourceLink: creatives.sourceLink,
       createdAt: creatives.createdAt,
+      updatedAt: creatives.updatedAt,
+      productStatus: products.status,
       createdByName: users.name,
     })
     .from(creatives)
@@ -340,6 +348,8 @@ export async function listCreatives(
     sourceLink: r.sourceLink,
     createdByName: r.createdByName,
     createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    productStatus: r.productStatus,
   }));
 
   // The status FACET for the strip, taken HERE — after every other filter has
@@ -644,6 +654,15 @@ export interface CreativeRecordRow {
   /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
   excludedRuleKind: "campaign_objective" | "campaign" | "creative" | null;
   excludedRuleObjective: string | null;
+  /** Free offers (defaultHidden columns) — each a column of a row this query
+   *  already joins, or a PK join off a column it already reads. */
+  campaignObjective: string;
+  /** When the record was written — its upload's commit, not its `date`. */
+  importedAt: Date;
+  /** The file it arrived in (upload_batches PK join). */
+  uploadFileName: string;
+  /** Who excluded it manually (users PK join); null for a rule or none. */
+  excludedByName: string | null;
 }
 
 /**
@@ -684,9 +703,18 @@ export async function creativeRecords(
       excludedAt: performanceRecords.excludedAt,
       excludedRuleKind: exclusionRules.kind,
       excludedRuleObjective: exclusionRules.objective,
+      campaignObjective: campaigns.objective,
+      importedAt: performanceRecords.createdAt,
+      uploadFileName: uploadBatches.fileName,
+      excludedByName: users.name,
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    // PK joins off columns the row already carries (the admission price for a
+    // defaultHidden column): the file it came in, and who excluded it.
+    // `upload_batch_id` is NOT NULL, so the inner join drops nothing.
+    .innerJoin(uploadBatches, eq(uploadBatches.id, performanceRecords.uploadBatchId))
+    .leftJoin(users, eq(users.id, performanceRecords.excludedByUserId))
     // A PK join off a column the row already carries: names the rule behind a
     // rule-excluded row (R-007 — "Excluded by rule «…»", never a bare refusal).
     .leftJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
@@ -730,6 +758,10 @@ export async function creativeRecords(
     excludedAt: r.excludedAt,
     excludedRuleKind: r.excludedRuleKind ?? null,
     excludedRuleObjective: r.excludedRuleObjective ?? null,
+    campaignObjective: r.campaignObjective,
+    importedAt: r.importedAt,
+    uploadFileName: r.uploadFileName,
+    excludedByName: r.excludedByName ?? null,
   }));
 }
 

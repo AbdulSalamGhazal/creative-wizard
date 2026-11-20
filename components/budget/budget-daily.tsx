@@ -452,6 +452,14 @@ function spendBack(displayValue: number, toDisplay: (usd: number) => number): nu
 
 // ── Table ────────────────────────────────────────────────────────────────────
 
+/** A day's state, in words — the Daily table's optional State column. */
+const DAY_STATE_LABEL: Record<DayCell["state"], string> = {
+  judged: "Judged",
+  no_plan: "No plan",
+  not_reported: "Not reported",
+  future: "Upcoming",
+};
+
 function DayTable({
   grid,
   day,
@@ -566,6 +574,28 @@ function DayTable({
           c.results.cpa === null ? dash : <span className="tabular-nums">{fmtCents(c.results.cpa)}</span>,
       },
       {
+        key: "value",
+        label: "Purchase value (platform)",
+        align: "right",
+        sortable: true,
+        sortValue: (c) => c.results.purchaseValue,
+        csv: (c) => money(c.results.purchaseValue),
+        render: (c) =>
+          c.results.purchaseValue === null ? (
+            dash
+          ) : (
+            <span className="tabular-nums">{fmt(c.results.purchaseValue)}</span>
+          ),
+      },
+      {
+        key: "state",
+        label: "State",
+        sortable: true,
+        sortValue: (c) => DAY_STATE_LABEL[c.state],
+        csv: (c) => DAY_STATE_LABEL[c.state],
+        render: (c) => <span className="text-xs text-ink-2">{DAY_STATE_LABEL[c.state]}</span>,
+      },
+      {
         key: "reporting",
         label: "Platforms reported",
         align: "right",
@@ -584,7 +614,7 @@ function DayTable({
     tableKey: TABLE_KEYS.BUDGET_DAILY,
     hideable: keys,
     defaults: keys,
-    defaultHidden: ["reporting"],
+    defaultHidden: ["reporting", "value", "state"],
   });
   return (
     <DataTable<DayCell>

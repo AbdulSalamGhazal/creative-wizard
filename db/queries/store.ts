@@ -1,4 +1,5 @@
 import { and, asc, between, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   storeOrders,
@@ -61,6 +62,54 @@ export interface StoreOrderRow {
   attributes: Record<string, unknown>;
   /** The Salla feed holds this order (false = it came from an upload only). */
   fromFeed: boolean;
+  /** The connector's own updated_at for the newest version it delivered (ISO; null = never synced). */
+  connectorUpdatedAt: string | null;
+  /** When the row was first written / last written here (ISO timestamps). */
+  createdAt: string;
+  updatedAt: string;
+  /** The file that first wrote the order (null = the Salla feed wrote it). */
+  uploadFileName: string | null;
+}
+
+/**
+ * The orders table's columns — one SELECT for the page and the export. The
+ * upload's file name is a PK join off `upload_batch_id` (already on the row).
+ */
+const ORDER_ROW_SELECT = {
+  id: storeOrders.id,
+  orderId: storeOrders.orderId,
+  orderDate: storeOrders.orderDate,
+  totalAmount: storeOrders.totalAmount,
+  attributes: storeOrders.attributes,
+  connectorUpdatedAt: storeOrders.connectorUpdatedAt,
+  createdAt: storeOrders.createdAt,
+  updatedAt: storeOrders.updatedAt,
+  uploadFileName: storeUploadBatches.fileName,
+};
+
+function toOrderRow(r: {
+  id: string;
+  orderId: string;
+  orderDate: string;
+  totalAmount: string;
+  attributes: unknown;
+  connectorUpdatedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  uploadFileName: string | null;
+}): StoreOrderRow {
+  return {
+    id: r.id,
+    orderId: r.orderId,
+    orderDate: r.orderDate,
+    totalAmount: Number(r.totalAmount),
+    attributes: (r.attributes ?? {}) as Record<string, unknown>,
+    fromFeed: r.connectorUpdatedAt !== null,
+    connectorUpdatedAt: r.connectorUpdatedAt?.toISOString() ?? null,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    uploadFileName: r.uploadFileName,
+  };
 }
 
 export interface StoreOrdersFilters {
@@ -132,15 +181,9 @@ export async function listStoreOrders(
 
   const [rows, [agg]] = await Promise.all([
     db
-      .select({
-        id: storeOrders.id,
-        orderId: storeOrders.orderId,
-        orderDate: storeOrders.orderDate,
-        totalAmount: storeOrders.totalAmount,
-        attributes: storeOrders.attributes,
-      connectorUpdatedAt: storeOrders.connectorUpdatedAt,
-      })
+      .select(ORDER_ROW_SELECT)
       .from(storeOrders)
+      .leftJoin(storeUploadBatches, eq(storeUploadBatches.id, storeOrders.uploadBatchId))
       .where(and(...conds))
       // Secondary key by id so paging is stable when the sort col ties.
       .orderBy(orderBy, asc(storeOrders.id))
@@ -156,14 +199,7 @@ export async function listStoreOrders(
   ]);
 
   return {
-    rows: rows.map((r) => ({
-      id: r.id,
-      orderId: r.orderId,
-      orderDate: r.orderDate,
-      totalAmount: Number(r.totalAmount),
-      attributes: (r.attributes ?? {}) as Record<string, unknown>,
-      fromFeed: r.connectorUpdatedAt !== null,
-    })),
+    rows: rows.map(toOrderRow),
     total: agg?.n ?? 0,
     sumTotal: Number(agg?.sum ?? 0),
     page,
@@ -186,28 +222,15 @@ export async function storeOrdersForExport(
         : storeOrders.orderDate;
   const orderBy = f.dir === "asc" ? asc(sortCol) : desc(sortCol);
   const rows = await db
-    .select({
-      id: storeOrders.id,
-      orderId: storeOrders.orderId,
-      orderDate: storeOrders.orderDate,
-      totalAmount: storeOrders.totalAmount,
-      attributes: storeOrders.attributes,
-      connectorUpdatedAt: storeOrders.connectorUpdatedAt,
-    })
+    .select(ORDER_ROW_SELECT)
     .from(storeOrders)
+    .leftJoin(storeUploadBatches, eq(storeUploadBatches.id, storeOrders.uploadBatchId))
     .where(and(...conds))
     .orderBy(orderBy, asc(storeOrders.id))
     .limit(cap + 1);
   const truncated = rows.length > cap;
   return {
-    rows: rows.slice(0, cap).map((r) => ({
-      id: r.id,
-      orderId: r.orderId,
-      orderDate: r.orderDate,
-      totalAmount: Number(r.totalAmount),
-      attributes: (r.attributes ?? {}) as Record<string, unknown>,
-      fromFeed: r.connectorUpdatedAt !== null,
-    })),
+    rows: rows.slice(0, cap).map(toOrderRow),
     truncated,
   };
 }
@@ -339,7 +362,12 @@ export interface StoreBatchRow {
   rowsUpdated: number;
   upsert: boolean;
   status: string;
+  rolledBackAt: Date | null;
+  /** Who rolled it back — a PK join off `rolled_back_by_user_id`. */
+  rolledBackByName: string | null;
 }
+
+const storeRollbacker = alias(users, "store_rollbacker");
 
 export interface StoreWriteRow {
   orderId: string;
@@ -482,9 +510,12 @@ export async function listStoreBatches(limit = 10): Promise<StoreBatchRow[]> {
       rowsUpdated: storeUploadBatches.rowsUpdated,
       upsert: storeUploadBatches.upsert,
       status: storeUploadBatches.status,
+      rolledBackAt: storeUploadBatches.rolledBackAt,
+      rolledBackByName: storeRollbacker.name,
     })
     .from(storeUploadBatches)
     .leftJoin(users, eq(users.id, storeUploadBatches.uploadedByUserId))
+    .leftJoin(storeRollbacker, eq(storeRollbacker.id, storeUploadBatches.rolledBackByUserId))
     .where(eq(storeUploadBatches.accountId, acct))
     .orderBy(desc(storeUploadBatches.uploadedAt))
     .limit(limit);

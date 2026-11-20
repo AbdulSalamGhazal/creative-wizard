@@ -17,6 +17,7 @@ import {
   platformEnum,
   products,
   exclusionRules,
+  landingPages,
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
@@ -49,6 +50,7 @@ import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
 import { fillDailyGaps } from "@/lib/time-series";
 import { getActiveAccountId } from "@/lib/tenant";
 import { numOrNull } from "@/db/queries/values";
+import { sortStages } from "@/lib/funnel-stages";
 
 type Platform = (typeof platformEnum)[number];
 type CreativeType = (typeof creativeTypeEnum)[number];
@@ -575,6 +577,21 @@ export interface CampaignCreativeRow {
   cpa: number | null;
   roas: number | null;
   lastDate: string | null;
+  /** Free offers (defaultHidden, 2026-11): more sums and lib/metrics rates
+   *  from the SAME grouped scan, and the creative row's own columns. NULL ≠ 0:
+   *  a step no platform in scope reported stays NULL ("—"). */
+  landingPageViews: number | null;
+  addToCart: number | null;
+  addPayment: number | null;
+  voc: number | null;
+  cpm: number | null;
+  cpc: number | null;
+  hookRate: number | null;
+  holdRate: number | null;
+  firstDate: string | null;
+  notes: string | null;
+  sourceLink: string | null;
+  createdAt: Date;
 }
 
 export async function campaignCreatives(
@@ -605,6 +622,19 @@ export async function campaignCreatives(
       cpa,
       roas,
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+      // Free offers: the same scan, more sums / rates.
+      landingPageViews: sumLandingPageViews,
+      addToCart: sumAddToCart,
+      addPayment: sumAddPayment,
+      voc,
+      cpm,
+      cpc,
+      hookRate,
+      holdRate,
+      firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
+      notes: creatives.notes,
+      sourceLink: creatives.sourceLink,
+      createdAt: creatives.createdAt,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
@@ -620,6 +650,9 @@ export async function campaignCreatives(
       creatives.stages,
       creatives.priority,
       creatives.launchDate,
+      creatives.notes,
+      creatives.sourceLink,
+      creatives.createdAt,
     )
     .orderBy(desc(sumSpend));
 
@@ -646,6 +679,18 @@ export async function campaignCreatives(
     cpa: numOrNull(r.cpa),
     roas: numOrNull(r.roas),
     lastDate: r.lastDate,
+    landingPageViews: numOrNull(r.landingPageViews),
+    addToCart: numOrNull(r.addToCart),
+    addPayment: numOrNull(r.addPayment),
+    voc: numOrNull(r.voc),
+    cpm: numOrNull(r.cpm),
+    cpc: numOrNull(r.cpc),
+    hookRate: numOrNull(r.hookRate),
+    holdRate: numOrNull(r.holdRate),
+    firstDate: r.firstDate,
+    notes: r.notes,
+    sourceLink: r.sourceLink,
+    createdAt: r.createdAt,
   }));
 }
 
@@ -678,6 +723,19 @@ export interface CampaignRecordRow {
   /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
   excludedRuleKind: "campaign_objective" | "campaign" | "creative" | null;
   excludedRuleObjective: string | null;
+  /** Free offers (defaultHidden, 2026-11): the inner-joined creative's own
+   *  columns, the row's exclusion provenance, and two PK joins off columns
+   *  the row already carries (its product, its ` @code` landing page). */
+  creativeType: CreativeType;
+  creativeStages: string[];
+  creativePriority: number | null;
+  creativeLaunchDate: string | null;
+  productName: string;
+  excludedReason: string | null;
+  excludedAt: Date | null;
+  /** The ` @code` landing page (code without `@`); null = the product's page. */
+  landingPageCode: string | null;
+  landingPageName: string | null;
 }
 
 export async function campaignRecords(
@@ -709,12 +767,26 @@ export async function campaignRecords(
       excludedSource: performanceRecords.excludedSource,
       excludedRuleKind: exclusionRules.kind,
       excludedRuleObjective: exclusionRules.objective,
+      creativeType: creatives.type,
+      creativeStages: creatives.stages,
+      creativePriority: creatives.priority,
+      creativeLaunchDate: creatives.launchDate,
+      productName: products.name,
+      excludedReason: performanceRecords.excludedReason,
+      excludedAt: performanceRecords.excludedAt,
+      landingPageCode: landingPages.code,
+      landingPageName: landingPages.name,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     // PK join: names the rule behind a rule-excluded row (R-007).
     .leftJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
+    // PK joins off columns the row already carries — the admission price for
+    // a defaultHidden column (docs/decisions/tables-columns.md). Every
+    // creative has a product, so the inner join drops nothing.
+    .innerJoin(products, eq(products.id, creatives.productId))
+    .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
     .where(detailCond(name, range, acct, includeExcluded))
     .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
     .limit(2000);
@@ -740,6 +812,16 @@ export async function campaignRecords(
     excludedSource: (r.excludedSource ?? null) as "manual" | "rule" | null,
     excludedRuleKind: r.excludedRuleKind ?? null,
     excludedRuleObjective: r.excludedRuleObjective ?? null,
+    creativeType: r.creativeType as CreativeType,
+    // Stored unordered; presented in funnel order like every other surface.
+    creativeStages: sortStages(r.creativeStages ?? []),
+    creativePriority: r.creativePriority,
+    creativeLaunchDate: r.creativeLaunchDate,
+    productName: r.productName,
+    excludedReason: r.excludedReason,
+    excludedAt: r.excludedAt,
+    landingPageCode: r.landingPageCode,
+    landingPageName: r.landingPageName,
   }));
 }
 

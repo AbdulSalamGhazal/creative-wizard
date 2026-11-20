@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
-import { auditEvents, psUserState, psVersions } from "@/db/schema";
+import { auditEvents, psUserState, psVersions, users } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import { versionDataSchema } from "@/price-structure/schema";
 import type { VersionData } from "@/price-structure/engine/types";
@@ -22,6 +23,13 @@ export interface VersionSummary {
   createdAt: string;
   openedAt: string;
   updatedAt: string;
+  /**
+   * Who created / last saved it — a PK join off `created_by` / `updated_by`
+   * on the reads (null when the person is gone, or on a write's own row,
+   * which the caller fills from the session).
+   */
+  createdByName: string | null;
+  updatedByName: string | null;
 }
 
 export interface VersionRow extends VersionSummary {
@@ -30,7 +38,16 @@ export interface VersionRow extends VersionSummary {
 
 type RawRow = typeof psVersions.$inferSelect;
 
-const summaryOf = (r: Pick<RawRow, "id" | "name" | "notes" | "revision" | "createdAt" | "openedAt" | "updatedAt">): VersionSummary => ({
+interface Names {
+  createdByName: string | null;
+  updatedByName: string | null;
+}
+const NO_NAMES: Names = { createdByName: null, updatedByName: null };
+
+const summaryOf = (
+  r: Pick<RawRow, "id" | "name" | "notes" | "revision" | "createdAt" | "openedAt" | "updatedAt">,
+  names: Names = NO_NAMES,
+): VersionSummary => ({
   id: r.id,
   name: r.name,
   notes: r.notes,
@@ -38,37 +55,52 @@ const summaryOf = (r: Pick<RawRow, "id" | "name" | "notes" | "revision" | "creat
   createdAt: r.createdAt.toISOString(),
   openedAt: r.openedAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
+  createdByName: names.createdByName,
+  updatedByName: names.updatedByName,
 });
 
 /** Parse a stored row; null (and a log line) when the document fails the schema. */
-function rowOf(r: RawRow): VersionRow | null {
+function rowOf(r: RawRow, names: Names = NO_NAMES): VersionRow | null {
   const parsed = versionDataSchema.safeParse(r.data);
   if (!parsed.success) {
     console.error(`[price-structure] version ${r.id} has an invalid document:`, parsed.error.issues[0]);
     return null;
   }
-  return { ...summaryOf(r), data: parsed.data };
+  return { ...summaryOf(r, names), data: parsed.data };
 }
+
+// The two people a version names: PK joins off columns the row already carries.
+const creator = alias(users, "ps_creator");
+const updater = alias(users, "ps_updater");
+const WITH_NAMES = { v: psVersions, createdByName: creator.name, updatedByName: updater.name };
+
+/** `psVersions` with its creator's and last saver's names. */
+function selectWithNames(exec: Exec) {
+  return exec
+    .select(WITH_NAMES)
+    .from(psVersions)
+    .leftJoin(creator, eq(creator.id, psVersions.createdBy))
+    .leftJoin(updater, eq(updater.id, psVersions.updatedBy));
+}
+
+const namedRowOf = (r: { v: RawRow } & Names) => rowOf(r.v, r);
 
 const byOpened = [desc(psVersions.openedAt), desc(psVersions.createdAt)];
 
 /** Every version of the active brand, most recently opened first, with its data. */
 export async function listVersions(acct?: string, exec: Exec = db): Promise<VersionRow[]> {
   const account = acct ?? (await getActiveAccountId());
-  const rows = await exec
-    .select()
-    .from(psVersions)
+  const rows = await selectWithNames(exec)
     .where(eq(psVersions.accountId, account))
     .orderBy(...byOpened);
-  return rows.map(rowOf).filter((r): r is VersionRow => r !== null);
+  return rows.map(namedRowOf).filter((r): r is VersionRow => r !== null);
 }
 
 export async function getVersion(acct: string, id: string, exec: Exec = db): Promise<VersionRow | null> {
-  const [row] = await exec
-    .select()
-    .from(psVersions)
-    .where(and(eq(psVersions.accountId, acct), eq(psVersions.id, id)));
-  return row ? rowOf(row) : null;
+  const [row] = await selectWithNames(exec).where(
+    and(eq(psVersions.accountId, acct), eq(psVersions.id, id)),
+  );
+  return row ? namedRowOf(row) : null;
 }
 
 export async function countVersions(acct: string, exec: Exec = db): Promise<number> {
@@ -96,7 +128,9 @@ export async function insertVersion(
       updatedBy: userId,
     })
     .returning();
-  const parsed = row ? rowOf(row) : null;
+  // Re-read through the SAME executor (a transaction's own connection) for
+  // the creator's name — one PK read.
+  const parsed = row ? await getVersion(acct, row.id, exec) : null;
   if (!parsed) throw new Error("insertVersion returned no row");
   return parsed;
 }
@@ -190,9 +224,7 @@ export async function pollVersions(
   acct: string,
   known: ReadonlyArray<{ id: string; revision: number }>,
 ): Promise<{ summaries: VersionSummary[]; changed: VersionRow[]; deleted: string[] }> {
-  const rows = await db
-    .select()
-    .from(psVersions)
+  const rows = await selectWithNames(db)
     .where(eq(psVersions.accountId, acct))
     .orderBy(...byOpened);
   const knownRev = new Map(known.map((k) => [k.id, k.revision]));
@@ -200,10 +232,10 @@ export async function pollVersions(
   const changed: VersionRow[] = [];
   const seen = new Set<string>();
   for (const r of rows) {
-    seen.add(r.id);
-    summaries.push(summaryOf(r));
-    if (knownRev.get(r.id) !== r.revision) {
-      const parsed = rowOf(r);
+    seen.add(r.v.id);
+    summaries.push(summaryOf(r.v, r));
+    if (knownRev.get(r.v.id) !== r.v.revision) {
+      const parsed = namedRowOf(r);
       if (parsed) changed.push(parsed);
     }
   }

@@ -143,6 +143,8 @@ export default async function UploadsPage({
           platform: r.platform,
           fileName: r.fileName,
           uploadedBy: r.uploaderName,
+          rolledBackAt: r.rolledBackAt?.toISOString() ?? null,
+          rolledBackBy: r.rolledBackByName,
           rows: r.rowsImported,
           status: r.status,
           rollback:

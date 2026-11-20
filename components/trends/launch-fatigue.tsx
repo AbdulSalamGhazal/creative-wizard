@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
-import { ratio, roas, usd } from "@/lib/format";
+import { int, ratio, roas, usd } from "@/lib/format";
 import {
   FATIGUE_TIER_ORDER,
   FATIGUE_WINDOWS,
@@ -27,6 +27,8 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import { panelClass } from "@/components/ui/panel";
+import { PriorityStars } from "@/components/creative/priority-stars";
+import { StageChips } from "@/components/creative/stage-chips";
 
 export interface LaunchFatigueViewRow {
   creativeId: string;
@@ -37,7 +39,14 @@ export interface LaunchFatigueViewRow {
   derived: boolean;
   daysSinceLaunch: number;
   href: string;
+  /** Manual priority (1..3), null = unrated. */
+  priority: number | null;
+  /** Manual funnel stage(s), in funnel order; empty = unassigned. */
+  stages: string[];
   assessment: FatigueAssessment;
+  /** Each window's outcome COUNTS — the component sums the query already
+   *  returns (offered, hidden by default, 2026-11). */
+  outcomes: Record<FatigueWindowKey, { conversions: number; revenue: number }>;
 }
 
 const TIER_META: Record<
@@ -334,7 +343,16 @@ export type SortKey =
   | FatigueWindowKey
   /** Per-window spend: `w1Spend` … — the opt-in columns. */
   | `${FatigueWindowKey}Spend`
-  | "fatigue";
+  | "fatigue"
+  // ── Offered, hidden by default (2026-11): the row already carries them ──
+  | "product"
+  | "type"
+  | "age"
+  | "priority"
+  | "stages"
+  | `${FatigueWindowKey}Conv`
+  | `${FatigueWindowKey}Revenue`
+  | `${FatigueWindowKey}Roas`;
 type Dir = "asc" | "desc";
 
 /**
@@ -342,7 +360,14 @@ type Dir = "asc" | "desc";
  * Carried over verbatim — it is now each column's `defaultSortDir`, which is
  * how DataTable asks the same question.
  */
-export const ASC_FIRST = new Set<SortKey>(["status", "creative", "launched"]);
+export const ASC_FIRST = new Set<SortKey>([
+  "status",
+  "creative",
+  "launched",
+  "product",
+  "type",
+  "stages",
+]);
 
 /** The one place that decides a column's first-click direction. */
 export const firstDir = (key: SortKey): Dir => (ASC_FIRST.has(key) ? "asc" : "desc");
@@ -359,6 +384,16 @@ const COLUMN_KEYS: SortKey[] = [
   ...FATIGUE_WINDOWS.map((w) => w.key as SortKey),
   "fatigue",
   ...FATIGUE_WINDOWS.map((w) => spendKey(w.key)),
+  "product",
+  "type",
+  "age",
+  "priority",
+  "stages",
+  ...FATIGUE_WINDOWS.flatMap((w) => [
+    `${w.key}Conv` as SortKey,
+    `${w.key}Revenue` as SortKey,
+    `${w.key}Roas` as SortKey,
+  ]),
 ];
 
 /**
@@ -372,6 +407,26 @@ function spendKey(key: FatigueWindowKey): SortKey {
   return `${key}Spend` as SortKey;
 }
 const SPEND_KEYS: SortKey[] = FATIGUE_WINDOWS.map((w) => spendKey(w.key));
+
+/**
+ * Everything a first visit hides: the per-window spend (2026-10) and the
+ * 2026-11 additions — product and type as their own sortable columns (the
+ * Creative cell already prints them as a subtitle), the age in days, and each
+ * window's conversions / revenue / ROAS as plain sortable numbers.
+ */
+const DEFAULT_HIDDEN: SortKey[] = [
+  ...SPEND_KEYS,
+  "product",
+  "type",
+  "age",
+  "priority",
+  "stages",
+  ...FATIGUE_WINDOWS.flatMap((w) => [
+    `${w.key}Conv` as SortKey,
+    `${w.key}Revenue` as SortKey,
+    `${w.key}Roas` as SortKey,
+  ]),
+];
 
 export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("status");
@@ -422,6 +477,42 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
       render: (r) => <span className="text-ink-2">{usd(r.assessment[w.key].spend)}</span>,
       csv: (r) => r.assessment[w.key].spend,
     }));
+
+    const outcomeCols: DataColumn<LaunchFatigueViewRow>[] = FATIGUE_WINDOWS.flatMap((w) => [
+      {
+        key: `${w.key}Conv`,
+        label: `${w.short} conv.`,
+        align: "right" as const,
+        sortable: true,
+        defaultSortDir: "desc" as const,
+        render: (r: LaunchFatigueViewRow) => (
+          <span className="text-ink-2">{int(r.outcomes[w.key].conversions)}</span>
+        ),
+        csv: (r: LaunchFatigueViewRow) => r.outcomes[w.key].conversions,
+      },
+      {
+        key: `${w.key}Revenue`,
+        label: `${w.short} revenue`,
+        align: "right" as const,
+        sortable: true,
+        defaultSortDir: "desc" as const,
+        render: (r: LaunchFatigueViewRow) => (
+          <span className="text-ink-2">{usd(r.outcomes[w.key].revenue)}</span>
+        ),
+        csv: (r: LaunchFatigueViewRow) => r.outcomes[w.key].revenue,
+      },
+      {
+        key: `${w.key}Roas`,
+        label: `${w.short} ROAS`,
+        align: "right" as const,
+        sortable: true,
+        defaultSortDir: "desc" as const,
+        render: (r: LaunchFatigueViewRow) => (
+          <span className="text-ink-2">{roas(r.assessment[w.key].roas)}</span>
+        ),
+        csv: (r: LaunchFatigueViewRow) => r.assessment[w.key].roas,
+      },
+    ]);
 
     return [
       {
@@ -539,6 +630,52 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
         csv: (r) => r.assessment.drop,
       },
       ...spendCols,
+      {
+        key: "product",
+        label: "Product",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("product"),
+        render: (r) => <span className="whitespace-nowrap text-ink-2">{r.productName}</span>,
+        csv: (r) => r.productName,
+      },
+      {
+        key: "type",
+        label: "Type",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("type"),
+        render: (r) => <span className="capitalize text-ink-2">{r.type}</span>,
+        csv: (r) => r.type,
+      },
+      {
+        key: "age",
+        label: "Days since launch",
+        align: "right",
+        sortable: true,
+        defaultSortDir: firstDir("age"),
+        render: (r) => <span className="text-ink-2">{int(r.daysSinceLaunch)}</span>,
+        csv: (r) => r.daysSinceLaunch,
+      },
+      {
+        key: "priority",
+        label: "Priority",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("priority"),
+        render: (r) => <PriorityStars value={r.priority} />,
+        csv: (r) => r.priority,
+      },
+      {
+        key: "stages",
+        label: "Stage",
+        align: "left",
+        sortable: true,
+        defaultSortDir: firstDir("stages"),
+        render: (r) => <StageChips stages={r.stages} />,
+        csv: (r) => r.stages.join(", "),
+      },
+      ...outcomeCols,
     ];
   }, []);
 
@@ -548,7 +685,7 @@ export function LaunchFatigueTable({ rows }: { rows: LaunchFatigueViewRow[] }) {
     tableKey: TABLE_KEYS.TRENDS_LAUNCHES,
     hideable: COLUMN_KEYS,
     defaults: COLUMN_KEYS,
-    defaultHidden: SPEND_KEYS,
+    defaultHidden: DEFAULT_HIDDEN,
   });
 
   return (
@@ -702,6 +839,37 @@ export function compareRows(
     }
     case "fatigue":
       return (aa.drop ?? 0) - (bb.drop ?? 0);
+    case "product":
+      return a.productName.localeCompare(b.productName) || a.name.localeCompare(b.name);
+    case "type":
+      return a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
+    case "age":
+      return a.daysSinceLaunch - b.daysSinceLaunch;
+    case "priority":
+      // This table's rule: a missing value sorts as 0 (like a window with no
+      // ROAS), so unrated sits with the lowest.
+      return (a.priority ?? 0) - (b.priority ?? 0);
+    case "stages":
+      return a.stages.join(", ").localeCompare(b.stages.join(", "));
+    case "w1Conv":
+    case "w2Conv":
+    case "w3Conv": {
+      const w = key.slice(0, 2) as FatigueWindowKey;
+      return a.outcomes[w].conversions - b.outcomes[w].conversions;
+    }
+    case "w1Revenue":
+    case "w2Revenue":
+    case "w3Revenue": {
+      const w = key.slice(0, 2) as FatigueWindowKey;
+      return a.outcomes[w].revenue - b.outcomes[w].revenue;
+    }
+    case "w1Roas":
+    case "w2Roas":
+    case "w3Roas": {
+      // As the window columns do: no ROAS sorts as 0.
+      const w = key.slice(0, 2) as FatigueWindowKey;
+      return (aa[w].roas ?? 0) - (bb[w].roas ?? 0);
+    }
     case "status": {
       const r = FATIGUE_TIER_ORDER[aa.tier] - FATIGUE_TIER_ORDER[bb.tier];
       if (r !== 0) return r;

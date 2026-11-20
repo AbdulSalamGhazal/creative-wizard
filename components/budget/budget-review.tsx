@@ -502,11 +502,74 @@ function MonthsTable({
         csv: (r) => r.revisions,
         render: (r) => <span className="tabular-nums">{r.revisions}</span>,
       },
+      // ── Optional (defaultHidden): figures the rows already carry. ──
+      {
+        key: "revenueTarget",
+        label: "Revenue target (SAR)",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.revenueTarget,
+        csv: (r) => (r.revenueTarget > 0 ? round2(r.revenueTarget) : null),
+        render: (r) =>
+          r.revenueTarget > 0 ? <span className="tabular-nums">{sar0(r.revenueTarget)}</span> : dash,
+      },
+      {
+        key: "paceToDate",
+        label: "Pace to date",
+        align: "right",
+        sortable: true,
+        info: "The running month only: spend against what the plan expected so far.",
+        sortValue: (r) => r.paceToDate,
+        csv: (r) => pctCsv(r.paceToDate),
+        render: (r) => <Dev value={r.paceToDate} />,
+      },
+      {
+        key: "reserve",
+        label: "Reserve",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.reserve,
+        csv: (r) => money(r.reserve),
+        render: (r) => (r.reserve > 0 ? <span className="tabular-nums">{fmt(r.reserve)}</span> : dash),
+      },
+      {
+        key: "firstRevenueTarget",
+        label: "First revenue target (SAR)",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.firstRevenueTarget,
+        csv: (r) => (r.firstRevenueTarget === null ? null : round2(r.firstRevenueTarget)),
+        render: (r) =>
+          r.firstRevenueTarget === null ? (
+            dash
+          ) : (
+            <span className="tabular-nums">{sar0(r.firstRevenueTarget)}</span>
+          ),
+      },
+      {
+        key: "firstPlanAt",
+        label: "First plan saved",
+        align: "right",
+        sortable: true,
+        sortValue: (r) => r.firstPlanAt,
+        csv: (r) => r.firstPlanAt?.slice(0, 10) ?? null,
+        render: (r) =>
+          r.firstPlanAt === null ? (
+            dash
+          ) : (
+            <span className="tabular-nums text-ink-2">{r.firstPlanAt.slice(0, 10)}</span>
+          ),
+      },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, csvName]);
   const keys = columns.filter((c) => !c.pinned).map((c) => c.key);
-  const cols = useTableColumns({ tableKey: TABLE_KEYS.BUDGET_REVIEW, hideable: keys, defaults: keys });
+  const cols = useTableColumns({
+    tableKey: TABLE_KEYS.BUDGET_REVIEW,
+    hideable: keys,
+    defaults: keys,
+    defaultHidden: REVIEW_DEFAULT_HIDDEN,
+  });
   return (
     <DataTable<MonthReviewRow>
       columns={columns}
@@ -520,6 +583,15 @@ function MonthsTable({
     />
   );
 }
+
+/** The months table's optional columns — offered, collapsed on a first visit. */
+const REVIEW_DEFAULT_HIDDEN = [
+  "revenueTarget",
+  "paceToDate",
+  "reserve",
+  "firstRevenueTarget",
+  "firstPlanAt",
+] as const;
 
 // ── Who changed what ─────────────────────────────────────────────────────────
 

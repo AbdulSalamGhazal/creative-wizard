@@ -57,6 +57,10 @@ describe("the compare totals table, after the migration", () => {
       "roas",
       "hookRate",
       "holdRate",
+      "addToCart",
+      "addPayment",
+      "completeRate",
+      "aov",
     ]) {
       expect(SRC, key).toContain(`key: "${key}"`);
     }

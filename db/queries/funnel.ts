@@ -9,6 +9,7 @@ import {
 import {
   cpm,
   cpa,
+  cpc,
   ctr,
   cvr,
   voc,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/metrics";
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import type { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { getActiveAccountId } from "@/lib/tenant";
 import { fillDailyGaps } from "@/lib/time-series";
 import { dataHorizon, resolveEntityBounds } from "@/db/queries/series-bounds";
@@ -42,6 +44,7 @@ import { numOrNull } from "@/db/queries/values";
  */
 
 type Platform = (typeof platformEnum)[number];
+type CampaignObjective = (typeof CAMPAIGN_OBJECTIVES)[number];
 
 export interface FunnelFilters {
   from: string;
@@ -217,6 +220,8 @@ export async function funnelOverview(f: FunnelFilters): Promise<FunnelOverview> 
 export interface CampaignFunnelRow {
   campaign: string;
   platform: Platform;
+  /** The campaign's registered objective — a PK-join column (grouped by id). */
+  objective: CampaignObjective;
   spend: number;
   impressions: number;
   clicks: number;
@@ -239,6 +244,13 @@ export interface CampaignFunnelRow {
   purchaseRate: number | null;
   cvr: number | null;
   roas: number | null;
+  cpa: number | null;
+  cpc: number | null;
+  /** The prior equal-length window's spend — the delta's own baseline; NULL
+   *  when the campaign had no rows there. */
+  priorSpend: number | null;
+  /** The last day in the window this campaign has a record (MAX(date)). */
+  lastDate: string | null;
   spendDelta: Delta;
 }
 
@@ -284,6 +296,7 @@ export async function campaignFunnel(
       .select({
         platform: performanceRecords.platform,
         campaign: campaigns.name,
+        objective: campaigns.objective,
         spend: sumSpend,
         impressions: sumImpressions,
         clicks: sumClicks,
@@ -300,6 +313,9 @@ export async function campaignFunnel(
         purchaseRate,
         cvr,
         roas,
+        cpa,
+        cpc,
+        lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
       })
       .from(performanceRecords)
       .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
@@ -310,31 +326,36 @@ export async function campaignFunnel(
     campaignSpend({ ...f, from: prev.from, to: prev.to }, acct),
   ]);
 
-  return rows.map((r) => ({
-    campaign: r.campaign,
-    platform: r.platform as Platform,
-    spend: num(r.spend),
-    impressions: num(r.impressions),
-    clicks: num(r.clicks),
-    // NULL, not 0 — "never reported" is not "measured zero" (see the row docs).
-    landingPageViews: numOrNull(r.landingPageViews),
-    addToCart: numOrNull(r.addToCart),
-    addPayment: numOrNull(r.addPayment),
-    conversions: num(r.conversions),
-    conversionValue: num(r.conversionValue),
-    cpm: numOrNull(r.cpm),
-    ctr: numOrNull(r.ctr),
-    voc: numOrNull(r.voc),
-    atcRate: numOrNull(r.atcRate),
-    apRate: numOrNull(r.apRate),
-    purchaseRate: numOrNull(r.purchaseRate),
-    cvr: numOrNull(r.cvr),
-    roas: numOrNull(r.roas),
-    spendDelta: computeDelta(
-      num(r.spend),
-      priorSpend.get(pcKey(r.platform, r.campaign)) ?? null,
-    ),
-  }));
+  return rows.map((r) => {
+    const prior = priorSpend.get(pcKey(r.platform, r.campaign)) ?? null;
+    return {
+      campaign: r.campaign,
+      platform: r.platform as Platform,
+      objective: r.objective,
+      spend: num(r.spend),
+      impressions: num(r.impressions),
+      clicks: num(r.clicks),
+      // NULL, not 0 — "never reported" is not "measured zero" (see the row docs).
+      landingPageViews: numOrNull(r.landingPageViews),
+      addToCart: numOrNull(r.addToCart),
+      addPayment: numOrNull(r.addPayment),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      cpm: numOrNull(r.cpm),
+      ctr: numOrNull(r.ctr),
+      voc: numOrNull(r.voc),
+      atcRate: numOrNull(r.atcRate),
+      apRate: numOrNull(r.apRate),
+      purchaseRate: numOrNull(r.purchaseRate),
+      cvr: numOrNull(r.cvr),
+      roas: numOrNull(r.roas),
+      cpa: numOrNull(r.cpa),
+      cpc: numOrNull(r.cpc),
+      priorSpend: prior,
+      lastDate: r.lastDate ?? null,
+      spendDelta: computeDelta(num(r.spend), prior),
+    };
+  });
 }
 
 // =====================================================================
@@ -350,7 +371,10 @@ export interface PlatformFunnelRow {
   addToCart: number;
   addPayment: number;
   conversions: number;
+  /** Revenue (Σ conversion value) — same scan as the counts. */
+  conversionValue: number;
   cpa: number | null;
+  cpc: number | null;
   roas: number | null;
   cpm: number | null;
   ctr: number | null;
@@ -380,7 +404,9 @@ export async function platformFunnel(
       addToCart: sumAddToCart,
       addPayment: sumAddPayment,
       conversions: sumConversions,
+      conversionValue: sumConversionValue,
       cpa,
+      cpc,
       roas,
       cpm,
       ctr,
@@ -405,7 +431,9 @@ export async function platformFunnel(
     addToCart: num(r.addToCart),
     addPayment: num(r.addPayment),
     conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
     cpa: numOrNull(r.cpa),
+    cpc: numOrNull(r.cpc),
     roas: numOrNull(r.roas),
     cpm: numOrNull(r.cpm),
     ctr: numOrNull(r.ctr),
@@ -424,6 +452,8 @@ export async function platformFunnel(
 export interface PlatformCampaignRow {
   platform: Platform;
   campaign: string;
+  /** The campaign's registered objective — a PK-join column (grouped by id). */
+  objective: CampaignObjective;
   spend: number;
   impressions: number;
   clicks: number;
@@ -431,7 +461,10 @@ export interface PlatformCampaignRow {
   addToCart: number;
   addPayment: number;
   conversions: number;
+  /** Revenue (Σ conversion value) — same scan as the counts. */
+  conversionValue: number;
   cpa: number | null;
+  cpc: number | null;
   roas: number | null;
   cpm: number | null;
   ctr: number | null;
@@ -455,6 +488,7 @@ export async function platformCampaignFunnel(
     .select({
       platform: performanceRecords.platform,
       campaign: campaigns.name,
+      objective: campaigns.objective,
       spend: sumSpend,
       impressions: sumImpressions,
       clicks: sumClicks,
@@ -462,7 +496,9 @@ export async function platformCampaignFunnel(
       addToCart: sumAddToCart,
       addPayment: sumAddPayment,
       conversions: sumConversions,
+      conversionValue: sumConversionValue,
       cpa,
+      cpc,
       roas,
       cpm,
       ctr,
@@ -485,6 +521,7 @@ export async function platformCampaignFunnel(
   return rows.map((r) => ({
     platform: r.platform as Platform,
     campaign: r.campaign,
+    objective: r.objective,
     spend: num(r.spend),
     impressions: num(r.impressions),
     clicks: num(r.clicks),
@@ -492,7 +529,9 @@ export async function platformCampaignFunnel(
     addToCart: num(r.addToCart),
     addPayment: num(r.addPayment),
     conversions: num(r.conversions),
+    conversionValue: num(r.conversionValue),
     cpa: numOrNull(r.cpa),
+    cpc: numOrNull(r.cpc),
     roas: numOrNull(r.roas),
     cpm: numOrNull(r.cpm),
     ctr: numOrNull(r.ctr),

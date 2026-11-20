@@ -89,7 +89,14 @@ export default async function TrendsLaunchesPage({
       derived: r.derived,
       daysSinceLaunch: r.daysSinceLaunch,
       href: `/library/${encodeURIComponent(r.name)}`,
+      priority: r.priority,
+      stages: r.stages,
       assessment: assessFatigue(r.w1, r.w2, r.w3),
+      outcomes: {
+        w1: { conversions: r.w1.conversions, revenue: r.w1.conversionValue },
+        w2: { conversions: r.w2.conversions, revenue: r.w2.conversionValue },
+        w3: { conversions: r.w3.conversions, revenue: r.w3.conversionValue },
+      },
     }))
     .sort((a, b) => {
       const t =

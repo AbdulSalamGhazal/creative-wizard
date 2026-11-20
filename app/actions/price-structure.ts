@@ -41,7 +41,7 @@ import { EDIT_SITTING_MS, changedSections, newEditSections } from "@/price-struc
  * 500 ms), and create / delete update the provider's list in place.
  */
 export type SaveVersionResult =
-  | { ok: true; revision: number; updatedAt: string }
+  | { ok: true; revision: number; updatedAt: string; updatedByName: string }
   /** Someone else saved first: here is the live row to merge against. */
   | { ok: false; error: string; conflict: VersionRow }
   /** The version no longer exists. */
@@ -68,7 +68,7 @@ export async function saveVersion(input: unknown): Promise<SaveVersionResult> {
     const saved = await updateVersionIfRevision(acct, id, revision, { name, notes, data }, me.id);
     if (saved) {
       await recordEdit(acct, me.id, { id, name }, changedSections(before, { name, notes, data }));
-      return { ok: true, revision: saved.revision, updatedAt: saved.updatedAt };
+      return { ok: true, revision: saved.revision, updatedAt: saved.updatedAt, updatedByName: me.name };
     }
     const live = await getVersion(acct, id);
     if (!live) return { ok: false, error: VERSION_GONE_MESSAGE, gone: true };

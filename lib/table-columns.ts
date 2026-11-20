@@ -256,6 +256,13 @@ export interface ColumnPrecedenceInput {
   /** The table's own column config, in config order. */
   hideable: readonly string[];
   defaults: readonly string[];
+  /**
+   * The table's `defaultHidden` set (2026-11, the URL-backed tables' new free
+   * columns). With it, a stated list is DECODED — a default-hidden column
+   * stays hidden unless the list opts it in as `!key` — and a list nobody
+   * stated resolves to this set. Omitted: the old behaviour, unchanged.
+   */
+  defaultHidden?: readonly string[];
 }
 
 /**
@@ -272,12 +279,13 @@ export function resolveColumnPrefs(input: ColumnPrecedenceInput): TableColumnPre
   const urlOrder = input.url?.order ?? [];
   const usePref = !input.viewApplied && input.pref != null;
 
+  const dh = input.defaultHidden ?? [];
   const hidden =
     urlHidden.length > 0
-      ? mergeHiddenColumns(urlHidden, input.hideable)
+      ? mergeHiddenColumns(urlHidden, input.hideable, dh)
       : usePref
-        ? mergeHiddenColumns(input.pref!.hidden, input.hideable)
-        : [];
+        ? mergeHiddenColumns(input.pref!.hidden, input.hideable, dh)
+        : mergeHiddenColumns([], input.hideable, dh);
 
   const order =
     urlOrder.length > 0

@@ -10,7 +10,8 @@ import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
 import { exclusionRuleLabel } from "@/lib/exclusion-rule-label";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { int, isoDate, usd } from "@/lib/format";
+import { int, isoDate, pct, roas, usd } from "@/lib/format";
+import { recordRatios, type RecordRatios } from "@/lib/record-ratios";
 import { cn } from "@/lib/utils";
 import type { CreativeRecordRow } from "@/db/queries/creatives";
 import { rowsToCsv, todayStamp, type CsvColumn } from "@/lib/csv-export";
@@ -74,6 +75,21 @@ const METRICS: Array<{
   { key: "videoViews100", label: "Video 100%", on: false, pick: (r) => r.videoViews100 },
 ];
 
+/**
+ * The row's OWN ratios, derived from its own components (`recordRatios`, the
+ * house JS mirror of lib/metrics) — offered, hidden by default.
+ */
+const RATIOS: Array<{
+  key: keyof RecordRatios;
+  label: string;
+  fmt: (v: number | null) => string;
+}> = [
+  { key: "ctr", label: METRIC_LABEL.ctr, fmt: pct },
+  { key: "cpm", label: METRIC_LABEL.cpm, fmt: usd },
+  { key: "cpa", label: METRIC_LABEL.cpa, fmt: usd },
+  { key: "roas", label: METRIC_LABEL.roas, fmt: roas },
+];
+
 /** Opt-in columns the row has always carried: the exclusion's own provenance,
  *  which until now lived only in a tooltip and the CSV. */
 const PROVENANCE_KEYS = ["excludedReason", "excludedAt"];
@@ -83,7 +99,23 @@ const DEFAULT_HIDDEN = [
   "landingPage",
   ...METRICS.filter((m) => !m.on).map((m) => m.key),
   ...PROVENANCE_KEYS,
+  // Free offers (2026-11): fields a join the query already makes carries, or
+  // a PK join off a column it already reads, plus the row's own ratios.
+  "landingPageName",
+  "campaignObjective",
+  ...RATIOS.map((r) => r.key as string),
+  "excludedSource",
+  "excludedBy",
+  "importedAt",
+  "uploadFileName",
 ];
+
+/** How the row was excluded, in words — "Manual", "Rule · <rule>", or "". */
+function exclusionSourceText(r: CreativeRecordRow): string {
+  if (r.excludedSource === "rule") return `Rule · ${ruleLabel(r)}`;
+  if (r.excludedSource === "manual") return "Manual";
+  return "";
+}
 
 /**
  * EXPORTED for the unit test. The comparator this table has always used:
@@ -107,12 +139,21 @@ export function compareRecords(
 ): number {
   const metric = METRICS.find((m) => m.key === key);
   if (metric) return n0(metric.pick(a)) - n0(metric.pick(b));
+  // The derived ratios follow the same NULL-as-zero rule as the raw metrics.
+  const ratio = RATIOS.find((m) => m.key === key);
+  if (ratio) return n0(recordRatios(a)[ratio.key]) - n0(recordRatios(b)[ratio.key]);
   const pick = (r: CreativeRecordRow): string => {
     if (key === "platform") return PLATFORM_LABEL[r.platform];
     if (key === "campaign") return r.campaignName;
     if (key === "landingPage") return r.landingPageCode ?? "";
+    if (key === "landingPageName") return r.landingPageName ?? "";
+    if (key === "campaignObjective") return r.campaignObjective;
     if (key === "excludedReason") return r.excludedReason ?? "";
     if (key === "excludedAt") return r.excludedAt ? r.excludedAt.toISOString() : "";
+    if (key === "excludedSource") return exclusionSourceText(r);
+    if (key === "excludedBy") return r.excludedByName ?? "";
+    if (key === "importedAt") return r.importedAt.toISOString();
+    if (key === "uploadFileName") return r.uploadFileName;
     return r.date;
   };
   return pick(a).localeCompare(pick(b));
@@ -208,6 +249,14 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
         ),
       },
       {
+        key: "campaignObjective",
+        label: "Objective",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        render: (r) => <span className="whitespace-nowrap text-ink-2">{r.campaignObjective}</span>,
+      },
+      {
         key: "landingPage",
         label: "Landing page",
         align: "left",
@@ -229,6 +278,23 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
             </span>
           ),
       },
+      {
+        key: "landingPageName",
+        label: "Landing page name",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        render: (r) =>
+          r.landingPageName ? (
+            <span className="block max-w-[14rem] truncate text-ink-2" title={r.landingPageName}>
+              {r.landingPageName}
+            </span>
+          ) : (
+            <span className="text-ink-3" title="The product's own page">
+              —
+            </span>
+          ),
+      },
       ...METRICS.map<DataColumn<CreativeRecordRow>>((m) => ({
         key: m.key,
         label: m.label,
@@ -243,6 +309,14 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
           ) : (
             <span className="text-ink-2">{int(m.pick(r))}</span>
           ),
+      })),
+      ...RATIOS.map<DataColumn<CreativeRecordRow>>((m) => ({
+        key: m.key,
+        label: m.label,
+        align: "right",
+        sortable: true,
+        defaultSortDir: "desc",
+        render: (r) => <span className="text-ink-2">{m.fmt(recordRatios(r)[m.key])}</span>,
       })),
       {
         key: "excludedReason",
@@ -271,6 +345,60 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
           ) : (
             <span className="text-ink-3">—</span>
           ),
+      },
+      {
+        key: "excludedSource",
+        label: "Exclusion",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        render: (r) => {
+          const text = exclusionSourceText(r);
+          return text ? (
+            <span className="block max-w-[16rem] truncate text-ink-2" title={text}>
+              {text}
+            </span>
+          ) : (
+            <span className="text-ink-3">—</span>
+          );
+        },
+      },
+      {
+        key: "excludedBy",
+        label: "Excluded by",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        render: (r) =>
+          r.excludedByName ? (
+            <span className="block max-w-[12rem] truncate text-ink-2" title={r.excludedByName}>
+              {r.excludedByName}
+            </span>
+          ) : (
+            <span className="text-ink-3">—</span>
+          ),
+      },
+      {
+        key: "importedAt",
+        label: "Imported at",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "desc",
+        render: (r) => (
+          <span className="whitespace-nowrap tabular-nums text-ink-2">{isoDate(r.importedAt)}</span>
+        ),
+      },
+      {
+        key: "uploadFileName",
+        label: "Upload file",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        render: (r) => (
+          <span className="block max-w-[14rem] truncate text-ink-2" title={r.uploadFileName}>
+            {r.uploadFileName}
+          </span>
+        ),
       },
       {
         key: "exclude",

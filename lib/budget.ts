@@ -1982,6 +1982,19 @@ export function neededPerDay(
   return round2(remaining / days);
 }
 
+/**
+ * What is left of the row's full plan: plan − actual, signed (negative =
+ * spent past the plan). Null when the row has no plan.
+ */
+export function remainingPlan(bar: Pick<TrackerBar, "plan" | "actual">): number | null {
+  return bar.plan > 0 ? round2(bar.plan - bar.actual) : null;
+}
+
+/** Share of the row's full plan spent so far: actual ÷ plan. Null with no plan. */
+export function planUsedShare(bar: Pick<TrackerBar, "plan" | "actual">): number | null {
+  return bar.plan > 0 ? bar.actual / bar.plan : null;
+}
+
 /** Per-day plan over the whole range and actual through coverage — a sparkline's two series. */
 export interface DailyPair {
   plan: number[];

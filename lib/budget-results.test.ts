@@ -41,8 +41,10 @@ describe("buildResultRows — the results lens", () => {
     // Shares over instagram + tiktok (2,000 spend, 100 purchases): 50% / 50%.
     expect(ig.spendShare).toBeCloseTo(0.5, 6);
     expect(ig.purchaseShare).toBeCloseTo(0.5, 6);
+    // Value share over the rows reporting a value: 4,000 of 4,000 + 3,000.
+    expect(ig.valueShare).toBeCloseTo(4000 / 7000, 6);
     // Google doesn't report purchases: listed, with no share and no zero.
-    expect(rows[2]).toMatchObject({ spendShare: null, purchaseShare: null, gapPts: null });
+    expect(rows[2]).toMatchObject({ spendShare: null, purchaseShare: null, gapPts: null, valueShare: null });
     expect(rows[2]!.results.purchases).toBeNull();
   });
 

@@ -134,7 +134,10 @@ export default async function StoreUploadsPage({
           uploadedBy: b.uploadedByName,
           rows: b.rowsInserted,
           updated: b.rowsUpdated,
+          upsert: b.upsert,
           status: b.status,
+          rolledBackAt: b.rolledBackAt?.toISOString() ?? null,
+          rolledBackBy: b.rolledBackByName,
           rollback:
             canRollback &&
             b.status === "active" &&

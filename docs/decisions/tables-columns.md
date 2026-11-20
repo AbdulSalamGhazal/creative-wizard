@@ -72,8 +72,12 @@
 - The consumer may keep the sort when the comparator is composite, when nulls
   must not sink, or when a CSV must export in the on-screen order — then no
   column carries a `sortValue`.
-- URL-backed tables (Campaigns, Ads) are out of the catalog rule's scope: their
-  columns live in saved views' query strings, which `defaultHidden` can't reach.
+- **URL-backed tables (Campaigns, Ads) follow the catalog rule too (2026-11-20).**
+  A new column there is `defaultHidden`, and opening it is written into the
+  URL with the same `!key` marker (`hide=cpm,!lpv`; Ads: `hideIdentity=!angles`,
+  `hideMetrics=!revenue`). A URL or saved view that never names a new column
+  keeps it hidden, so every stored query string renders exactly as before;
+  `resolveColumnPrefs` takes the table's `defaultHidden` for this.
 - **Presentation-only params are SHALLOW (D12, 2026-10).** A sort (Ads,
   Library, Campaigns) and the Ads column toggles rewrite the URL with the
   native history API (`lib/shallow-url.ts`) — no server render — and the
@@ -450,3 +454,20 @@ column choice: `budget-pacing` (Analysis's Periods table) and
 `budget-tracker` (the pace board's Table view, on Today and Analysis alike —
 one component, one key, so a column choice carries between the two pages).
 `budget-audience` went with the Audience page.
+
+### Every table offers its free fields (2026-11-20)
+
+The user asked why the creative page's campaigns table had no Objective
+column when the query already grouped by the campaign. An audit of every
+table found the same gap almost everywhere, and the user approved adding
+every free field, `defaultHidden`, in one sweep: campaign Objective (creative
+campaigns, Funnel campaigns, the platform comparison's campaign rows), the
+creative identity fields and per-row ratios on both records tables,
+LP views / VOC / funnel steps wherever the scan already summed them, Revenue
+and AOV on Ads, thumbnails, created/edited stamps, and the Budget, Store,
+Pricing and upload-history fields already on their models. Campaigns and Ads
+joined the catalog rule through the `!key` marker in their URLs (invariant
+above). Left out on purpose, each by an invariant: money on Reconciliation
+and UTM accuracy (counts only), store revenue on Budget Daily and pacing
+figures on the Results lens (budget.md), Library lifetime spend and angles
+on the campaign creatives table (a new scan each).
