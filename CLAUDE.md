@@ -268,35 +268,22 @@ Do not introduce a new dependency without a one-line justification in the PR des
 This app is deployed and in production use. Treat `main` as shippable.
 
 - **Host:** Vercel, GitHub-integrated. Remote `origin` = `git@github.com:AbdulSalamGhazal/creative-wizard.git`. **Pushing to `main` auto-deploys** (`next build`); a failed build keeps the previous version serving (zero downtime).
-- **HOW A CHANGE LANDS — there are NO pull requests here (2026-10-25).** This
-  project has never used GitHub PRs: `gh` is not installed, nothing is signed
-  in to GitHub, and no commit on `main` came through one. Never ask the user
-  for `gh`, a token or a GitHub login. The house way, every time:
-  1. in the main checkout, `git status` clean, then fast-forward the work in
-     (`git merge --ff-only <branch>`; a worktree session's branch, or commit
-     directly on `main` when working there);
-  2. `DATABASE_URL='postgres://ccms:x@127.0.0.1:1/unreachable' npx next build`
-     — check the EXIT CODE and grep the full log for `failed to compile|Error:`
-     (the override keeps `.env.production.local`'s live URL out of the build);
-     `npx vitest run` and `npm run test:db` green;
-  3. **the push deploys production, so get the user's explicit go-ahead**;
-  4. `git push origin main`;
-  5. confirm with `GET https://creative.urjwan.com/api/health` until `commit`
-     equals the pushed short sha.
-  "One feature per PR or session" in Workflow means one feature per COMMIT
-  SERIES, reviewed in the session — not a GitHub PR. A brief handed to another
-  session must say "lands on main the house way", never "open a PR".
-- **ONE session lands work: "Commit Master" (2026-11-20, user rule).** Only
-  the session titled **Commit Master** merges into `main` and pushes it —
-  steps 1–5 above are ITS steps. Every other session stops at a finished
-  branch: commit on your own branch or worktree, never on `main`, never
-  `git push`, then report the branch name and what it touched so the user can
-  hand it over. Commit Master rebases it on the current `main`, checks it
-  against every other session's work (the same files, and different files
-  that collide in meaning — a shared helper, the schema, a doc section, a
-  test guard), runs the gates on the combined result, and lands one session's
-  series at a time. An overlap is reported to the user, never resolved
-  silently. If you are not Commit Master and are about to touch `main`, stop.
+- **HOW A CHANGE LANDS — no pull requests, ONE lander (2026-11-20, user
+  rule).** Never ask for `gh`, a token or a GitHub login. Only the session
+  titled **Commit Master** merges into `main` and pushes it; its steps and
+  its standing go-ahead to push are in `docs/decisions/shipping.md`. Every
+  other session works in its OWN worktree on its own named branch (started in
+  the main checkout? enter a worktree before the first edit), never commits
+  on `main`, never `git push`, and messages Commit Master DIRECTLY (find that
+  title in the session list, message its id — the user is not the messenger):
+  - **START, before the first edit:** `START <branch> — <the area and files
+    you expect to touch>`, then carry on. No reply means go; Commit Master
+    replies only to object.
+  - **DONE, once committed on the branch:** `DONE <branch> — <one-line
+    summary> · migration: yes/no · gates: <what you ran, the result>`, then
+    stop. Scope grew past what START named? Say so.
+  A brief handed to another session says "ends with DONE to Commit Master",
+  never "open a PR". Not Commit Master and about to touch `main`? Stop.
 - **URL:** https://creative.urjwan.com (custom domain, Let's Encrypt TLS, auto-renew). The `*.vercel.app` URL also resolves but Google Safe Browsing false-flags the shared domain — always use the custom domain.
 - **Health check:** `GET /api/health` (public, no auth) → `200 {status:"ok", commit:"<short sha>"}` when the DB is reachable (`commit` is the git sha Vercel built from — the one-curl answer to "is the latest deploy live?"; null locally), `503 {status:"degraded"}` when not. Point an uptime monitor at it. The DB client (`lib/db.ts`) has `connect_timeout: 10` so an unreachable DB fails fast and surfaces the `(dashboard)/error.tsx` boundary (calmer "temporarily unavailable" copy for connection errors) instead of hanging; route errors `console.error` → visible in Vercel logs.
 - **Database:** Neon Postgres (eu-central-1). Two connection strings:
