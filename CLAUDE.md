@@ -412,8 +412,6 @@ this map is still a rule you broke.
 - `@xyflow/react` has exactly one importer, lazily loaded.
 - The Rate lens recolours, never restates: a pairing's Rate is `rateBlock`
   over its range sums, by the campaign platform's rules.
-- `?focus=` is the INSPECTED node only (an id, shallow replace); a linked node
-  that isn't drawn is said, never dropped.
 
 → **`docs/decisions/canvas.md`**
 
