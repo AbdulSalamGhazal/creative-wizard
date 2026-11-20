@@ -55,6 +55,12 @@ export const CSV_COLUMNS: CsvColumn<CreativeListRow>[] = [
   { key: "spend30d", label: "30d spend (USD)", value: (r) => r.spend30d },
   { key: "createdBy", label: "Created by", value: (r) => r.createdByName ?? "" },
   { key: "createdAt", label: "Created at", value: (r) => isoDate(r.createdAt) },
+  { key: "updatedAt", label: "Last edited", value: (r) => isoDate(r.updatedAt) },
+  {
+    key: "productStatus",
+    label: "Product status",
+    value: (r) => (r.productStatus === "archived" ? "Archived" : "Active"),
+  },
   {
     key: "thumbnailUrl",
     label: "Thumbnail URL",

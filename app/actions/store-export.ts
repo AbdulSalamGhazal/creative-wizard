@@ -55,8 +55,16 @@ export async function exportStoreOrders(
               label: "Source",
               value: (r: StoreOrderRow) => orderSourceLabel(r.fromFeed),
             },
+            {
+              key: "_synced_at",
+              label: "Synced at",
+              value: (r: StoreOrderRow) => r.connectorUpdatedAt ?? "",
+            },
           ]
         : []),
+      { key: "_upload_file", label: "Upload file", value: (r) => r.uploadFileName ?? "" },
+      { key: "_created_at", label: "Created at", value: (r) => r.createdAt },
+      { key: "_updated_at", label: "Updated at", value: (r) => r.updatedAt },
     ];
 
     return { ok: true, csv: rowsToCsv(rows, columns), truncated };

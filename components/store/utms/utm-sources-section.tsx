@@ -345,12 +345,18 @@ export function UtmSourcesSection({
       "AOV",
       "Website %",
       "Trend",
+      "Website",
+      "App",
+      "App %",
+      "Channel unmapped",
+      "% of revenue",
     ];
     const lines = sorted.map((r): Array<string | number> => {
       const os = share(r.orders, coverage.orders);
       const a = aov(r.revenue, r.orders);
       const ws = share(r.website, r.orders);
       const t = trendByKey.get(sourceKey(r.value));
+      const ch = channelSplit(r, coverage.revenue);
       return [
         sourceLabel(r.value, sourceFieldLabel),
         utmBucketLabel(r.bucket),
@@ -360,6 +366,11 @@ export function UtmSourcesSection({
         a ?? "",
         ws ?? "",
         t === null || t === undefined ? "" : t,
+        ch.website,
+        ch.application,
+        ch.appShare ?? "",
+        ch.unmappedChannel,
+        ch.revenueShare ?? "",
       ];
     });
     downloadCsv(`store-utm-sources-${todayStamp()}.csv`, matrixToCsv(head, lines));

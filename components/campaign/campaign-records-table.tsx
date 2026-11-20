@@ -231,6 +231,16 @@ export function CampaignRecordsTable({
           label: "Excluded",
           value: (r: CampaignRecordRow) => (r.excludedFromAggregates ? "yes" : "no"),
         },
+        { key: "excludedSource", label: "Exclusion", value: (r) => exclusionSourceText(r) ?? "" },
+        { key: "excludedReason", label: "Excluded reason", value: (r) => r.excludedReason },
+        { key: "excludedAt", label: "Excluded at", value: (r) => r.excludedAt?.toISOString() ?? "" },
+        { key: "landingPage", label: "Landing page", value: (r) => (r.landingPageCode ? `@${r.landingPageCode}` : "") },
+        { key: "landingPageName", label: "Landing page name", value: (r) => r.landingPageName },
+        { key: "productName", label: "Product", value: (r) => r.productName },
+        { key: "creativeType", label: "Type", value: (r) => TYPE_LABEL[r.creativeType] },
+        { key: "creativeStages", label: "Stage", value: (r) => r.creativeStages.join(", ") },
+        { key: "creativePriority", label: "Priority", value: (r) => r.creativePriority },
+        { key: "creativeLaunchDate", label: "Launch date", value: (r) => r.creativeLaunchDate },
       ]);
     }
     return rowsToCsv<CampaignDayRow>(sortedDays, [

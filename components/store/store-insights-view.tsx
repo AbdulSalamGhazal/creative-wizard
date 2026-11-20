@@ -355,6 +355,8 @@ export function StoreInsightsView({
       "Revenue (SAR)",
       "% of revenue",
       "AOV",
+      "First order",
+      "Last order",
     ];
     const rows = sorted.map((r): Array<string | number> => {
       const os = share(r.orders, totals.orders);
@@ -367,6 +369,8 @@ export function StoreInsightsView({
         r.revenue,
         rs === null ? "" : rs,
         a === null ? "" : a,
+        r.firstOrder ?? "",
+        r.lastOrder ?? "",
       ];
     });
     const slug = dimension.key.replace(/[^a-z0-9]+/gi, "-").toLowerCase();

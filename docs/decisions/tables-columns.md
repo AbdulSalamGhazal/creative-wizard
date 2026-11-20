@@ -471,3 +471,7 @@ above). Left out on purpose, each by an invariant: money on Reconciliation
 and UTM accuracy (counts only), store revenue on Budget Daily and pacing
 figures on the Results lens (budget.md), Library lifetime spend and angles
 on the campaign creatives table (a new scan each).
+The downloads that build their own CSV instead of exporting the visible
+columns (Library, both records tables, store Orders, Insights and UTM
+Sources full breakdowns) carry the same new fields; an export is data, so it
+includes them whether or not the column is shown.

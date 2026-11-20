@@ -59,6 +59,8 @@ describe("Library CSV export columns", () => {
       "30d spend (USD)",
       "Created by",
       "Created at",
+      "Last edited",
+      "Product status",
       "Thumbnail URL",
     ]);
   });
@@ -81,6 +83,8 @@ describe("Library CSV export columns", () => {
       "6789",
       "Salam Ghazal",
       "2026-04-01",
+      "2026-04-02",
+      "Active",
       "https://blob.example/thumb.webp",
     ]);
   });

@@ -25,7 +25,9 @@ const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
   { key: "date", label: "Date", value: (r) => r.date },
   { key: "platform", label: "Platform", value: (r) => r.platform },
   { key: "campaignName", label: "Campaign Name", value: (r) => r.campaignName },
+  { key: "campaignObjective", label: "Objective", value: (r) => r.campaignObjective },
   { key: "landingPage", label: "Landing page", value: (r) => (r.landingPageCode ? `@${r.landingPageCode}` : "") },
+  { key: "landingPageName", label: "Landing page name", value: (r) => r.landingPageName },
   { key: "spend", label: "Spend (USD)", value: (r) => r.spend },
   { key: "impressions", label: "Impressions", value: (r) => r.impressions },
   { key: "clicks", label: "Clicks", value: (r) => r.clicks },
@@ -41,6 +43,11 @@ const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
   { key: "videoViews100", label: "Video views 100%", value: (r) => r.videoViews100 },
   { key: "excluded", label: "Excluded", value: (r) => (r.excludedFromAggregates ? "yes" : "") },
   { key: "excludedReason", label: "Excluded reason", value: (r) => r.excludedReason },
+  { key: "excludedSource", label: "Exclusion", value: (r) => exclusionSourceText(r) },
+  { key: "excludedAt", label: "Excluded at", value: (r) => r.excludedAt?.toISOString() ?? "" },
+  { key: "excludedBy", label: "Excluded by", value: (r) => r.excludedByName },
+  { key: "importedAt", label: "Imported at", value: (r) => r.importedAt.toISOString() },
+  { key: "uploadFileName", label: "Upload file", value: (r) => r.uploadFileName },
 ];
 
 type Dir = "asc" | "desc";
