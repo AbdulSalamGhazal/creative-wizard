@@ -173,3 +173,17 @@ column; the user asked for the MCP to carry it too. `list_campaigns` and
 `get_landing_pages`' `by_campaign` (one page in depth) now carry
 `objective` as well — read off `campaignMix`, which groups by the campaign,
 so no query changed. `tests/db/mcp.test.ts` pins it on `get_creative`.
+
+### Canvas patterns (2026-11-20)
+
+The Canvas was a "no" in the coverage register — its node graph is a picture
+of facts other tools return. Its new Rate patterns are not: "which winners
+haven't we scaled?" is a question the user asks their AI. **New, read-only:
+`get_canvas_patterns`** — for a range (default the app's last 30 days) and the
+usual platform / product / include_excluded fields, the Canvas insight strip
+as data: no live creatives · idle actives · losing everywhere · leans on one ·
+unscaled winners · most shared, each with its entities and their pairings
+(spend, ROAS, Rate, live, last spend day). It calls the page's own
+`canvasGraph` + `canvasInsights` (+ `inspectFor` for detail), so a definition
+lives once. `coverage.ts`: `canvas` → `tools: ["get_canvas_patterns"]`.
+Pinned by `tests/db/mcp.test.ts`.

@@ -794,3 +794,113 @@ describe("click inspector — inspectFor reads the drawn graph", () => {
     expect(inspectFor("k:nope", graph)).toBeNull();
   });
 });
+
+describe("pattern alerts — the Rate patterns", () => {
+  const rated = (
+    source: string,
+    target: string,
+    spend: number,
+    rate: "good" | "decent" | "bad" | "na",
+    live = true,
+  ) => ({ ...edge(source, target, spend, live), rate, roas: null });
+  const keyOf = (g: Parameters<typeof canvasInsights>[0], key: string) =>
+    canvasInsights(g).find((i) => i.key === key);
+
+  it("UNSCALED WINNER: one campaign, rated Good, still live", () => {
+    const g = {
+      campaigns: [camp("c:A", 1000, { totalChildren: 3 }), camp("c:B", 500, { totalChildren: 2 })],
+      creatives: [cre("k:win", 600), cre("k:paused", 200), cre("k:two", 500)],
+      edges: [
+        rated("c:A", "k:win", 600, "good"),
+        rated("c:A", "k:paused", 200, "good", false), // paused Good pairing ≠ winner
+        rated("c:A", "k:two", 200, "good"),
+        rated("c:B", "k:two", 300, "good"), // two campaigns ≠ unscaled
+      ],
+    };
+    const hit = keyOf(g, "unscaled-winner")!;
+    expect(hit.focusIds).toEqual(["k:win"]);
+    expect(hit.label).toBe("1 winner in one campaign only");
+  });
+
+  it("LEANS ON ONE: ≥70% of the campaign's TRUE spend, 2+ creatives", () => {
+    const g = {
+      campaigns: [
+        camp("c:lean", 1000, { totalChildren: 2 }),
+        camp("c:even", 1000, { totalChildren: 2 }),
+        camp("c:solo", 500, { totalChildren: 1 }), // one creative = 100%, not a finding
+        camp("c:hidden", 1000, { totalChildren: 3 }), // share vs TRUE spend
+      ],
+      creatives: [cre("k:1", 0), cre("k:2", 0), cre("k:3", 0), cre("k:4", 0)],
+      edges: [
+        rated("c:lean", "k:1", 700, "na"),
+        rated("c:lean", "k:2", 300, "na"),
+        rated("c:even", "k:1", 690, "na"), // 69% ≠ lean
+        rated("c:even", "k:2", 310, "na"),
+        rated("c:solo", "k:3", 500, "na"),
+        rated("c:hidden", "k:4", 700, "na"), // the other 300 were filtered out of the drawing
+      ],
+    };
+    const hit = keyOf(g, "leans-on-one")!;
+    expect(hit.focusIds).toEqual(["c:lean", "c:hidden"]);
+    expect(hit.label).toBe("2 campaigns lean on one creative");
+  });
+
+  it("LOSING EVERYWHERE: Bad in ≥2 campaigns, never Good or Decent, N/A ignored", () => {
+    const g = {
+      campaigns: [camp("c:A", 0), camp("c:B", 0), camp("c:C", 0)],
+      creatives: [cre("k:lose", 0), cre("k:mixed", 0), cre("k:once", 0)],
+      edges: [
+        rated("c:A", "k:lose", 600, "bad"),
+        rated("c:B", "k:lose", 600, "bad"),
+        rated("c:C", "k:lose", 50, "na"), // too small to judge — ignored
+        rated("c:A", "k:mixed", 600, "bad"),
+        rated("c:B", "k:mixed", 600, "bad"),
+        rated("c:C", "k:mixed", 600, "decent"), // Decent somewhere ≠ losing everywhere
+        rated("c:A", "k:once", 600, "bad"), // one Bad ≠ everywhere
+        rated("c:B", "k:once", 50, "na"),
+      ],
+    };
+    const hit = keyOf(g, "losing-everywhere")!;
+    expect(hit.focusIds).toEqual(["k:lose"]);
+    expect(hit.label).toBe("1 creative losing everywhere");
+  });
+
+  it("strip order: problems first, the existing chips keep their places", () => {
+    const g = {
+      campaigns: [
+        camp("c:A", 1000, { totalChildren: 2, liveChildren: 0 }),
+        camp("c:B", 1000, { totalChildren: 1, liveChildren: 1 }),
+      ],
+      creatives: [cre("k:lose", 0), cre("k:win", 0), cre("k:idle", 0)],
+      edges: [
+        rated("c:A", "k:lose", 900, "bad", false),
+        rated("c:B", "k:lose", 600, "bad"),
+        rated("c:A", "k:win", 100, "good", false),
+        rated("c:B", "k:win", 400, "good"),
+      ],
+    };
+    // k:win is in two campaigns → not a winner; add one that is.
+    g.creatives.push(cre("k:w1", 0));
+    g.campaigns.push(camp("c:C", 100, { totalChildren: 1, liveChildren: 1 }));
+    g.edges.push(rated("c:C", "k:w1", 100, "good"));
+    expect(canvasInsights(g).map((i) => i.key)).toEqual([
+      "no-live-creatives",
+      "idle-active",
+      "losing-everywhere",
+      "leans-on-one",
+      "unscaled-winner",
+      "most-shared",
+    ]);
+  });
+
+  it("nothing rated (every pairing N/A) adds no Rate chip", () => {
+    const g = {
+      campaigns: [camp("c:A", 1000, { totalChildren: 2 })],
+      creatives: [cre("k:1", 0), cre("k:2", 0)],
+      edges: [rated("c:A", "k:1", 500, "na"), rated("c:A", "k:2", 500, "na")],
+    };
+    const keys = canvasInsights(g).map((i) => i.key);
+    expect(keys).not.toContain("unscaled-winner");
+    expect(keys).not.toContain("losing-everywhere");
+  });
+});

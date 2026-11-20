@@ -91,6 +91,13 @@ function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
       return view === "campaign"
         ? "Lights the Idle creatives cluster."
         : "Focuses the active creatives with no spend in this range.";
+    // The Rate patterns use your Rate rules (Configuration › Rate rules).
+    case "losing-everywhere":
+      return "Rated Bad in two or more campaigns and not Good or Decent in any — pairings too small to judge don't count.";
+    case "leans-on-one":
+      return "One creative took 70% or more of the campaign's spend in this range, though the campaign ran others.";
+    case "unscaled-winner":
+      return "Rated Good and still spending in a campaign, but not running in any other campaign yet.";
   }
 }
 

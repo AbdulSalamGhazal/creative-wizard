@@ -34,6 +34,13 @@
   from its edge. It is NON-MODAL: a column beside the canvas from `sm` up, an
   overlay on the lower 55% below it. Opening it never re-flows the clusters
   (`reservedWidth`) and keeps the inspected node in view (`coveredBottom`).
+- **THE RATE PATTERNS read the edges' own verdicts** (`canvasInsights`,
+  user-confirmed definitions): LOSING EVERYWHERE = Bad in ≥ 2 campaigns,
+  Good/Decent in none, N/A ignored; LEANS ON ONE = a campaign with 2+
+  creatives (`totalChildren`) where one took ≥ 70% (`LEAN_SHARE`) of its TRUE
+  range spend; UNSCALED WINNER = one campaign, that pairing Good AND live.
+  The strip and the MCP's `get_canvas_patterns` are the SAME function — never
+  a second copy of a definition.
 
 ## History and rationale
 
@@ -281,3 +288,31 @@ as it stood before the restructure.*
   - **Rig note:** the Browser pane's `preview_start` ran the dev server in the
     MAIN checkout, not the session's worktree — it served `main`'s code. Check
     the server's cwd (`lsof -p <pid> -d cwd`) before trusting a worktree walk.
+
+### Pattern alerts (2026-11-20)
+
+- **C5: three Rate patterns in the insight strip, and the strip on the MCP.**
+  With every pairing carrying its Rate (C3), the strip now names what a media
+  buyer acts on: "N creative(s) losing everywhere" · "N campaign(s) lean(s)
+  on one creative" · "N winner(s) in one campaign only". Order: no live
+  creatives · idle actives · losing · leaning · winners · most shared — the
+  problems first, the existing chips in their places. Each chip's tooltip
+  states its rule; a click focuses the creatives (losing, winners) or the
+  campaigns (leaning), and never opens the inspector (group focus).
+  - **User decisions (all four recommendations taken):** a winner must be
+    Good AND live (a paused Good pairing was likely stopped on purpose) and in
+    ONE campaign · leaning is ≥ 70% with 2+ creatives (a one-creative
+    campaign is 100% by construction — it would flood the chip) · losing is
+    Bad in 2+ and better nowhere, N/A ignored · the MCP reads it: new
+    read-only `get_canvas_patterns`.
+  - **The share is against the campaign's TRUE range spend**, like every
+    Canvas total, so a filter that hides a creative can't manufacture a
+    "leans on one" (unit-tested: a campaign whose other $300 was filtered out
+    of the drawing still reads 70%, not 100%).
+  - **`get_canvas_patterns`** runs `canvasGraph` (statuses = the Canvas
+    default, all but Terminated) + `canvasInsights` and details each entity
+    through `inspectFor`: losing → its Bad pairings; leaning → the top
+    creative and its share; winner → its campaign; most shared → its
+    campaigns; each pairing with spend, ROAS, rate, live, last spend day.
+    `lib/mcp/coverage.ts` lists `canvas` under it; `tests/db/mcp.test.ts`
+    pins it (most shared with excluded hidden, leaning 83% with them in).

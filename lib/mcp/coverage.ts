@@ -65,10 +65,9 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
     mcp: "no",
     why: "The angle vocabulary and its writer; get_trends and list_creatives return the angles in use.",
   },
-  canvas: {
-    mcp: "no",
-    why: "The Canvas's node graph is a visual layout of facts every other tool already returns — its Rate lens included: a pairing's spend, revenue and ROAS are get_campaign's per-creative series, and Rate is get_summary's rule.",
-  },
+  // The Canvas's PATTERNS (2026-11-20): the insight strip as data. The node
+  // graph itself stays a picture; the patterns are what a user asks about.
+  canvas: { mcp: "tools", tools: ["get_canvas_patterns"] },
   platforms: { mcp: "no", why: "Admin overview of record counts per platform; get_data_freshness answers the useful question." },
   "exclusion-rules": { mcp: "no", why: "Admin rule engine and its writers; every tool reports excluded records via include_excluded." },
   uploads: { mcp: "no", why: "Upload batches and the pipeline's writers — plumbing, not analytics." },

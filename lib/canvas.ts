@@ -390,11 +390,22 @@ export function focusFor(
 // ── Insights ─────────────────────────────────────────────────────────────────
 
 export interface CanvasInsight {
-  key: "no-live-creatives" | "idle-active" | "most-shared";
+  key:
+    | "no-live-creatives"
+    | "idle-active"
+    | "losing-everywhere"
+    | "leans-on-one"
+    | "unscaled-winner"
+    | "most-shared";
   label: string;
   /** The nodes a click on the chip focuses. */
   focusIds: string[];
 }
+
+/** LEANS ON ONE: the top creative's share of the campaign's range spend. */
+export const LEAN_SHARE = 0.7;
+/** LOSING EVERYWHERE: how many Bad pairings it takes. */
+export const LOSER_MIN_BAD = 2;
 
 /**
  * What the graph is SAYING, computed from the same graph the canvas draws.
@@ -405,8 +416,15 @@ export interface CanvasInsight {
  *     as the health count, not on the children's general status.
  *  2. ACTIVE creatives with NO edge in this range — live, but not spending
  *     here (the query includes them as unconnected nodes for exactly this).
- *  3. The MOST SHARED creative — the one feeding the most campaigns (≥ 2, or
+ *  3–5. The RATE patterns (user-confirmed definitions, 2026-11-20):
+ *     LOSING EVERYWHERE — a creative rated Bad in ≥ 2 campaigns and Good or
+ *     Decent in none (N/A ignored); LEANS ON ONE — a campaign with 2+
+ *     creatives where one took ≥ 70% of its range spend; UNSCALED WINNER — a
+ *     creative in ONE campaign whose pairing is rated Good and still live.
+ *  6. The MOST SHARED creative — the one feeding the most campaigns (≥ 2, or
  *     there is no sharing to speak of). Ties go to the bigger spender.
+ *
+ * Strip order: the problems first, the existing chips keep their places.
  */
 export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives" | "edges">): CanvasInsight[] {
   const out: CanvasInsight[] = [];
@@ -437,6 +455,65 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
       key: "idle-active",
       label: `${idle.length} active creative${idle.length === 1 ? "" : "s"} idle in this range`,
       focusIds: idle.map((c) => c.id),
+    });
+  }
+
+  // ── The Rate patterns (C5). Every verdict is the edge's own `rate` / `live`
+  // — never re-derived — and every share is against the campaign's TRUE range
+  // spend, which the status filter and the cap never restate.
+  const edgesOf = new Map<string, CanvasEdge[]>();
+  for (const e of graph.edges) {
+    for (const id of [e.source, e.target]) {
+      const list = edgesOf.get(id) ?? [];
+      list.push(e);
+      edgesOf.set(id, list);
+    }
+  }
+
+  // LOSING EVERYWHERE: Bad in ≥ 2 campaigns and never Good or Decent
+  // (pairings too small to judge — N/A — say nothing either way).
+  const losing = graph.creatives.filter((c) => {
+    const rated = (edgesOf.get(c.id) ?? []).filter((e) => e.rate !== "na");
+    return (
+      rated.filter((e) => e.rate === "bad").length >= LOSER_MIN_BAD &&
+      rated.every((e) => e.rate === "bad")
+    );
+  });
+  if (losing.length > 0) {
+    out.push({
+      key: "losing-everywhere",
+      label: `${losing.length} creative${losing.length === 1 ? "" : "s"} losing everywhere`,
+      focusIds: losing.map((c) => c.id),
+    });
+  }
+
+  // LEANS ON ONE: one creative took ≥ LEAN_SHARE of the campaign's range
+  // spend, in a campaign that ran 2+ creatives (`totalChildren`, the true
+  // count — a one-creative campaign is 100% by construction, not a finding).
+  const leaning = graph.campaigns.filter((c) => {
+    if (c.totalChildren < 2 || c.spend <= 0) return false;
+    const top = Math.max(0, ...(edgesOf.get(c.id) ?? []).map((e) => e.spend));
+    return top / c.spend >= LEAN_SHARE;
+  });
+  if (leaning.length > 0) {
+    out.push({
+      key: "leans-on-one",
+      label: `${leaning.length} campaign${leaning.length === 1 ? " leans" : "s lean"} on one creative`,
+      focusIds: leaning.map((c) => c.id),
+    });
+  }
+
+  // UNSCALED WINNER: one campaign in the range, and that pairing is rated
+  // Good AND still live (a paused Good pairing was likely stopped on purpose).
+  const winners = graph.creatives.filter((c) => {
+    const es = edgesOf.get(c.id) ?? [];
+    return es.length === 1 && es[0]!.rate === "good" && es[0]!.live;
+  });
+  if (winners.length > 0) {
+    out.push({
+      key: "unscaled-winner",
+      label: `${winners.length} winner${winners.length === 1 ? "" : "s"} in one campaign only`,
+      focusIds: winners.map((c) => c.id),
     });
   }
 

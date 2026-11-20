@@ -52,6 +52,14 @@ import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/r
 import { landingPageRollup } from "@/db/queries/landing-page-performance";
 import { getLandingPageByCode, landingPageCreatives } from "@/db/queries/landing-pages";
 import { angleRollup, typeRollup } from "@/db/queries/trends";
+import { canvasGraph } from "@/db/queries/canvas";
+import {
+  canvasInsights,
+  inspectFor,
+  type CanvasInsight,
+  type InspectorPairing,
+} from "@/lib/canvas";
+import { CANVAS_DEFAULT_STATUSES } from "@/validators/canvas";
 import { listAllProductOptions, listProducts } from "@/db/queries/products";
 import {
   daysInMonth,
@@ -1257,6 +1265,100 @@ export function registerMcpTools(server: McpServer): void {
               cpa: r2(t.cpa),
               roas: r2(t.roas),
               cvr: t.cvr,
+            })),
+          },
+          excludedEcho(args.include_excluded),
+        );
+      }),
+  );
+
+  // ── Canvas patterns (2026-11-20) ─────────────────────────────────────────
+  // The Canvas insight strip as data: the SAME `canvasGraph` + `canvasInsights`
+  // the page draws (statuses = the Canvas default, everything but Terminated),
+  // each pattern's entities detailed through `inspectFor` — no new math.
+  server.registerTool(
+    "get_canvas_patterns",
+    {
+      description: `The Canvas's campaign↔creative patterns for a range (defaults to the app's last 30 days), exactly as the Canvas insight strip shows them. A "pairing" is one creative inside one campaign; its Rate is the brand's Rate rule (Good / Decent / Bad by ROAS, N/A under the minimum spend; the campaign platform's override applies) over the pairing's own range spend and revenue. Patterns (absent when empty): no_live_creatives — campaigns where nothing is spending now; idle_active — active creatives with no spend in the range; losing_everywhere — creatives rated Bad in 2+ campaigns and Good/Decent in none; leans_on_one — campaigns with 2+ creatives where one took ≥70% of the spend; unscaled_winner — creatives in ONE campaign whose pairing is rated Good and still live; most_shared — the creative feeding the most campaigns. Terminated creatives are left out, as on the Canvas. ${CONVENTIONS}`,
+      inputSchema: {
+        brand: brandField,
+        from: fromField,
+        to: toField,
+        platforms: platformsField,
+        productIds: productIdsField,
+        include_excluded: includeExcludedField,
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const range = defaultRange(args.from, args.to);
+        const graph = await canvasGraph({
+          from: range.from,
+          to: range.to,
+          platforms: args.platforms && args.platforms.length > 0 ? args.platforms : undefined,
+          statuses: CANVAS_DEFAULT_STATUSES,
+          productIds: args.productIds && args.productIds.length > 0 ? args.productIds : undefined,
+          includeExcluded: args.include_excluded,
+        });
+        const detail = (id: string) => inspectFor(id, graph);
+        const pairing = (p: InspectorPairing) => ({
+          name: p.other.name,
+          spend: r2(p.edge.spend),
+          roas: r2(p.edge.roas),
+          rate: p.edge.rate,
+          live: p.edge.live,
+          last_spend_day: p.edge.lastSpendDay,
+        });
+        const items = (key: CanvasInsight["key"], ids: string[]) =>
+          ids.flatMap((id) => {
+            const d = detail(id);
+            if (!d) return [];
+            const n = d.node;
+            const base = {
+              kind: n.kind,
+              name: n.name,
+              status: n.status,
+              spend: r2(n.spend),
+              roas: r2(d.roas),
+            };
+            switch (key) {
+              case "losing-everywhere":
+                return [{ ...base, bad_in: d.pairings.filter((p) => p.edge.rate === "bad").map(pairing) }];
+              case "leans-on-one": {
+                const top = [...d.pairings].sort((a, b) => b.edge.spend - a.edge.spend)[0];
+                return [{
+                  ...base,
+                  creatives_in_range: n.kind === "campaign" ? n.totalChildren : null,
+                  top_creative: top ? pairing(top) : null,
+                  top_share: top?.share !== undefined && top.share !== null ? r2(top.share) : null,
+                }];
+              }
+              case "unscaled-winner":
+                return [{ ...base, campaign: d.pairings[0] ? pairing(d.pairings[0]) : null }];
+              case "most-shared":
+                return [{ ...base, campaigns: d.pairings.map(pairing) }];
+              case "no-live-creatives":
+                return [{ ...base, creatives_in_range: n.kind === "campaign" ? n.totalChildren : null }];
+              case "idle-active":
+                return [base];
+            }
+          });
+        return ok(
+          brand,
+          rangeEcho(range.from, range.to),
+          {
+            // Set when the Canvas's size cap trimmed the graph: patterns are
+            // computed over what the Canvas draws, as on the page.
+            truncated: graph.truncated
+              ? {
+                  shown_pairings: graph.truncated.shownEdges,
+                  total_pairings: graph.truncated.totalEdges,
+                }
+              : null,
+            patterns: canvasInsights(graph).map((i) => ({
+              key: i.key.replaceAll("-", "_"),
+              label: i.label,
+              items: items(i.key, i.focusIds),
             })),
           },
           excludedEcho(args.include_excluded),

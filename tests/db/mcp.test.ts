@@ -158,6 +158,39 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     }
   });
 
+  it("get_canvas_patterns returns the Canvas insight strip as data", async () => {
+    const tools = loadTools();
+    const call = (args: Record<string, unknown>) =>
+      runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("get_canvas_patterns")!(args, {}),
+      ).then(parse);
+    const JAN = { from: "2026-01-01", to: "2026-01-03" };
+
+    // Default (excluded hidden): A-Creative-1 runs in both campaigns.
+    const hidden = await call(JAN);
+    expect(hidden.brand.id).toBe(ACCOUNT_A);
+    expect(hidden.excluded_records).toBeDefined();
+    const shared = hidden.patterns.find((p: { key: string }) => p.key === "most_shared");
+    expect(shared.items[0].name).toBe("A-Creative-1");
+    expect(shared.items[0].campaigns.map((c: { name: string }) => c.name).sort()).toEqual([
+      "Camp One ➤ Broad (IG)",
+      "Camp Two ➤ Broad (FB)",
+    ]);
+    // $200 pairings are under the default $500 min spend → rated N/A, so
+    // no Rate pattern fires.
+    expect(hidden.patterns.map((p: { key: string }) => p.key)).not.toContain("unscaled_winner");
+
+    // Counting the excluded row: A-Creative-2 spent $1,000 at 9,999 in Camp
+    // One — 83% of that campaign's $1,200, which ran 2 creatives.
+    const shown = await call({ ...JAN, include_excluded: true });
+    const lean = shown.patterns.find((p: { key: string }) => p.key === "leans_on_one");
+    expect(lean.items).toHaveLength(1);
+    expect(lean.items[0].name).toBe("Camp One ➤ Broad (IG)");
+    expect(lean.items[0].creatives_in_range).toBe(2);
+    expect(lean.items[0].top_creative.name).toBe("A-Creative-2");
+    expect(lean.items[0].top_share).toBe(0.83);
+  });
+
   it("get_kpis for a brand the user lacks → error result (never Account B data)", async () => {
     const tools = loadTools();
     const res = await runWithMcpActor(
