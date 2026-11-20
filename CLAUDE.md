@@ -410,6 +410,8 @@ this map is still a rule you broke.
 - Read-only facts: nothing is edited, no position is saved.
 - TWO CLOCKS: the range decides existence, the status window decides liveness.
 - `@xyflow/react` has exactly one importer, lazily loaded.
+- The Rate lens recolours, never restates: a pairing's Rate is `rateBlock`
+  over its range sums, by the campaign platform's rules.
 
 → **`docs/decisions/canvas.md`**
 

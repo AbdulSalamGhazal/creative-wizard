@@ -21,6 +21,13 @@
 - The legend is non-optional, and a cap that bites must SAY SO.
 - Nodes carry `measured`; the initial fit is done by hand in an effect — do not
   restore the `fitView` prop.
+- **THE LENS RECOLOURS, IT NEVER RESTATES.** `?lens=rate` colours each pairing
+  by its RATE — `pairRate` = the system's one rule (`rateBlock`) over the
+  pair's own RANGE sums (Σrevenue ÷ Σspend), judged by the campaign platform's
+  rules (`rulesForScope`: override, else the brand default), same min spend as
+  Summary. No new scale, no CPA lens (no CPA thresholds exist). Width, dash
+  and opacity keep their meaning in both lenses; liveness stays the window
+  clock. A chip's `roas`/`rate` are its edge's, copied — never re-derived.
 
 ## History and rationale
 
@@ -197,3 +204,37 @@ as it stood before the restructure.*
       ResizeObserver all stall — computed opacities read one step stale, fit
       animations never finish, and edges count 0 until a screenshot forces a
       paint. Read inline styles, and shim rAF onto a timer in the rig's HTML.
+
+### Performance lens (2026-11-20)
+
+- **C3: the PERFORMANCE LENS — "Colour: Platform · Rate".** The Canvas told
+  you who spent where but not how well: `canvasGraph()` already summed each
+  pair's conversions and revenue, then dropped them on the edge. The lens
+  carries `roas` + `rate` on every `CanvasEdge` (and its cluster chips) and
+  recolours by RATE. No new scan, no migration: the cached `getRatingConfig()`
+  joins the query's existing `Promise.all`.
+  - **User decisions (all four recommendations taken):** reuse Rate — the
+    admin-defined Good / Decent / Bad / N/A, so "Good" on the Canvas means
+    exactly what it means in the Summary's Rate column (a continuous ROAS
+    gradient was declined; CPA was dropped, no CPA thresholds exist) · the
+    SAME min spend, per PAIRING — a short range honestly reads mostly N/A
+    (a one-day range on local data: every line grey) · the switch sits beside
+    the view switcher, URL-backed `?lens=rate` (a comment's captured query
+    string reproduces it; a fresh visit is Platform, the clean URL) · in the
+    cluster views a paired chip gets a left Rate stripe and shows the pairing's
+    ROAS in place of its spend — an N/A chip keeps its spend.
+  - **Scope of the rules = the CAMPAIGN's platform** — the line was already
+    coloured by it, and a pairing lives on exactly one platform.
+  - **Tooltips** (line and chip) show "ROAS 3.2× · ● Good" in BOTH lenses; the
+    swatch carries the colour, the word carries the meaning.
+  - **Legend:** in the Rate lens, a 2-column block with the brand DEFAULT
+    thresholds as typed (`9×`, never `9.00×` — the long form made the column
+    scroll sideways) and where overrides live (Configuration › Rate rules).
+    The legend is now capped to the pane height and scrolls: with the Rate
+    block it slid under the search box.
+  - **Contrast (measured in the app, four themes):** at the network's 0.85 live
+    opacity, Good / Decent / N/A measured 2.7–3.0:1 on Frost and Paper; at full
+    opacity every Rate token clears 3.4:1 everywhere, so a live Rate line draws
+    at 1 (paused lines keep their deliberate dashed 0.45). *Not fixed, found
+    in passing:* the PLATFORM lens's Facebook (2.4:1) and Snapchat (2.3:1)
+    lines are under 3:1 on Frost and Paper — that predates this change.

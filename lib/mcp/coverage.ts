@@ -67,7 +67,7 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
   },
   canvas: {
     mcp: "no",
-    why: "The Canvas's node graph is a visual layout of facts every other tool already returns.",
+    why: "The Canvas's node graph is a visual layout of facts every other tool already returns — its Rate lens included: a pairing's spend, revenue and ROAS are get_campaign's per-creative series, and Rate is get_summary's rule.",
   },
   platforms: { mcp: "no", why: "Admin overview of record counts per platform; get_data_freshness answers the useful question." },
   "exclusion-rules": { mcp: "no", why: "Admin rule engine and its writers; every tool reports excluded records via include_excluded." },

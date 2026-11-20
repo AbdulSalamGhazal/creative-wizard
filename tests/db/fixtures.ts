@@ -37,7 +37,7 @@ export const CREATIVE_B = "33333333-3333-3333-3333-3333333330b1"; // B
 export const CAMPAIGN_1 = "44444444-4444-4444-4444-444444444001"; // A · instagram
 export const CAMPAIGN_2 = "44444444-4444-4444-4444-444444444002"; // A · facebook
 export const CAMPAIGN_B = "44444444-4444-4444-4444-4444444440b1"; // B · instagram
-const BATCH_A = "55555555-5555-5555-5555-555555555001";
+export const BATCH_A = "55555555-5555-5555-5555-555555555001";
 const BATCH_B = "55555555-5555-5555-5555-5555555550b1";
 
 type PerfRow = {
@@ -56,7 +56,7 @@ type PerfRow = {
   batchId: string;
 };
 
-function perf(r: PerfRow) {
+export function perf(r: PerfRow) {
   return {
     accountId: r.accountId,
     creativeId: r.creativeId,

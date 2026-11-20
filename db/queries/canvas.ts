@@ -23,7 +23,9 @@ import {
   type CreativeStatusResult,
 } from "@/lib/creative-status";
 import { sortStages, splitStageFilter } from "@/lib/funnel-stages";
+import { getRatingConfig } from "@/db/queries/rating";
 import {
+  pairRate,
   CANVAS_MAX_NODES,
   campaignHealth,
   campaignNodeId,
@@ -140,7 +142,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     conds.push(inArray(performanceRecords.platform, f.platforms));
   }
 
-  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours] = await Promise.all([
+  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours, ratingConfig] = await Promise.all([
     db
       .select({
         campaignId: campaigns.id,
@@ -170,6 +172,8 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     campaignStatusMap(),
     platformSpendFreshness(),
     getActiveStatusWindowHours(),
+    // The Rate lens's rules — cached per request, shared with the legend.
+    getRatingConfig(),
   ]);
   const windowDays = hoursToWindowDays(windowHours);
 
@@ -239,6 +243,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       target: kid,
       platform: r.campaignPlatform,
       spend,
+      ...pairRate({ spend, revenue, platform: r.campaignPlatform }, ratingConfig),
       lastSpendDay: r.lastSpendDay,
       live: edgeIsLive({
         lastSpendDay: r.lastSpendDay,

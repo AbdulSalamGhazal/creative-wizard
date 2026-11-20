@@ -1,6 +1,7 @@
 // Type-only: lib/enums imports ALL_PLATFORMS from here, so a value import
 // would be a cycle; a type import is erased.
 import type { CreativeType } from "@/lib/enums";
+import type { Rating } from "@/lib/rating";
 
 /**
  * Platform colors, as references to the CSS vars in app/globals.css so they
@@ -83,6 +84,18 @@ export const PACING_COLOR = {
   ahead: "var(--ahead)",
   behind: "var(--behind)",
 } as const;
+
+/**
+ * RATE colours as CSS tokens — the same pos / warn / neg / ink-3 the Rate
+ * badges fill with (`RATING_META` in lib/rating.ts), for SVG strokes and
+ * inline styles (the Canvas's Rate lens).
+ */
+export const RATE_COLOR: Record<Rating, string> = {
+  good: "var(--pos)",
+  decent: "var(--warn)",
+  bad: "var(--neg)",
+  na: "var(--ink-3)",
+};
 
 export const PLATFORM_LABEL: Record<PlatformKey, string> = {
   instagram: "Instagram",

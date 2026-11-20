@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACCOUNT_A, ACCOUNT_B } from "./config";
 
 vi.mock("@/lib/tenant", () => ({
@@ -11,7 +11,7 @@ vi.mock("@/lib/tenant", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { performanceRecords } from "@/db/schema";
+import { performanceRecords, platformRatingRules, ratingRules } from "@/db/schema";
 import { canvasGraph } from "@/db/queries/canvas";
 import { campaignNodeId, creativeNodeId } from "@/lib/canvas";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
@@ -22,6 +22,8 @@ import {
   CREATIVE_1,
   CREATIVE_2,
   CREATIVE_B,
+  BATCH_A,
+  perf,
 } from "./fixtures";
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
@@ -266,5 +268,73 @@ describe("canvasGraph — two clocks", () => {
     });
     const camp2 = g.campaigns.find((c) => c.campaignId === CAMPAIGN_2)!;
     expect(camp2.totalChildren).toBe(2); // still two creatives spent there
+  });
+});
+
+describe("canvasGraph — the performance lens rates each PAIRING", () => {
+  const E1 = `${campaignNodeId(CAMPAIGN_1)}|${creativeNodeId(CREATIVE_1)}`;
+  const E2 = `${campaignNodeId(CAMPAIGN_2)}|${creativeNodeId(CREATIVE_1)}`;
+
+  beforeAll(async () => {
+    await resetAndSeed();
+    // A third day on camp1 × creative1 at a very different ROAS (1×), so a
+    // mean of daily ratios ((5 + 5 + 1) / 3 = 3.67) and the weighted ROAS
+    // ((500 + 500 + 600) / (100 + 100 + 600) = 2.0) disagree.
+    await db.insert(performanceRecords).values(
+      perf({ accountId: ACCOUNT_A, batchId: BATCH_A, creativeId: CREATIVE_1, platform: "instagram", campaignId: CAMPAIGN_1, date: "2026-01-04", spend: 600, impressions: 1000, clicks: 10, conversions: 1, conversionValue: 600, landingPageViews: 10 }),
+    );
+  });
+  afterAll(async () => {
+    await resetAndSeed();
+  });
+
+  const RANGE = { from: "2026-01-01", to: "2026-01-04", statuses: ALL };
+
+  it("ROAS is Σrevenue ÷ Σspend over the range — never a mean of daily ratios", async () => {
+    const g = await canvasGraph(RANGE);
+    const e1 = g.edges.find((e) => e.id === E1)!;
+    expect(e1.spend).toBe(800);
+    expect(e1.roas).toBeCloseTo(2.0, 10);
+    // Defaults (no rules row): min $500, decent ≥ 2× → DECENT, not "good".
+    expect(e1.rate).toBe("decent");
+    // camp2 × creative1: $200 spent — under the default min spend → N/A.
+    const e2 = g.edges.find((e) => e.id === E2)!;
+    expect(e2.roas).toBeCloseTo(5.0, 10);
+    expect(e2.rate).toBe("na");
+  });
+
+  it("uses the brand's rules, and the CAMPAIGN platform's override wins", async () => {
+    await db.insert(ratingRules).values({ accountId: ACCOUNT_A, minSpend: "100", goodRoas: "4", decentRoas: "2" });
+    await db.insert(platformRatingRules).values({ accountId: ACCOUNT_A, platform: "facebook", minSpend: "100", goodRoas: "6", decentRoas: "3" });
+    try {
+      const g = await canvasGraph(RANGE);
+      // facebook pairing: 5× — "good" by the default, only "decent" by facebook's override.
+      expect(g.edges.find((e) => e.id === E2)!.rate).toBe("decent");
+      // instagram pairing has no override → the brand default.
+      expect(g.edges.find((e) => e.id === E1)!.rate).toBe("decent");
+    } finally {
+      await db.delete(platformRatingRules);
+      await db.delete(ratingRules);
+    }
+  });
+
+  it("an excluded record moves the rate only when the Excluded toggle opts in", async () => {
+    // CREATIVE_2's only row is excluded: $1,000 at 9,999 revenue.
+    const hidden = await canvasGraph(RANGE);
+    expect(hidden.edges.some((e) => e.target === creativeNodeId(CREATIVE_2))).toBe(false);
+    const shown = await canvasGraph({ ...RANGE, includeExcluded: true });
+    const e = shown.edges.find((x) => x.target === creativeNodeId(CREATIVE_2))!;
+    expect(e.roas).toBeCloseTo(9.999, 10);
+    expect(e.rate).toBe("good");
+  });
+
+  it("the rules are the active brand's — B's rules never rate A's pairings", async () => {
+    await db.insert(ratingRules).values({ accountId: ACCOUNT_B, minSpend: "1", goodRoas: "1", decentRoas: "0.5" });
+    try {
+      const g = await canvasGraph(RANGE);
+      expect(g.edges.find((e) => e.id === E2)!.rate).toBe("na"); // A still on defaults
+    } finally {
+      await db.delete(ratingRules);
+    }
   });
 });

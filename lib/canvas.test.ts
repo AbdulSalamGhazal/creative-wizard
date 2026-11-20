@@ -6,6 +6,8 @@ import {
   clusterFocus,
   clusterFrameId,
   clusterHeaderId,
+  pairRate,
+  parseCanvasLens,
   parseCanvasView,
   CHIP_COLS,
   CHIP_GAP,
@@ -76,6 +78,8 @@ const edge = (source: string, target: string, spend = 1, live = true): CanvasEdg
   spend,
   lastSpendDay: "2026-09-19",
   live,
+  roas: null,
+  rate: "na",
 });
 
 describe("the two clocks — range draws the edge, the status window says if it is live", () => {
@@ -546,7 +550,8 @@ describe("clusterBoxes — wrapping rows, sized by child count", () => {
     kind: headerId ? ("campaign" as const) : ("idle" as const),
     headerId,
     chips: Array.from({ length: n }, (_, i) => ({
-      id: `${id}>${i}`, entityId: `k${i}`, edgeId: `${id}|k${i}`, live: true, spend: 1, lastSpendDay: null,
+      id: `${id}>${i}`, entityId: `k${i}`, edgeId: `${id}|k${i}`, live: true, spend: 1,
+      roas: null, rate: "na" as const, lastSpendDay: null,
     })),
   });
   const clusters = [mk("A", 5), mk("B", 1), mk("C", 2), mk("D", 0), mk("idle", 3, null)];
@@ -659,5 +664,66 @@ describe("clusterFocus — by entity, so every duplicate lights", () => {
 
   it("nothing matched → nothing lit, no first", () => {
     expect(clusterFocus(["ghost"], clusters)).toEqual({ lit: new Set(), first: null });
+  });
+});
+
+describe("performance lens — parseCanvasLens", () => {
+  it("accepts the two lenses; anything else is the platform lens", () => {
+    expect(parseCanvasLens("rate")).toBe("rate");
+    expect(parseCanvasLens("platform")).toBe("platform");
+    expect(parseCanvasLens(null)).toBe("platform");
+    expect(parseCanvasLens("roas")).toBe("platform");
+    expect(parseCanvasLens("")).toBe("platform");
+  });
+});
+
+describe("performance lens — pairRate (the system's ONE rating rule, per pairing)", () => {
+  const config = {
+    default: { minSpend: 500, goodRoas: 4, decentRoas: 2 },
+    byPlatform: { tiktok: { minSpend: 100, goodRoas: 3, decentRoas: 1.5 } },
+  };
+  it("ROAS is revenue ÷ spend of the pair's sums", () => {
+    expect(pairRate({ spend: 1000, revenue: 4500, platform: "instagram" }, config)).toEqual({
+      roas: 4.5,
+      rate: "good",
+    });
+  });
+  it("decent and bad by the thresholds (inclusive lower bounds)", () => {
+    expect(pairRate({ spend: 1000, revenue: 2000, platform: "instagram" }, config).rate).toBe("decent");
+    expect(pairRate({ spend: 1000, revenue: 4000, platform: "instagram" }, config).rate).toBe("good");
+    expect(pairRate({ spend: 1000, revenue: 1999, platform: "instagram" }, config).rate).toBe("bad");
+  });
+  it("zero revenue on enough spend is BAD, not N/A", () => {
+    expect(pairRate({ spend: 800, revenue: 0, platform: "instagram" }, config)).toEqual({
+      roas: 0,
+      rate: "bad",
+    });
+  });
+  it("below the min spend is N/A — the pair's spend, not the campaign's", () => {
+    const r = pairRate({ spend: 499, revenue: 5000, platform: "instagram" }, config);
+    expect(r.rate).toBe("na");
+    expect(r.roas).toBeCloseTo(10.02, 2); // the ratio is still reported
+  });
+  it("the campaign platform's override wins over the default", () => {
+    // $200 is under the default min ($500) but over TikTok's ($100); 2.5× is
+    // "decent" by default but … still decent by TikTok's (≥1.5, <3).
+    expect(pairRate({ spend: 200, revenue: 500, platform: "instagram" }, config).rate).toBe("na");
+    expect(pairRate({ spend: 200, revenue: 500, platform: "tiktok" }, config).rate).toBe("decent");
+    expect(pairRate({ spend: 200, revenue: 640, platform: "tiktok" }, config).rate).toBe("good");
+  });
+});
+
+describe("performance lens — a chip carries its edge's rate", () => {
+  it("buildClusters copies roas/rate from the edge (one source, never re-derived)", () => {
+    const graph = {
+      campaigns: [camp("c:1", 100)],
+      creatives: [cre("k:1", 100)],
+      edges: [{ ...edge("c:1", "k:1", 100), roas: 3.1, rate: "decent" as const }],
+      truncated: null,
+    };
+    const { clusters } = buildClusters(graph, "campaign");
+    expect(clusters[0]!.chips[0]).toMatchObject({ roas: 3.1, rate: "decent" });
+    const byCreative = buildClusters(graph, "creative");
+    expect(byCreative.clusters[0]!.chips[0]).toMatchObject({ roas: 3.1, rate: "decent" });
   });
 });

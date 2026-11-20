@@ -21,7 +21,8 @@ import "@xyflow/react/dist/style.css";
 import { CircleHelp, Film, Image as ImageIcon, Layers, Search, X } from "lucide-react";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PriorityStars } from "@/components/creative/priority-stars";
-import { PLATFORM_COLOR } from "@/lib/palette";
+import { PLATFORM_COLOR, RATE_COLOR } from "@/lib/palette";
+import { RATING_META, RATING_VALUES, type Rating, type RatingRules } from "@/lib/rating";
 import {
   CREATIVE_STATUSES,
   STATUS_DOT,
@@ -31,7 +32,7 @@ import {
   CAMPAIGN_STATUS_DOT,
   CAMPAIGN_STATUS_LABEL,
 } from "@/lib/campaign-status";
-import { int, longDate, pct1, roas, usd, usdCompact } from "@/lib/format";
+import { int, longDate, pct1, roas, usd, usd0, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   ChipNodeView,
@@ -54,6 +55,7 @@ import {
   type CanvasCluster,
   type CanvasSide,
   type CanvasViewMode,
+  type CanvasLens,
   type CanvasCampaignNode,
   type CanvasCreativeNode,
   type CanvasGraph,
@@ -263,6 +265,27 @@ const FLOW_THEME = {
   "--xy-attribution-background-color": "transparent",
 } as React.CSSProperties;
 
+/**
+ * The pairing's performance, in both lenses: its ROAS and its Rate (a swatch
+ * in the Rate colour + the word, so the colour is never the only carrier).
+ */
+function RateLine({ value, rate }: { value: number | null; rate: Rating }) {
+  return (
+    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-3">
+      ROAS <span className="tabular-nums text-ink">{roas(value)}</span>
+      <span aria-hidden>·</span>
+      <span
+        className="inline-block h-2 w-2 shrink-0 rounded-full"
+        style={{ background: RATE_COLOR[rate] }}
+        aria-hidden
+      />
+      <span className="text-ink-2">
+        {rate === "na" ? "N/A — not enough spend to judge" : RATING_META[rate].label}
+      </span>
+    </p>
+  );
+}
+
 interface Tip {
   x: number;
   y: number;
@@ -272,6 +295,8 @@ interface Tip {
 function Flow({
   graph,
   view,
+  lens,
+  rateRules,
   clusters,
   focus,
   onFocus,
@@ -279,6 +304,10 @@ function Flow({
 }: {
   graph: CanvasGraph;
   view: CanvasViewMode;
+  /** What a line (network) or a chip's stripe (clusters) is coloured by. */
+  lens: CanvasLens;
+  /** The brand's default Rate rules — the legend's thresholds. */
+  rateRules: RatingRules;
   /** The cluster model for the two tree views (empty in the network view). */
   clusters: readonly CanvasCluster[];
   focus: CanvasFocusRequest | null;
@@ -391,13 +420,13 @@ function Flow({
           type: "chip",
           ...sized(box),
           zIndex: 1,
-          data: { entityId: entity.id, chip, entity } satisfies ChipData & { entityId: string },
+          data: { entityId: entity.id, chip, entity, lens } satisfies ChipData & { entityId: string },
           style: { opacity: dim(chip.id), transition: "opacity 120ms" },
         });
       }
     }
     return out;
-  }, [clusterLayout, clusters, byId, dim]);
+  }, [clusterLayout, clusters, byId, dim, lens]);
 
   const networkNodes: AnyNode[] = useMemo(
     () =>
@@ -448,8 +477,13 @@ function Flow({
         // creative is the source and the campaign its target.
         const creative = creativeById.get(e.target);
         const onLeft = creative ? creativeSide(creative.type) === "left" : false;
-        // LIVE: solid, full platform color. PAUSED HERE: dashed and dimmed.
-        const base = e.live ? 0.85 : 0.45;
+        // LIVE: solid, full color. PAUSED HERE: dashed and dimmed. The LENS
+        // picks the color only — platform, or the pairing's Rate; width, dash
+        // and opacity mean the same in both.
+        // A live RATE line draws at full strength: at 0.85 the Good / Decent /
+        // N/A tokens measured 2.7–3.0:1 on Frost and Paper; at 1 every Rate
+        // colour clears 3.4:1 on all four themes (measured in the app).
+        const base = e.live ? (lens === "rate" ? 1 : 0.85) : 0.45;
         const strong = e.live ? 1 : 0.65;
         const opacity = lit
           ? lit.edges.has(e.id) ? strong : 0.06
@@ -464,7 +498,7 @@ function Flow({
           // Wide enough to hover without pixel-hunting a 1px line.
           interactionWidth: 14,
           style: {
-            stroke: platformColor(e.platform),
+            stroke: lens === "rate" ? RATE_COLOR[e.rate] : platformColor(e.platform),
             strokeWidth: edgeWidth(e.spend, maxEdgeSpend),
             strokeDasharray: e.live ? undefined : "6 5",
             opacity,
@@ -472,7 +506,7 @@ function Flow({
           },
         };
       }),
-    [view, graph, creativeById, maxEdgeSpend, lit, preview],
+    [view, lens, graph, creativeById, maxEdgeSpend, lit, preview],
   );
 
   // THE INITIAL FIT, done by hand. React Flow's own `fitView` prop resolves
@@ -563,6 +597,7 @@ function Flow({
                     <span className="text-ink-2">{camp?.name ?? "the campaign"}</span>
                     &rsquo;s spend
                   </p>
+                  <RateLine value={edge.roas} rate={edge.rate} />
                 </>
               ) : (
                 <p className="mt-0.5 text-[11px] text-ink-3">
@@ -627,6 +662,7 @@ function Flow({
               <span className="text-ink-2">{camp?.name ?? "the campaign"}</span>
               &rsquo;s spend
             </p>
+            <RateLine value={edge.roas} rate={edge.rate} />
           </>
         ),
       });
@@ -697,7 +733,7 @@ function Flow({
             sits over React Flow's attribution (bottom-right, under the map). */}
         <Controls showInteractive={false} position="top-right" />
         <Panel position="bottom-left">
-          <Legend view={view} />
+          <Legend view={view} lens={lens} rateRules={rateRules} />
         </Panel>
         <MiniMap
           pannable
@@ -766,13 +802,25 @@ function Flow({
 
 const LEGEND_KEY = "cw-canvas-legend";
 
+/** A Rate threshold as the admin typed it — "4×", "2.5×", never "4.00×". */
+const threshold = (x: number) => `${Number(x.toFixed(2))}×`;
+
 /**
  * The legend — every encoding on the canvas, in one place. Collapsed to a "?"
  * chip by default (the canvas is the point; the key is for the first visit
  * and the occasional doubt) and remembered per browser. Tokens only.
  */
-function Legend({ view }: { view: CanvasViewMode }) {
+function Legend({
+  view,
+  lens,
+  rateRules,
+}: {
+  view: CanvasViewMode;
+  lens: CanvasLens;
+  rateRules: RatingRules;
+}) {
   const [open, setOpen] = useState(false);
+  const paneHeight = useStore((st) => st.height);
   useEffect(() => {
     try {
       setOpen(localStorage.getItem(LEGEND_KEY) === "open");
@@ -806,7 +854,12 @@ function Legend({ view }: { view: CanvasViewMode }) {
 
   const swatch = "h-3 w-5 shrink-0 rounded-sm border-2 bg-surface";
   return (
-    <div className="w-56 rounded-lg border border-line bg-surface p-3 text-[11px] text-ink-2 shadow-lg">
+    // Capped to the pane (minus the search box above it) so a tall legend —
+    // the Rate lens adds a block — scrolls instead of sliding under search.
+    <div
+      className="w-56 overflow-y-auto overflow-x-hidden rounded-lg border border-line bg-surface p-3 text-[11px] text-ink-2 shadow-lg"
+      style={{ maxHeight: paneHeight > 0 ? Math.max(160, paneHeight - 72) : undefined }}
+    >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-label text-ink-3">Legend</span>
         <button
@@ -871,9 +924,53 @@ function Legend({ view }: { view: CanvasViewMode }) {
       </>
       )}
 
+      {lens === "rate" && (
+        // The Rate lens: the same verdict, thresholds and min spend as the
+        // Summary's Rate column. The brand DEFAULT is printed; a platform may
+        // override it, so the footnote says where the rules live.
+        <>
+          <p className="mb-1 mt-2.5 text-ink-3">
+            {view === "network" ? "Line color" : "Stripe"} — Rate of the pairing
+          </p>
+          <ul className="grid grid-cols-2 gap-x-2 gap-y-1">
+            {RATING_VALUES.map((r) => (
+              <li key={r} className="flex items-center gap-1.5">
+                {view === "network" ? (
+                  <svg width="20" height="6" aria-hidden className="shrink-0">
+                    <line x1="0" y1="3" x2="20" y2="3" stroke={RATE_COLOR[r]} strokeWidth="3" />
+                  </svg>
+                ) : (
+                  <span
+                    className="h-3 w-1 shrink-0 rounded-full"
+                    style={{ background: RATE_COLOR[r] }}
+                    aria-hidden
+                  />
+                )}
+                {RATING_META[r].label}
+                <span className="tabular-nums text-ink-3">
+                  {r === "good"
+                    ? `≥${threshold(rateRules.goodRoas)}`
+                    : r === "decent"
+                      ? `≥${threshold(rateRules.decentRoas)}`
+                      : r === "bad"
+                        ? `<${threshold(rateRules.decentRoas)}`
+                        : `<${usd0(rateRules.minSpend)}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[10px] text-ink-2">
+            ROAS over the range; N/A = under the min spend. Brand defaults — a
+            platform can override them (Configuration › Rate rules).
+          </p>
+        </>
+      )}
+
       <p className="mt-2.5 text-ink-3">
         {view === "network"
-          ? "Size and line weight — spend in the range. Line color — platform."
+          ? lens === "rate"
+            ? "Size and line weight — spend in the range."
+            : "Size and line weight — spend in the range. Line color — platform."
           : "Header size — spend in the range. A name repeats once per pairing."}
       </p>
     </div>

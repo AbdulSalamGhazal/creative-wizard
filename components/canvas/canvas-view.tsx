@@ -13,17 +13,22 @@ import { cn } from "@/lib/utils";
 import { useNavTransition } from "@/lib/nav-progress";
 import {
   buildClusters,
+  CANVAS_LENS_LABEL,
+  CANVAS_LENSES,
   CANVAS_VIEW_LABEL,
   CANVAS_VIEWS,
   canvasInsights,
+  parseCanvasLens,
   parseCanvasView,
   type CanvasGraph,
+  type CanvasLens,
   type CanvasInsight,
   type CanvasNode,
   type CanvasViewMode,
 } from "@/lib/canvas";
 import type { CanvasFocusRequest } from "@/components/canvas/canvas-flow";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { RatingRules } from "@/lib/rating";
 
 /**
  * React Flow loads HERE, lazily, and nowhere else — `ssr: false` because the
@@ -36,6 +41,11 @@ const CanvasFlow = dynamic(() => import("@/components/canvas/canvas-flow"), {
 });
 
 const NO_CLUSTERS: never[] = [];
+
+const LENS_OPTIONS = CANVAS_LENSES.map((value) => ({
+  value,
+  label: CANVAS_LENS_LABEL[value],
+}));
 
 const VIEW_OPTIONS = CANVAS_VIEWS.map((value) => ({
   value,
@@ -69,9 +79,12 @@ function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
 export function CanvasView({
   graph,
   rangeLabel,
+  rateRules,
 }: {
   graph: CanvasGraph;
   rangeLabel: string;
+  /** The brand's DEFAULT Rate rules — the legend's thresholds. */
+  rateRules: RatingRules;
 }) {
   // The canvas frame's distance from the top of the document, so it can fill
   // exactly the viewport below the header and the (wrapping) filter bars.
@@ -115,6 +128,21 @@ export function CanvasView({
       // Keep the focus, but never yank the viewport on a switch — the new
       // view's own fit runs instead.
       setFocus((f) => (f ? { ...f, fit: "none" } : f));
+    },
+    [pathname, searchParams],
+  );
+
+  // `?lens=` follows `?view=` exactly: URL-backed (a comment reproduces it),
+  // validated (anything unknown is the platform lens = the clean URL), and a
+  // shallow replace — recolouring re-queries nothing. Focus is untouched.
+  const lens = parseCanvasLens(searchParams.get("lens"));
+  const setLens = useCallback(
+    (next: CanvasLens) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "platform") params.delete("lens");
+      else params.set("lens", next);
+      const qs = params.toString();
+      shallowHref(qs ? `${pathname}?${qs}` : pathname, "replace");
     },
     [pathname, searchParams],
   );
@@ -169,6 +197,17 @@ export function CanvasView({
         onChange={setView}
         className="shrink-0"
       />
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-xs text-ink-3" aria-hidden>
+          Colour
+        </span>
+        <SegmentedControl
+          ariaLabel="Colour lines by"
+          options={LENS_OPTIONS}
+          value={lens}
+          onChange={setLens}
+        />
+      </div>
       {insights.length > 0 && (
         <div className="-mx-1 flex min-w-0 flex-1 basis-64 items-center gap-2 overflow-x-auto px-1 pb-1">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
@@ -235,6 +274,8 @@ export function CanvasView({
         <CanvasFlow
           graph={graph}
           view={view}
+          lens={lens}
+          rateRules={rateRules}
           clusters={clustered?.clusters ?? NO_CLUSTERS}
           focus={focus}
           onFocus={setFocus}

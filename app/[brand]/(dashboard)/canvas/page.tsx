@@ -7,6 +7,7 @@ import {
   resolvePreferredRange,
 } from "@/db/queries/user-prefs";
 import { canvasGraph } from "@/db/queries/canvas";
+import { getRatingConfig } from "@/db/queries/rating";
 import { listProducts } from "@/db/queries/products";
 import {
   CANVAS_DEFAULT_STATUSES,
@@ -73,7 +74,9 @@ export default async function CanvasPage({
   const statuses =
     pref.statuses === undefined ? CANVAS_DEFAULT_STATUSES : parsed.statuses;
 
-  const graph = await canvasGraph({
+  // The Rate config is cached per request: canvasGraph rates every pairing
+  // with it, and the legend prints its default thresholds.
+  const [graph, ratingConfig] = await Promise.all([canvasGraph({
     from: range.from,
     to: range.to,
     platforms: parsed.platforms.length > 0 ? parsed.platforms : undefined,
@@ -81,7 +84,7 @@ export default async function CanvasPage({
     productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
     stages: parsed.stages.length > 0 ? parsed.stages : undefined,
     includeExcluded,
-  });
+  }), getRatingConfig()]);
 
   return (
     <PageShell>
@@ -96,7 +99,11 @@ export default async function CanvasPage({
         includeExcludedDefault={includeExcluded}
       />
       <AdDataGate>
-        <CanvasView graph={graph} rangeLabel={presetLabel(range.from, range.to)} />
+        <CanvasView
+          graph={graph}
+          rangeLabel={presetLabel(range.from, range.to)}
+          rateRules={ratingConfig.default}
+        />
       </AdDataGate>
     </PageShell>
   );

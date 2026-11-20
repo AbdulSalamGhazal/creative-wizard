@@ -9,6 +9,7 @@
  */
 import type { CreativeStatus } from "@/lib/creative-status";
 import { deriveCampaignStatus, type CampaignStatus } from "@/lib/campaign-status";
+import { rateBlock, rulesForScope, type Rating, type RatingConfig } from "@/lib/rating";
 
 export type CanvasCreativeType = "video" | "image" | "slides";
 
@@ -63,6 +64,47 @@ export interface CanvasEdge {
   lastSpendDay: string | null;
   /** The second clock — see {@link edgeIsLive}. */
   live: boolean;
+  /** The pair's in-range revenue ÷ in-range spend (component sums). */
+  roas: number | null;
+  /** The pair's RATE — see {@link pairRate}. What the Rate lens colours by. */
+  rate: Rating;
+}
+
+// ── Performance lens ─────────────────────────────────────────────────────────
+
+/**
+ * The PERFORMANCE LENS recolours the pairings; it never restates a number.
+ * "Platform" (the default, the clean URL) colours a line by its campaign's
+ * platform; "Rate" colours it by the pairing's Rate.
+ */
+export const CANVAS_LENSES = ["platform", "rate"] as const;
+export type CanvasLens = (typeof CANVAS_LENSES)[number];
+
+export const CANVAS_LENS_LABEL: Record<CanvasLens, string> = {
+  platform: "Platform",
+  rate: "Rate",
+};
+
+/** `?lens=` → a lens; anything unknown is the platform lens. */
+export function parseCanvasLens(value: string | null | undefined): CanvasLens {
+  return (CANVAS_LENSES as readonly string[]).includes(value ?? "")
+    ? (value as CanvasLens)
+    : "platform";
+}
+
+/**
+ * A PAIRING's Rate: the system's one rating rule (`rateBlock`) over the pair's
+ * own in-range sums, judged by the rules of the campaign's platform (its
+ * override, else the brand default) — the same Good / Decent / Bad / N/A, the
+ * same min spend, the Summary's Rate column uses. ROAS is Σrevenue ÷ Σspend,
+ * never an average of daily ratios.
+ */
+export function pairRate(
+  input: { spend: number; revenue: number; platform: string },
+  config: RatingConfig,
+): { roas: number | null; rate: Rating } {
+  const roas = input.spend > 0 ? input.revenue / input.spend : null;
+  return { roas, rate: rateBlock({ spend: input.spend, roas }, rulesForScope(config, input.platform)) };
 }
 
 // ── Two clocks ───────────────────────────────────────────────────────────────
@@ -458,6 +500,9 @@ export interface CanvasChip {
   live: boolean;
   /** The PAIRING's range spend (not the entity's total). */
   spend: number;
+  /** The pairing's ROAS and Rate — the edge's, never re-derived. Idle: null / na. */
+  roas: number | null;
+  rate: Rating;
   lastSpendDay: string | null;
 }
 
@@ -525,6 +570,8 @@ export function buildClusters(
         edgeId: e.id,
         live: e.live,
         spend: e.spend,
+        roas: e.roas,
+        rate: e.rate,
         lastSpendDay: e.lastSpendDay,
       });
       chipsOf.set(e.source, list);
@@ -556,6 +603,8 @@ export function buildClusters(
           edgeId: null,
           live: true,
           spend: 0,
+          roas: null,
+          rate: "na",
           lastSpendDay: null,
         })),
       });
@@ -570,6 +619,8 @@ export function buildClusters(
         edgeId: e.id,
         live: e.live,
         spend: e.spend,
+        roas: e.roas,
+        rate: e.rate,
         lastSpendDay: e.lastSpendDay,
       });
       chipsOf.set(e.target, list);

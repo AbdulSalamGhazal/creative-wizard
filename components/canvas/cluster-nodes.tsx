@@ -3,15 +3,16 @@
 import { memo } from "react";
 import { Film, Image as ImageIcon, Layers } from "lucide-react";
 import { PlatformDot } from "@/components/ui/platform-dot";
-import { PLATFORM_COLOR } from "@/lib/palette";
+import { PLATFORM_COLOR, RATE_COLOR } from "@/lib/palette";
 import { STATUS_DOT, STATUS_LABEL } from "@/lib/creative-status";
 import {
   CAMPAIGN_STATUS_DOT,
   CAMPAIGN_STATUS_LABEL,
 } from "@/lib/campaign-status";
-import { int, usdCompact } from "@/lib/format";
+import { int, roas, usdCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { CanvasChip, CanvasNode } from "@/lib/canvas";
+import type { CanvasChip, CanvasLens, CanvasNode } from "@/lib/canvas";
+import { RATING_META } from "@/lib/rating";
 
 /**
  * The cluster views' two extra node bodies. Deliberately NOT importing
@@ -25,6 +26,7 @@ type PlatformKey = keyof typeof PLATFORM_COLOR;
 export interface ChipData {
   chip: CanvasChip;
   entity: CanvasNode;
+  lens: CanvasLens;
 }
 
 /**
@@ -33,9 +35,15 @@ export interface ChipData {
  * DASHED — and whether the chip is dimmed — is the pairing's liveness. In the
  * cluster views there are no lines to dash, so the live / paused-here signal
  * lives here. Chips stay lean: no health count, no stars.
+ *
+ * In the RATE lens a paired chip gains a left stripe in its Rate colour and
+ * shows the pairing's ROAS in place of its spend (an N/A pairing keeps its
+ * spend — "not enough to judge" has no ratio worth printing). The stripe is a
+ * solid fill, so the paused chip's dimming-by-parts is untouched.
  */
 export const ChipNodeView = memo(function ChipNodeView({ data }: { data: ChipData }) {
-  const { chip, entity } = data;
+  const { chip, entity, lens } = data;
+  const rated = lens === "rate" && chip.edgeId !== null;
   const borderColor =
     entity.kind === "campaign" ? CAMPAIGN_STATUS_DOT[entity.status] : STATUS_DOT[entity.status];
   const statusLabel =
@@ -54,8 +62,15 @@ export const ChipNodeView = memo(function ChipNodeView({ data }: { data: ChipDat
         chip.live ? "bg-surface" : "border-dashed bg-transparent",
       )}
       style={{ borderColor }}
-      aria-label={`${entity.name} — ${statusLabel}${chip.edgeId ? (chip.live ? ", live here" : ", paused here") : ", idle"}`}
+      aria-label={`${entity.name} — ${statusLabel}${chip.edgeId ? (chip.live ? ", live here" : ", paused here") : ", idle"}${rated ? `, rated ${RATING_META[chip.rate].label}` : ""}`}
     >
+      {rated && (
+        <span
+          className="h-4 w-1 shrink-0 rounded-full"
+          style={{ background: RATE_COLOR[chip.rate] }}
+          aria-hidden
+        />
+      )}
       {entity.kind === "campaign" ? (
         <PlatformDot platform={entity.platform as PlatformKey} size="sm" />
       ) : (
@@ -71,7 +86,11 @@ export const ChipNodeView = memo(function ChipNodeView({ data }: { data: ChipDat
         {entity.name}
       </span>
       <span className="shrink-0 text-[10px] tabular-nums text-ink-2">
-        {chip.edgeId ? usdCompact(chip.spend) : "idle"}
+        {!chip.edgeId
+          ? "idle"
+          : rated && chip.rate !== "na"
+            ? roas(chip.roas)
+            : usdCompact(chip.spend)}
       </span>
     </div>
   );
