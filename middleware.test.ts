@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -36,6 +36,19 @@ describe("middleware matcher", () => {
     expect(icons.length).toBeGreaterThan(0);
     for (const f of icons) expect(isGated(`/${f}`), f).toBe(false);
     expect(isGated("/favicon.ico")).toBe(false);
+  });
+
+  // An ungated root path with no route of its own falls into `app/[brand]`
+  // as a brand slug — /favicon.ico started a dashboard render and logged
+  // NO_BRAND_ACCESS on every page load until it got this route (2026-11-20).
+  it("answers the ungated /favicon.ico itself, pointing at a real icon", async () => {
+    const { GET } = await import("./app/favicon.ico/route");
+    const res = GET();
+    expect(res.status).toBe(308);
+    const to = res.headers.get("Location");
+    expect(to).toMatch(/^\/icon\.[a-z]+$/);
+    expect(existsSync(path.join(ROOT, "app", to!.slice(1)))).toBe(true);
+    expect(isGated(to!)).toBe(false);
   });
 
   it("still gates pages, nested asset-looking paths and the API", () => {
