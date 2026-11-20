@@ -14,17 +14,11 @@ If a rule here conflicts with one of those documents, the documents win — flag
 
 ## Stack (do not change without discussion)
 
-- Next.js (App Router) + TypeScript strict. **Webpack everywhere: production
-  builds with it (`npm run build` = `next build`) and so does local dev
-  (`npm run dev` = `next dev`)** (D10, user-approved 2026-10): Turbopack's
-  production build shipped recharts as six different ~100 KB gz files (one per
-  route group) and SheetJS + the Drizzle schema to the client; webpack ships
-  recharts ONCE, cached across every chart page (measured: every dashboard page
-  once 1,621 → 793 KB gz). Dev followed on 2026-10-25 (user-approved):
-  Turbopack's dev font loader can't parse Google Fonts' new multi-parameter
-  font URLs ("next/font/google queries have exactly one entry"), so every page
-  logged errors and fell back to system fonts. Don't switch either back to
-  Turbopack without re-measuring and re-checking the fonts.
+- Next.js (App Router) + TypeScript strict. **Webpack everywhere** —
+  production (`npm run build` = `next build`) AND local dev (`npm run dev` =
+  `next dev`), both user-approved. Don't switch either back to Turbopack
+  without re-measuring the bundles and re-checking the fonts — the
+  measurements are in `docs/decisions/shipping.md`.
 - Drizzle ORM + Postgres (Neon)
 - Auth: custom HMAC-signed cookie sessions (`lib/auth-cookie.ts`) + bcrypt passwords (`lib/auth-password.ts`). Users created via `/admin/users`; first admin via `db/create-admin.ts`. NOT Auth.js/Google — those were never wired up. **A member is active, deactivated (reversible, can't sign in) or removed (final; the row stays so history keeps its names, the email is freed) — `memberStatus()` in `lib/team-lifecycle.ts`, and `auth()` reads the two stamps so every cookie, token and grant stops at once (D4, 2026-11-06).** **Authorization is GRANULAR per-user permissions** (`lib/permissions.ts` catalog is the single source of truth) — see `docs/decisions/tenancy-auth.md`. Admins bypass every check; below admin, each capability is individually grantable and managed on the unified **Team** page (`/admin/users`).
 - Tailwind + shadcn/ui + shadcn charts (Recharts under the hood)
@@ -181,51 +175,28 @@ Do not introduce a new dependency without a one-line justification in the PR des
   patterns, feedback on every action, every state designed, no dead ends,
   discoverability, copy, economy, and the phone. It is about the QUALITY of
   the experience, not colour or theming — the palette is settled.
-- **A UI rig check verifies the COMPOSED SURFACE, not the component.** The rig
-  pass shows the whole unit the change lands in — the full comment row, the
-  full toolbar, the full card — with ALL its siblings, in EVERY state the
-  change adds (including the empty one), at desktop and 375px. "The widget
-  renders" is not a pass: reaction pills shipped wedged between a message and
-  its own Reply button because the rig showed the pills alone, and every
-  checkpoint after that read logic rather than JSX order.
-  **AND THE RIG MUST USE THE REAL FONTS.** The app's font vars are
-  Next-generated and do not resolve outside it, so an esbuild rig silently
-  renders in TIMES — every width measured in one is then measured in the wrong
-  font, and Times is narrower than Plus Jakarta Sans, so a layout defect reads
-  as SMALLER than it is (this hid a 298px pinned cell inside a 291px frame).
-  Point `--font-ui` / `--font-mono` / `--font-display` at the webfonts the rig
-  already loads before trusting a single pixel, and check
-  `getComputedStyle(el).fontFamily` once per rig. A measurement governed by a
-  `max-width` is font-independent and can be trusted either way.
-  **A change to a SERVER page's imports or data flow is verified against a REAL
-  Next render of that route** — signed in, in a browser — not against the rig
-  and not against green gates. The rig bundles with esbuild and never renders
-  on a server; typecheck, `next build` and both test suites are equally blind
-  to the RSC boundary. /campaigns shipped broken because a server page read a
-  value out of a `"use client"` module (every export of one is a
-  client-reference proxy on the server, so touching it throws at request time).
-  The rule that prevents it: **a server component may import a client
-  COMPONENT, never a VALUE from a client module** — shared data goes in a plain
-  module both sides import, and `app/rsc-boundary.test.ts` now fails the build
-  if that line is crossed.
-  **WALK THE FEATURE, NOT THE COMPONENTS.** Before reporting, traverse the
-  finished work AS THE USER: the full click path end to end, across every
-  surface it touched, in every state (empty · one · many · long values ·
-  error), at desktop and 375px. The composed-surface pass proves a UNIT; the
-  walk proves the SEAMS between units, which is where the bugs that shipped
-  actually lived — reaction pills wedged against a Reply button, a comment
-  drawer's highlight outliving its own post. Report it as its own line:
-  **Walked: <path>, states covered: <list>**. A feature you have not walked is
-  a feature you are describing, not one you have seen.
-  **Know what each check PROVES, because they are not interchangeable.** A
-  **307** on a dashboard route proves middleware and routing are intact and
-  NOTHING about the page: a page with a deliberately broken import still
-  returns 307, because the redirect happens before the page module is ever
-  loaded (measured 2026-10, after a session's worth of reports had quietly
-  claimed otherwise). **`next build`** is what proves every page's module
-  graph resolves — the same broken import fails it. **Only a signed-in render
-  proves the page RENDERS.** Say which one you did; never let the cheap check
-  stand in for the expensive one.
+- **Verifying UI — five rules, and the checks are not interchangeable** (the
+  bug behind each is in `docs/decisions/ux-standards.md`, "Verifying a UI
+  change"):
+  - **A rig check verifies the COMPOSED SURFACE, not the component** — the
+    whole unit with ALL its siblings, in EVERY state the change adds (the
+    empty one too), at desktop and 375px. "The widget renders" is not a pass.
+  - **The rig must use the REAL fonts.** Outside Next the font vars don't
+    resolve and the rig renders in TIMES: point `--font-ui` / `--font-mono` /
+    `--font-display` at the rig's webfonts and check
+    `getComputedStyle(el).fontFamily` once per rig.
+  - **A change to a SERVER page's imports or data flow is verified against a
+    REAL signed-in Next render of that route**, not the rig and not green
+    gates. A server component may import a client COMPONENT, never a VALUE
+    from a client module (`app/rsc-boundary.test.ts`).
+  - **WALK THE FEATURE, NOT THE COMPONENTS** — the full click path as the
+    user, every surface it touched, every state (empty · one · many · long
+    values · error), desktop and 375px. Report it as its own line:
+    **Walked: <path>, states covered: <list>**.
+  - **Know what each check PROVES.** A **307** proves routing and NOTHING
+    about the page; **`next build`** proves every page's module graph
+    resolves; **only a signed-in render proves the page RENDERS.** Say which
+    one you did; never let the cheap check stand in for the expensive one.
 - **Two test suites.** `npm test` (or `npx vitest run`) is the pure-unit suite —
   no DB, no docker, always safe in CI. `npm run test:db` is the **real-database**
   suite (`tests/db/**`, config `vitest.config.db.ts`): its globalSetup creates a

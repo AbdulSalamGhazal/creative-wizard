@@ -64,3 +64,23 @@ reviewed in the session — not a GitHub PR.
   only changes `CLAUDE.md`", and it took `CLAUDE.md` past the 600-line
   ceiling pinned by `docs/decisions-map.test.ts` — `main` carried a failing
   unit test until the rules moved into this file.
+- **Webpack for the build and for dev (moved from CLAUDE.md verbatim,
+  2026-11-20).** The Stack bullet read:
+
+  Next.js (App Router) + TypeScript strict. **Webpack everywhere: production
+  builds with it (`npm run build` = `next build`) and so does local dev
+  (`npm run dev` = `next dev`)** (D10, user-approved 2026-10): Turbopack's
+  production build shipped recharts as six different ~100 KB gz files (one per
+  route group) and SheetJS + the Drizzle schema to the client; webpack ships
+  recharts ONCE, cached across every chart page (measured: every dashboard page
+  once 1,621 → 793 KB gz). Dev followed on 2026-10-25 (user-approved):
+  Turbopack's dev font loader can't parse Google Fonts' new multi-parameter
+  font URLs ("next/font/google queries have exactly one entry"), so every page
+  logged errors and fell back to system fonts. Don't switch either back to
+  Turbopack without re-measuring and re-checking the fonts.
+- **2026-11-20 — CLAUDE.md hit its ceiling.** After a day of sessions each
+  adding a domain-map line, the file sat at 597 of 599 allowed lines and a
+  Canvas branch failed the size guard on a two-line addition. The two longest
+  prose blocks (the UI verification rules and the Webpack measurements) moved
+  to the decision files, user-approved, leaving the rules and dropping the
+  narrative — the fix the guard's own comment names.

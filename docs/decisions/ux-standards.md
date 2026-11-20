@@ -173,3 +173,54 @@ outlived its post and then its page, so the thread scrolled to someone else's
 comment and then to nothing. Both lived in the SEAM between parts that were
 each individually verified. The composed surface catches a unit's siblings; the
 walk catches what happens when the user moves between units.
+
+### Verifying a UI change (moved from CLAUDE.md verbatim, 2026-11-20)
+
+CLAUDE.md keeps the five rules; this is the full text it carried, with the bug
+behind each one.
+
+- **A UI rig check verifies the COMPOSED SURFACE, not the component.** The rig
+  pass shows the whole unit the change lands in — the full comment row, the
+  full toolbar, the full card — with ALL its siblings, in EVERY state the
+  change adds (including the empty one), at desktop and 375px. "The widget
+  renders" is not a pass: reaction pills shipped wedged between a message and
+  its own Reply button because the rig showed the pills alone, and every
+  checkpoint after that read logic rather than JSX order.
+  **AND THE RIG MUST USE THE REAL FONTS.** The app's font vars are
+  Next-generated and do not resolve outside it, so an esbuild rig silently
+  renders in TIMES — every width measured in one is then measured in the wrong
+  font, and Times is narrower than Plus Jakarta Sans, so a layout defect reads
+  as SMALLER than it is (this hid a 298px pinned cell inside a 291px frame).
+  Point `--font-ui` / `--font-mono` / `--font-display` at the webfonts the rig
+  already loads before trusting a single pixel, and check
+  `getComputedStyle(el).fontFamily` once per rig. A measurement governed by a
+  `max-width` is font-independent and can be trusted either way.
+  **A change to a SERVER page's imports or data flow is verified against a REAL
+  Next render of that route** — signed in, in a browser — not against the rig
+  and not against green gates. The rig bundles with esbuild and never renders
+  on a server; typecheck, `next build` and both test suites are equally blind
+  to the RSC boundary. /campaigns shipped broken because a server page read a
+  value out of a `"use client"` module (every export of one is a
+  client-reference proxy on the server, so touching it throws at request time).
+  The rule that prevents it: **a server component may import a client
+  COMPONENT, never a VALUE from a client module** — shared data goes in a plain
+  module both sides import, and `app/rsc-boundary.test.ts` now fails the build
+  if that line is crossed.
+  **WALK THE FEATURE, NOT THE COMPONENTS.** Before reporting, traverse the
+  finished work AS THE USER: the full click path end to end, across every
+  surface it touched, in every state (empty · one · many · long values ·
+  error), at desktop and 375px. The composed-surface pass proves a UNIT; the
+  walk proves the SEAMS between units, which is where the bugs that shipped
+  actually lived — reaction pills wedged against a Reply button, a comment
+  drawer's highlight outliving its own post. Report it as its own line:
+  **Walked: <path>, states covered: <list>**. A feature you have not walked is
+  a feature you are describing, not one you have seen.
+  **Know what each check PROVES, because they are not interchangeable.** A
+  **307** on a dashboard route proves middleware and routing are intact and
+  NOTHING about the page: a page with a deliberately broken import still
+  returns 307, because the redirect happens before the page module is ever
+  loaded (measured 2026-10, after a session's worth of reports had quietly
+  claimed otherwise). **`next build`** is what proves every page's module
+  graph resolves — the same broken import fails it. **Only a signed-in render
+  proves the page RENDERS.** Say which one you did; never let the cheap check
+  stand in for the expensive one.
