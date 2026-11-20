@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "@/lib/brand-nav";
-import { shallowHref } from "@/lib/shallow-url";
-import { Sparkles } from "lucide-react";
+import { shallowHref, shallowParams } from "@/lib/shallow-url";
+import { Sparkles, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { int } from "@/lib/format";
@@ -18,12 +20,14 @@ import {
   CANVAS_VIEW_LABEL,
   CANVAS_VIEWS,
   canvasInsights,
+  focusParamFor,
   inspectFor,
   parseCanvasLens,
   parseCanvasView,
   type CanvasGraph,
   type CanvasLens,
   type CanvasInsight,
+  type CanvasLinkedFocus,
   type CanvasNode,
   type CanvasViewMode,
 } from "@/lib/canvas";
@@ -105,11 +109,14 @@ export function CanvasView({
   graph,
   rangeLabel,
   rateRules,
+  linkedFocus,
 }: {
   graph: CanvasGraph;
   rangeLabel: string;
   /** The brand's DEFAULT Rate rules — the legend's thresholds. */
   rateRules: RatingRules;
+  /** The URL's `?focus=`, resolved by the page against this graph. */
+  linkedFocus: CanvasLinkedFocus | null;
 }) {
   // The canvas frame's distance from the top of the document, so it can fill
   // exactly the viewport below the header and the (wrapping) filter bars.
@@ -136,7 +143,48 @@ export function CanvasView({
   const [, startNav] = useNavTransition();
   // Focus is held in ENTITY ids, so it RE-MAPS when the view changes: focus a
   // creative in the network, switch to By campaign, and its copies are lit.
-  const [focus, setFocus] = useState<CanvasFocusRequest | null>(null);
+  // A link's `?focus=` OPENS the canvas on that node, inspector and all.
+  const [focus, setFocus] = useState<CanvasFocusRequest | null>(() =>
+    linkedFocus?.drawn ? { ids: [linkedFocus.nodeId], fit: "first", inspect: true } : null,
+  );
+  // …and a linked node that isn't drawn is SAID, not silently dropped.
+  const [missing, setMissing] = useState<CanvasLinkedFocus | null>(() =>
+    linkedFocus && !linkedFocus.drawn ? linkedFocus : null,
+  );
+  // A server render with a new answer (a filter or range change while a node
+  // is in the URL): follow it — it may have appeared or dropped out. Adjusted
+  // during render (React's previous-props pattern), not in an effect.
+  const linkKey = linkedFocus ? `${linkedFocus.nodeId}|${linkedFocus.drawn}` : "";
+  const [seenLinkKey, setSeenLinkKey] = useState(linkKey);
+  if (linkKey !== seenLinkKey) {
+    setSeenLinkKey(linkKey);
+    if (linkedFocus && !linkedFocus.drawn) {
+      setMissing(linkedFocus);
+      setFocus(null);
+    } else {
+      setMissing(null);
+      if (linkedFocus) setFocus({ ids: [linkedFocus.nodeId], fit: "first", inspect: true });
+    }
+  }
+  // Every user-made focus change goes through here: it supersedes the notice.
+  const focusTo = useCallback((next: CanvasFocusRequest | null) => {
+    setMissing(null);
+    setFocus(next);
+  }, []);
+
+  // `?focus=` follows the INSPECTED node (a chip's multi-node focus is
+  // recomputed from the range, so it stays out of the link). A shallow
+  // REPLACE, like ?view= and ?lens=: clicking through nodes adds no Back
+  // steps, and nothing is re-queried. The unresolved link's value is kept
+  // while its notice shows, so the address bar still says what it was.
+  useEffect(() => {
+    const want = focusParamFor(focus) ?? missing?.nodeId ?? null;
+    if (new URL(window.location.href).searchParams.get("focus") === want) return;
+    shallowParams((p) => {
+      if (want) p.set("focus", want);
+      else p.delete("focus");
+    }, "replace");
+  }, [focus, missing]);
 
   // `?view=` is URL-backed so a comment's captured query string reproduces
   // the view — and validated, so a bad value is just the network. Switching
@@ -201,10 +249,10 @@ export function CanvasView({
   );
   const wide = useSyncExternalStore(subscribeWide, readWide, readWideServer);
   const inspect = useCallback(
-    (id: string) => setFocus({ ids: [id], fit: "first", inspect: true }),
-    [],
+    (id: string) => focusTo({ ids: [id], fit: "first", inspect: true }),
+    [focusTo],
   );
-  const closeInspector = useCallback(() => setFocus(null), []);
+  const closeInspector = useCallback(() => focusTo(null), [focusTo]);
 
   const empty = graph.campaigns.length === 0 && graph.creatives.length === 0;
 
@@ -257,7 +305,7 @@ export function CanvasView({
                 type="button"
                 aria-pressed={on}
                 title={insightTitle(i.key, view)}
-                onClick={() => setFocus(on ? null : { ids: i.focusIds, fit: "all" })}
+                onClick={() => focusTo(on ? null : { ids: i.focusIds, fit: "all" })}
                 className={cn(
                   "shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors",
                   on
@@ -272,6 +320,30 @@ export function CanvasView({
         </div>
       )}
       </div>
+
+      {missing && (
+        <Callout tone="info" className="flex items-center gap-2">
+          <span className="min-w-0 flex-1">
+            {missing.name ? (
+              <>
+                <bdi className="font-medium">{missing.name}</bdi>{" "}
+                isn&apos;t on the canvas for this range and these filters.
+              </>
+            ) : (
+              <>The linked {missing.kind} isn&apos;t in this brand.</>
+            )}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2"
+            onClick={() => setMissing(null)}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+            Clear
+          </Button>
+        </Callout>
+      )}
 
       {clustered?.truncated && (
         <p className="text-xs text-ink-3">
@@ -317,7 +389,7 @@ export function CanvasView({
           rateRules={rateRules}
           clusters={clustered?.clusters ?? NO_CLUSTERS}
           focus={focus}
-          onFocus={setFocus}
+          onFocus={focusTo}
           onOpen={open}
           reservedWidth={inspection && wide ? INSPECTOR_WIDTH : 0}
           coveredBottom={inspection && !wide ? INSPECTOR_PHONE_COVER : 0}

@@ -41,6 +41,14 @@
   range spend; UNSCALED WINNER = one campaign, that pairing Good AND live.
   The strip and the MCP's `get_canvas_patterns` are the SAME function — never
   a second copy of a definition.
+- **`?focus=` IS THE INSPECTED NODE, AND ONLY THAT.** The URL carries the node
+  the inspector is open on (`k:<uuid>` creative / `c:<uuid>` campaign — an id,
+  so a rename never breaks a link), parsed by ONE `parseCanvasFocus` for
+  server and client. A chip's group focus never enters the link (it's
+  recomputed from the range). Written by shallow REPLACE like `?view=` /
+  `?lens=` — node clicks add no Back steps. A linked node that isn't drawn is
+  SAID (a notice naming it, brand-scoped `canvasFocusName`), never silently
+  dropped; an id from another brand reads as unknown, never as its name.
 
 ## History and rationale
 
@@ -316,3 +324,30 @@ as it stood before the restructure.*
     campaigns; each pairing with spend, ROAS, rate, live, last spend day.
     `lib/mcp/coverage.ts` lists `canvas` under it; `tests/db/mcp.test.ts`
     pins it (most shared with excluded hidden, leaning 83% with them in).
+
+### Focus in the link (2026-11-20)
+
+- **C6: `?focus=` — a shared or reloaded Canvas opens on the same node.**
+  Focus lived in component state, so a reload, a shared URL or a comment's
+  captured query string lost it. Now the inspected node is in the URL and the
+  page opens on it: lit, panned to (in any view), inspector open.
+  - **User decisions (all four recommendations taken):** the link holds the
+    INSPECTED node only (not a chip's focus) · the creative and campaign
+    detail pages get an "On the Canvas" link (beside "Compare…" in the
+    Analytics row — that row is where the page's range lives, and the link
+    carries that range, like Compare) · a linked node that isn't drawn gets a
+    one-line notice with Clear, the canvas draws as normal beneath · focus
+    REPLACES the URL, so Back leaves the Canvas.
+  - **Resolved on the server**: the page validates `?focus=` through
+    `canvasFiltersSchema`, checks it against the drawn graph, and only when it
+    isn't drawn looks up its name (one brand-scoped query). The client follows
+    a new answer after a filter or range change (a node that drops out gets
+    the notice; one that appears opens) — the filter bars carry `focus` along
+    like any param. An empty graph shows the page's empty state instead (it
+    already says nothing spent).
+  - **Found in the walk, fixed:** a "first occurrence" pan (search picks,
+    pairing rows, and now links) centred the node in the WHOLE pane — under
+    the phone's inspector overlay. It now runs the keep-in-view step once the
+    pan lands, so the node sits in the visible strip above the overlay.
+  - MCP: not relevant — `?focus=` is presentation state; the data it points at
+    is already on `get_canvas_patterns` / `get_creative` / `get_campaign`.

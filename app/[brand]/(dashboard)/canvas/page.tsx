@@ -6,7 +6,7 @@ import {
   resolveIncludeExcluded,
   resolvePreferredRange,
 } from "@/db/queries/user-prefs";
-import { canvasGraph } from "@/db/queries/canvas";
+import { canvasFocusName, canvasGraph } from "@/db/queries/canvas";
 import { getRatingConfig } from "@/db/queries/rating";
 import { listProducts } from "@/db/queries/products";
 import {
@@ -60,6 +60,7 @@ export default async function CanvasPage({
     statuses: pref.statuses,
     productIds: pref.productIds,
     stages: pref.stages,
+    focus: pickFirst(params.focus),
   });
 
   // The range is resolved HERE and the one value feeds both the query and the
@@ -86,6 +87,25 @@ export default async function CanvasPage({
     includeExcluded,
   }), getRatingConfig()]);
 
+  // `?focus=` — a shared link's inspected node. Drawn → the canvas opens on it
+  // with its inspector. Not drawn (no spend in the range, hidden by a filter,
+  // trimmed by the cap) → the page SAYS which one, so it needs the name the
+  // graph can't give it: one brand-scoped lookup, only in that case.
+  const focus = parsed.focus;
+  const focusDrawn =
+    focus !== null &&
+    (focus.kind === "campaign" ? graph.campaigns : graph.creatives).some(
+      (n) => n.id === focus.nodeId,
+    );
+  const linkedFocus = focus
+    ? {
+        nodeId: focus.nodeId,
+        kind: focus.kind,
+        drawn: focusDrawn,
+        name: focusDrawn ? null : await canvasFocusName(focus),
+      }
+    : null;
+
   return (
     <PageShell>
       <PageHeader
@@ -103,6 +123,7 @@ export default async function CanvasPage({
           graph={graph}
           rangeLabel={presetLabel(range.from, range.to)}
           rateRules={ratingConfig.default}
+          linkedFocus={linkedFocus}
         />
       </AdDataGate>
     </PageShell>

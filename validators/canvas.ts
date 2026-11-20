@@ -2,7 +2,7 @@ import { z } from "zod";
 import { platformEnum } from "@/lib/enums";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
-import { parseCanvasView } from "@/lib/canvas";
+import { parseCanvasFocus, parseCanvasView } from "@/lib/canvas";
 import { csvEnum } from "@/validators/shared";
 
 /**
@@ -43,4 +43,13 @@ export const canvasFiltersSchema = z.object({
     .optional()
     .catch(undefined)
     .transform((v) => parseCanvasView(v)),
+  /**
+   * `?focus=` — the inspected creative or campaign (`k:<uuid>` / `c:<uuid>`).
+   * Malformed → null (no focus), never thrown. Same parser as the client.
+   */
+  focus: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .transform((v) => parseCanvasFocus(v)),
 });

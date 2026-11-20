@@ -38,6 +38,7 @@ import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 import { DangerZone } from "@/components/ui/callout";
 import { CompareLink } from "@/components/compare/compare-link";
+import { CanvasLink } from "@/components/canvas/canvas-link";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,9 @@ export default async function CampaignDetailPage({
             )}
             {/* Into Compare with this campaign as side A (R-045). */}
             <CompareLink side={{ campaigns: meta.campaign }} from={eff.from} to={eff.to} />
+            {registry && (
+              <CanvasLink entity={{ campaignId: registry.id }} from={eff.from} to={eff.to} />
+            )}
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={parsed.from ?? null}

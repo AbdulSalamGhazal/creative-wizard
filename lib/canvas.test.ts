@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildClusters,
+  canvasFocusHref,
+  focusParamFor,
+  parseCanvasFocus,
   clusterBoxes,
   clusterColumnsFor,
   clusterFocus,
@@ -902,5 +905,42 @@ describe("pattern alerts — the Rate patterns", () => {
     const keys = canvasInsights(g).map((i) => i.key);
     expect(keys).not.toContain("unscaled-winner");
     expect(keys).not.toContain("losing-everywhere");
+  });
+});
+
+describe("?focus= — the inspected node in the link", () => {
+  const ID = "3f2a9c1e-0000-4000-8000-00000000abcd";
+
+  it("parses a creative and a campaign node id", () => {
+    expect(parseCanvasFocus(`k:${ID}`)).toEqual({ kind: "creative", id: ID, nodeId: `k:${ID}` });
+    expect(parseCanvasFocus(`c:${ID}`)).toEqual({ kind: "campaign", id: ID, nodeId: `c:${ID}` });
+  });
+
+  it("normalises case, so the node id matches the graph's", () => {
+    expect(parseCanvasFocus(`k:${ID.toUpperCase()}`)?.nodeId).toBe(`k:${ID}`);
+  });
+
+  it("anything else is no focus — never thrown", () => {
+    for (const bad of [null, undefined, "", "k:", `x:${ID}`, "k:not-a-uuid", `k:${ID} `, `k:${ID}|c:${ID}`]) {
+      expect(parseCanvasFocus(bad)).toBeNull();
+    }
+  });
+
+  it("writes ONLY an inspected single node — a chip's focus stays out of the link", () => {
+    expect(focusParamFor({ ids: [`k:${ID}`], inspect: true })).toBe(`k:${ID}`);
+    expect(focusParamFor({ ids: [`k:${ID}`] })).toBeNull();
+    expect(focusParamFor({ ids: [`k:${ID}`, `c:${ID}`], inspect: true })).toBeNull();
+    expect(focusParamFor(null)).toBeNull();
+  });
+
+  it("the detail-page link round-trips through the parser, range attached", () => {
+    const href = canvasFocusHref({ creativeId: ID }, { from: "2026-11-01", to: "2026-11-20" });
+    const url = new URL(href, "https://x.test");
+    expect(url.pathname).toBe("/canvas");
+    expect(parseCanvasFocus(url.searchParams.get("focus"))?.nodeId).toBe(`k:${ID}`);
+    expect(url.searchParams.get("from")).toBe("2026-11-01");
+    expect(url.searchParams.get("to")).toBe("2026-11-20");
+    const camp = new URL(canvasFocusHref({ campaignId: ID }, { from: "2026-11-01", to: "2026-11-20" }), "https://x.test");
+    expect(camp.searchParams.get("focus")).toBe(`c:${ID}`);
   });
 });

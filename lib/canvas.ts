@@ -149,6 +149,70 @@ export interface CanvasGraph {
 export const campaignNodeId = (id: string) => `c:${id}`;
 export const creativeNodeId = (id: string) => `k:${id}`;
 
+// ── Focus in the link ───────────────────────────────────────────────────────
+
+/**
+ * `?focus=` — the INSPECTED entity, as its graph node id (`c:<uuid>` a
+ * campaign, `k:<uuid>` a creative). A node id, not a name, so a rename never
+ * breaks a shared link. Anything else parses to null — a bad value is simply
+ * no focus. One parser for the server (`validators/canvas.ts`) and the client.
+ */
+export interface CanvasFocusParam {
+  kind: "campaign" | "creative";
+  /** The entity's row id. */
+  id: string;
+  /** Its graph node id — what the canvas focuses. */
+  nodeId: string;
+}
+
+const FOCUS_RE = /^([ck]):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+export function parseCanvasFocus(value: string | null | undefined): CanvasFocusParam | null {
+  const m = FOCUS_RE.exec(value ?? "");
+  if (!m?.[1] || !m[2]) return null;
+  const id = m[2].toLowerCase();
+  return m[1] === "c"
+    ? { kind: "campaign", id, nodeId: campaignNodeId(id) }
+    : { kind: "creative", id, nodeId: creativeNodeId(id) };
+}
+
+/**
+ * What the page resolved about a link's `?focus=`: drawn → open on it; not
+ * drawn → say which one (its brand-scoped name, null when unknown).
+ */
+export interface CanvasLinkedFocus {
+  nodeId: string;
+  kind: CanvasFocusParam["kind"];
+  drawn: boolean;
+  name: string | null;
+}
+
+/** The URL value the canvas writes for a focus: only an INSPECTED node. */
+export function focusParamFor(
+  focus: { ids: string[]; inspect?: boolean } | null,
+): string | null {
+  return focus?.inspect && focus.ids.length === 1 ? (focus.ids[0] ?? null) : null;
+}
+
+/**
+ * The way INTO the Canvas from an entity's own page: focused on it, over that
+ * page's range. Only the range travels — the Canvas's other filters are its
+ * own (remembered per user), exactly like the Compare link.
+ */
+export function canvasFocusHref(
+  entity: { campaignId: string } | { creativeId: string },
+  range: { from: string; to: string },
+): string {
+  const p = new URLSearchParams();
+  p.set(
+    "focus",
+    "campaignId" in entity ? campaignNodeId(entity.campaignId) : creativeNodeId(entity.creativeId),
+  );
+  p.set("from", range.from);
+  p.set("to", range.to);
+  return `/canvas?${p.toString()}`;
+}
+
 // ── Campaign health ─────────────────────────────────────────────────────────
 
 /**

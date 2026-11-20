@@ -36,6 +36,7 @@ import {
   type CanvasCreativeNode,
   type CanvasCreativeType,
   type CanvasEdge,
+  type CanvasFocusParam,
   type CanvasGraph,
 } from "@/lib/canvas";
 
@@ -339,4 +340,29 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         ? { shownEdges: kept.length, totalEdges: total, idleHidden }
         : null,
   };
+}
+
+/**
+ * The NAME behind a `?focus=` link whose node isn't drawn (it didn't spend in
+ * the range, the filters hide it, or the scale cap trimmed it) — so the page
+ * can say WHICH creative or campaign the link was about. Brand-scoped: an id
+ * from another brand reads as unknown (null), never as its name.
+ */
+export async function canvasFocusName(
+  focus: Pick<CanvasFocusParam, "kind" | "id">,
+): Promise<string | null> {
+  const acct = await getActiveAccountId();
+  const rows =
+    focus.kind === "campaign"
+      ? await db
+          .select({ name: campaigns.name })
+          .from(campaigns)
+          .where(and(eq(campaigns.id, focus.id), eq(campaigns.accountId, acct)))
+          .limit(1)
+      : await db
+          .select({ name: creatives.name })
+          .from(creatives)
+          .where(and(eq(creatives.id, focus.id), eq(creatives.accountId, acct)))
+          .limit(1);
+  return rows[0]?.name ?? null;
 }

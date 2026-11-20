@@ -552,47 +552,64 @@ function Flow({
     });
   }, [paneReady, graph, clusterLayout, flow]);
 
-  // Take the viewport where the focus request asks: everything lit (insight
-  // chips) or just the first occurrence (search).
-  useEffect(() => {
-    if (!focus || focus.fit === "none" || !lit) return;
-    const ids = focus.fit === "first" ? (lit.first ? [lit.first] : []) : [...lit.nodes];
-    if (ids.length === 0) return;
-    void flow.fitView({
-      nodes: ids.map((id) => ({ id })),
-      padding: focus.fit === "first" ? 1.2 : 0.25,
-      duration: 400,
-      maxZoom: 1.1,
-    });
-  }, [focus, lit, flow]);
-
   // KEEP THE INSPECTED NODE IN VIEW. Opening the inspector column narrows the
   // pane from the right, so a node clicked near that edge would vanish behind
   // the panel it just opened. Once the pane has its new width, pan — at the
   // same zoom, and only if the node is actually out of view — to bring the
-  // first lit occurrence back. A search / row pick already pans ("first").
+  // first lit occurrence back.
   const paneHeight = useStore((st) => st.height);
+  const keepInView = useCallback(
+    (id: string) => {
+      if (paneWidth === 0) return;
+      const n = flow.getInternalNode(id);
+      if (!n) return;
+      const { x: vx, y: vy, zoom } = flow.getViewport();
+      const w = n.measured.width ?? n.width ?? 0;
+      const h = n.measured.height ?? n.height ?? 0;
+      const left = n.internals.positionAbsolute.x * zoom + vx;
+      const top = n.internals.positionAbsolute.y * zoom + vy;
+      const visibleHeight = paneHeight * (1 - coveredBottom);
+      const inView =
+        left >= 0 && left + w * zoom <= paneWidth && top >= 0 && top + h * zoom <= visibleHeight;
+      if (inView) return;
+      // setCenter centres in the WHOLE pane; push the target down by half the
+      // covered strip so the node lands in the middle of the visible part.
+      void flow.setCenter(
+        n.internals.positionAbsolute.x + w / 2,
+        n.internals.positionAbsolute.y + h / 2 + (paneHeight * coveredBottom) / 2 / zoom,
+        { zoom, duration: 300 },
+      );
+    },
+    [flow, paneWidth, paneHeight, coveredBottom],
+  );
   useEffect(() => {
-    if (!focus?.inspect || focus.fit !== "none" || !lit?.first || paneWidth === 0) return;
-    const n = flow.getInternalNode(lit.first);
-    if (!n) return;
-    const { x: vx, y: vy, zoom } = flow.getViewport();
-    const w = n.measured.width ?? n.width ?? 0;
-    const h = n.measured.height ?? n.height ?? 0;
-    const left = n.internals.positionAbsolute.x * zoom + vx;
-    const top = n.internals.positionAbsolute.y * zoom + vy;
-    const visibleHeight = paneHeight * (1 - coveredBottom);
-    const inView =
-      left >= 0 && left + w * zoom <= paneWidth && top >= 0 && top + h * zoom <= visibleHeight;
-    if (inView) return;
-    // setCenter centres in the WHOLE pane; push the target down by half the
-    // covered strip so the node lands in the middle of the visible part.
-    void flow.setCenter(
-      n.internals.positionAbsolute.x + w / 2,
-      n.internals.positionAbsolute.y + h / 2 + (paneHeight * coveredBottom) / 2 / zoom,
-      { zoom, duration: 300 },
-    );
-  }, [focus, lit, flow, paneWidth, paneHeight, coveredBottom]);
+    if (!focus?.inspect || focus.fit !== "none" || !lit?.first) return;
+    keepInView(lit.first);
+  }, [focus, lit, keepInView]);
+
+  // Take the viewport where the focus request asks: everything lit (insight
+  // chips) or just the first occurrence (search, a pairing row, a link). That
+  // pan centres in the WHOLE pane — under the phone's inspector overlay — so
+  // an inspected node gets the keep-in-view step once it lands.
+  useEffect(() => {
+    if (!focus || focus.fit === "none" || !lit) return;
+    const ids = focus.fit === "first" ? (lit.first ? [lit.first] : []) : [...lit.nodes];
+    if (ids.length === 0) return;
+    const first = lit.first;
+    void flow
+      .fitView({
+        nodes: ids.map((id) => ({ id })),
+        padding: focus.fit === "first" ? 1.2 : 0.25,
+        duration: 400,
+        maxZoom: 1.1,
+      })
+      .then(() => {
+        if (focus.inspect && focus.fit === "first" && first) keepInView(first);
+      });
+    // keepInView is deliberately NOT a dependency: a pane resize must not
+    // re-run this fit — the effect above covers resizes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, lit, flow]);
 
   // ESC clears focus.
   useEffect(() => {

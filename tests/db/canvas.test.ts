@@ -12,7 +12,7 @@ vi.mock("@/lib/tenant", () => ({
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
 import { performanceRecords, platformRatingRules, ratingRules } from "@/db/schema";
-import { canvasGraph } from "@/db/queries/canvas";
+import { canvasFocusName, canvasGraph } from "@/db/queries/canvas";
 import { campaignNodeId, creativeNodeId } from "@/lib/canvas";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import {
@@ -22,6 +22,7 @@ import {
   CREATIVE_1,
   CREATIVE_2,
   CREATIVE_B,
+  CAMPAIGN_B,
   BATCH_A,
   perf,
 } from "./fixtures";
@@ -336,5 +337,23 @@ describe("canvasGraph — the performance lens rates each PAIRING", () => {
     } finally {
       await db.delete(ratingRules);
     }
+  });
+});
+
+describe("canvasFocusName — the name behind a link's ?focus=", () => {
+  it("names a creative and a campaign of the active brand", async () => {
+    expect(await canvasFocusName({ kind: "creative", id: CREATIVE_1 })).toBe("A-Creative-1");
+    expect(await canvasFocusName({ kind: "campaign", id: CAMPAIGN_1 })).toEqual(expect.any(String));
+  });
+
+  it("never names another brand's entity — it reads as unknown", async () => {
+    expect(await canvasFocusName({ kind: "creative", id: CREATIVE_B })).toBeNull();
+    expect(await canvasFocusName({ kind: "campaign", id: CAMPAIGN_B })).toBeNull();
+    setAccount(ACCOUNT_B);
+    expect(await canvasFocusName({ kind: "creative", id: CREATIVE_1 })).toBeNull();
+  });
+
+  it("does not cross kinds — a creative id asked as a campaign is unknown", async () => {
+    expect(await canvasFocusName({ kind: "campaign", id: CREATIVE_1 })).toBeNull();
   });
 });
