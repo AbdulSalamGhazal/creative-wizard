@@ -526,6 +526,7 @@ this map is still a rule you broke.
 - Any route/search-param change goes through `useNavTransition` — a shallow
   presentation param (sort, column toggle) is history-API only, no render.
 - One render per action; every action call through `safeAction`.
+- A button an entity page always shows asks "rail: yes/no, why" — a yes is confirmed with the user.
 
 → **`docs/decisions/ui-system.md`**
 

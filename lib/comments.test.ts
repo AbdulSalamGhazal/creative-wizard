@@ -18,6 +18,7 @@ import {
   reactionTooltip,
   highlightMentions,
   isEntityRoute,
+  entityShareHref,
   isLegacyViewPage,
   monthAnchorLabel,
   normalizeQuery,
@@ -440,5 +441,23 @@ describe("who may delete someone else's comment (F3)", () => {
     expect(canModerateComments({ role: "admin" })).toBe(true);
     expect(canModerateComments({ role: "editor" })).toBe(false);
     expect(canModerateComments({ role: "viewer" })).toBe(false);
+  });
+});
+
+describe("entityShareHref — the rail's Copy link (2026-11-21)", () => {
+  it("is the entity's own path, never the reader's filters", () => {
+    expect(entityShareHref("/library/Ad-One", { type: "creative", id: "c1" })).toBe("/library/Ad-One");
+    expect(entityShareHref("/campaigns/Spring", null)).toBe("/campaigns/Spring");
+    expect(entityShareHref("/landing-pages/LP1", null)).toBe("/landing-pages/LP1");
+  });
+  it("pins the month or version the page shows", () => {
+    expect(entityShareHref("/budget", { type: "budget_month", id: "2026-11" })).toBe("/budget?month=2026-11");
+    expect(entityShareHref("/price-structure/plan", { type: "ps_version", id: "v 1" })).toBe(
+      "/price-structure/plan?v=v%201",
+    );
+  });
+  it("is null off an entity page", () => {
+    expect(entityShareHref("/library", null)).toBeNull();
+    expect(entityShareHref("/library/new", null)).toBeNull();
   });
 });

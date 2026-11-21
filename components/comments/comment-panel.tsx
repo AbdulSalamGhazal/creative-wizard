@@ -23,6 +23,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { COMMENT_PARAM, isEntityRoute, type CommentAnchor } from "@/lib/comments";
+import { RailLabel, RailLinkGroup, railItemClass } from "@/components/layout/rail-links";
 
 /**
  * The comment panel's EAGER half (W2-7 + W2-8, 2026-10): the shared state, the
@@ -244,9 +245,10 @@ export function PanelToggles({
   const { open, mode, toggleMode } = usePanel();
   const pathname = usePathname();
   if (!isEntityRoute(pathname)) return null;
+  const rail = orientation === "vertical";
   const button = (face: PanelMode) =>
     cn(
-      "relative inline-flex h-8 w-8 items-center justify-center rounded-md border text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink",
+      railItemClass,
       open && mode === face ? "border-line bg-surface-2 text-ink" : "border-transparent",
       orientation === "horizontal" && !(open && mode === face) && "border-line",
     );
@@ -304,10 +306,11 @@ export function PanelToggles({
         onFocus={preloadCommentPanel}
         aria-pressed={open && mode === "comments"}
         aria-label="Comments"
-        title="Comments"
+        title={rail ? undefined : "Comments"}
         className={cn(button("comments"), fold && "max-sm:hidden")}
       >
         <MessageSquare className="h-4 w-4" />
+        {rail && <RailLabel>Comments</RailLabel>}
       </button>
       <button
         type="button"
@@ -316,10 +319,11 @@ export function PanelToggles({
         onFocus={preloadCommentPanel}
         aria-pressed={open && mode === "activity"}
         aria-label="Activity"
-        title="Activity"
+        title={rail ? undefined : "Activity"}
         className={cn(button("activity"), fold && "max-sm:hidden")}
       >
         <Activity className="h-4 w-4" />
+        {rail && <RailLabel>Activity</RailLabel>}
       </button>
     </div>
   );
@@ -329,6 +333,11 @@ export function PanelToggles({
  * The RAIL (2026-11-07): a thin column at the page's right edge holding the
  * panel's two buttons, on a desktop, on an entity's page only. It sits OUTSIDE
  * the panel, so the buttons never move when the panel opens or closes.
+ *
+ * Two groups (2026-11-21, user-approved): the panel's faces on top, then a
+ * divider, then the "open this elsewhere" links (Compare, Canvas — the ones
+ * the page registered — and Copy link on every entity). Icons only; each
+ * shows its name on hover and keyboard focus (`RailLabel`).
  */
 export function EntityRail() {
   const pathname = usePathname();
@@ -336,9 +345,10 @@ export function EntityRail() {
   return (
     <aside
       aria-label="Comments and activity"
-      className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-12 shrink-0 self-start border-l border-line bg-surface lg:block"
+      className="sticky top-14 z-20 hidden h-[calc(100vh-3.5rem)] w-12 shrink-0 self-start border-l border-line bg-surface lg:block"
     >
       <PanelToggles orientation="vertical" className="pt-3" />
+      <RailLinkGroup />
     </aside>
   );
 }

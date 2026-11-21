@@ -29,8 +29,10 @@ import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { safeDecodeURIComponent, pickFirst } from "@/lib/url";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
-import { CompareLink } from "@/components/compare/compare-link";
+import { CompareLink, compareHref } from "@/components/compare/compare-link";
+import { RailLinks } from "@/components/layout/rail-links";
 import { CanvasLink } from "@/components/canvas/canvas-link";
+import { canvasFocusHref } from "@/lib/canvas";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -190,9 +192,14 @@ export default async function CreativeDetailPage({
           <h2 className="text-label text-ink-3">Analytics</h2>
           {/* Wraps: at 375px the toggle + date (322px) ran past the edge. */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Into Compare with this creative as side A (R-045). */}
-            <CompareLink side={{ creatives: creative.id }} from={eff.from} to={eff.to} />
-            <CanvasLink entity={{ creativeId: creative.id }} from={eff.from} to={eff.to} />
+            {/* Into Compare with this creative as side A (R-045), and onto
+                the Canvas. From lg they live in the rail (2026-11-21). */}
+            <RailLinks
+              compare={compareHref({ creatives: creative.id }, eff)}
+              canvas={canvasFocusHref({ creativeId: creative.id }, eff)}
+            />
+            <CompareLink side={{ creatives: creative.id }} from={eff.from} to={eff.to} className="lg:hidden" />
+            <CanvasLink entity={{ creativeId: creative.id }} from={eff.from} to={eff.to} className="lg:hidden" />
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={from ?? null}

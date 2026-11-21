@@ -37,8 +37,10 @@ import { defaultDateRange } from "@/lib/date-presets";
 import { resolvePreferredRange, resolveIncludeExcluded } from "@/db/queries/user-prefs";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 import { DangerZone } from "@/components/ui/callout";
-import { CompareLink } from "@/components/compare/compare-link";
+import { CompareLink, compareHref } from "@/components/compare/compare-link";
+import { RailLinks } from "@/components/layout/rail-links";
 import { CanvasLink } from "@/components/canvas/canvas-link";
+import { canvasFocusHref } from "@/lib/canvas";
 
 export const dynamic = "force-dynamic";
 
@@ -174,10 +176,15 @@ export default async function CampaignDetailPage({
                 hasRecords={campaignFirst !== null}
               />
             )}
-            {/* Into Compare with this campaign as side A (R-045). */}
-            <CompareLink side={{ campaigns: meta.campaign }} from={eff.from} to={eff.to} />
+            {/* Into Compare with this campaign as side A (R-045), and onto
+                the Canvas. From lg they live in the rail (2026-11-21). */}
+            <RailLinks
+              compare={compareHref({ campaigns: meta.campaign }, eff)}
+              canvas={registry ? canvasFocusHref({ campaignId: registry.id }, eff) : undefined}
+            />
+            <CompareLink side={{ campaigns: meta.campaign }} from={eff.from} to={eff.to} className="lg:hidden" />
             {registry && (
-              <CanvasLink entity={{ campaignId: registry.id }} from={eff.from} to={eff.to} />
+              <CanvasLink entity={{ campaignId: registry.id }} from={eff.from} to={eff.to} className="lg:hidden" />
             )}
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter

@@ -233,6 +233,15 @@ and as-you-type name validation.
   not the viewport.** `<main>` is `@container/main`; use `@…:` container
   steps. A split editor names its own container (R-009, R-019, R-014).
 - **A `loading.tsx` renders the page's own `PageShell width`** (R-057).
+- **The entity rail is where an entity page's always-present buttons go
+  (2026-11-21, user rule).** Every feature that adds a button to an entity
+  page (creative, campaign, landing page, budget month, Price Structure
+  version) asks "rail: yes or no, and why" in its plan — and a yes is a
+  visible choice, so it is confirmed with the user. Panel faces sit above
+  the divider, "open this elsewhere" links below it; icon + `RailLabel`
+  name on hover/focus; the phone keeps an in-page button. Inline editing,
+  the page's data controls and destructive actions stay in the page.
+  → comments-notifications.md, "The rail has TWO groups".
 - **Charts:** plot height through `plotClass(inFull, "lg" | "md")` (lg for a
   primary over-time chart, md in cards), line weight through `CHART_STROKE`,
   every chart root has `accessibilityLayer`, and `ChartShell` requires a

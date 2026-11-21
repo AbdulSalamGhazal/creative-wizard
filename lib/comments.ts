@@ -365,6 +365,30 @@ export function isEntityRoute(pathname: string): boolean {
 }
 
 /**
+ * The rail's "Copy link" (2026-11-21): the entity's OWN address — the path,
+ * plus the one param that names it where the path alone doesn't (a budget
+ * month's `?month=`, a Price Structure version's `?v=`), taken from the
+ * page's registered anchor so a bare `/budget` still copies the month shown.
+ * Never the reader's filters, range or sort: the link is to the thing.
+ * `null` off an entity page.
+ */
+export function entityShareHref(
+  pathname: string,
+  anchor: CommentAnchor | null,
+): string | null {
+  if (!isEntityRoute(pathname)) return null;
+  if (pathname === "/budget") {
+    return anchor?.type === "budget_month" ? `/budget?month=${anchor.id}` : pathname;
+  }
+  if (pathname.startsWith("/price-structure")) {
+    return anchor?.type === "ps_version"
+      ? `${pathname}?v=${encodeURIComponent(anchor.id)}`
+      : pathname;
+  }
+  return pathname;
+}
+
+/**
  * Which anchor the comment panel is pointing at: the entity the page
  * registered, if the registration was made on THIS path (a stale one from the
  * page just left can never leak onto the next). Anything else — every page

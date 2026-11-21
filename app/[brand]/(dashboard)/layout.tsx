@@ -8,6 +8,7 @@ import { auth, grantedPermissions } from "@/lib/auth";
 import { canModerateComments } from "@/lib/comments";
 import { PermissionsProvider } from "@/components/auth/permissions-context";
 import { CommentAnchorProvider } from "@/components/comments/comment-anchor-context";
+import { RailLinksProvider } from "@/components/layout/rail-links";
 import {
   CommentDock,
   CommentPanelProvider,
@@ -103,6 +104,9 @@ export default async function DashboardLayout({
           itself, everything else derives from the pathname. */}
       <CommentAnchorProvider>
         <CommentPanelProvider>
+        {/* What the rail links to below its divider — an entity page registers
+            its Compare and Canvas destinations (2026-11-21). */}
+        <RailLinksProvider>
           <div className="min-h-screen flex flex-col">
             <RememberBrand slug={slug} />
             <NavProgressBar />
@@ -147,12 +151,14 @@ export default async function DashboardLayout({
                   canModerate={canModerateComments(user)}
                 />
               </Suspense>
-              {/* The rail — Comments and Activity, on an entity's own page
-                  only, at the far right so its buttons never move when the
-                  panel opens beside it (2026-11-07). */}
+              {/* The rail — Comments and Activity, then the entity's "open
+                  elsewhere" links, on an entity's own page only, at the far
+                  right so its buttons never move when the panel opens beside
+                  it (2026-11-07, links 2026-11-21). */}
               <EntityRail />
             </div>
           </div>
+        </RailLinksProvider>
         </CommentPanelProvider>
       </CommentAnchorProvider>
       </TablePrefsProvider>

@@ -42,6 +42,20 @@
   a non-entity page CLOSES the panel
   (the path decides, so creative A → creative B keeps it open while B loads);
   a `?comment=` deep link opens it only on an entity page.
+- **The rail has TWO groups (2026-11-21, user-approved).** On top, the
+  panel's faces (Comments, Activity); a divider; below, the entity's "open
+  this elsewhere" links — Compare and Open in Canvas where the page
+  registered them (`<RailLinks>`, components/layout/rail-links.tsx, the
+  `<CommentAnchor>` registration shape), and **Copy link** on every entity
+  page. Icons only; each shows its NAME on hover and keyboard focus
+  (`RailLabel`, visual only — the button's `aria-label` speaks, no `title`).
+  Copy link copies the entity's OWN address (`entityShareHref`: the path,
+  plus `?month=`/`?v=` from the anchor where the path doesn't name it) —
+  never the reader's filters, range or sort. Below `lg` there is no rail:
+  the page keeps its in-page Compare/Canvas buttons (`lg:hidden`), and Copy
+  link is desktop-only. Not for the rail: inline editing and its Save, the
+  range and Excluded controls (they shape the page's numbers), and anything
+  destructive.
 - **An entity's ACTIVITY (2026-11-07) is what was done TO it** — never what
   merely touched its data (user rule: "why would we list activity not related
   to the entity?"). `ENTITY_ACTIVITY_ACTIONS` (db/queries/entity-activity.ts,
@@ -264,6 +278,19 @@
   `DB_POOL_MAX=1` to catch it.
 
 ## History and rationale
+
+### 2026-11-21 — the rail takes the entity's links
+
+The user asked to move buttons that always appear together on an entity
+page into the rail: "in the creative edit button, why not make it the right
+column? same with compare, same with the canvas button." Taken: Compare and
+Canvas (they leave the page, and sat in the Analytics row beside controls
+that shape it), plus a new Copy link. Declined, with the user's agreement:
+the creative's Edit/Save (an inline editor — confirming far from the fields
+risks lost edits). Decided with the user: two groups with a divider, the
+name on hover, in-page buttons kept on phones. And a standing rule (see
+ui-system.md): every feature on an entity page asks whether its button
+belongs on the rail.
 
 ### 2026-11-07 — comments move onto entities; the rail
 

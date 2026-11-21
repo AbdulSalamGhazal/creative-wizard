@@ -349,7 +349,9 @@ as it stood before the restructure.*
     INSPECTED node only (not a chip's focus) · the creative and campaign
     detail pages get an "On the Canvas" link (beside "Compare…" in the
     Analytics row — that row is where the page's range lives, and the link
-    carries that range, like Compare) · a linked node that isn't drawn gets a
+    carries that range, like Compare; from `lg` both moved to the entity
+    rail as icons on 2026-11-21, still carrying the range — see
+    comments-notifications.md) · a linked node that isn't drawn gets a
     one-line notice with Clear, the canvas draws as normal beneath · focus
     REPLACES the URL, so Back leaves the Canvas.
   - **Resolved on the server**: the page validates `?focus=` through

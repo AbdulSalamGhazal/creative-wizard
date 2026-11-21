@@ -13,13 +13,15 @@ export function CanvasLink({
   entity,
   from,
   to,
+  className,
 }: {
   entity: { campaignId: string } | { creativeId: string };
   from: string;
   to: string;
+  className?: string;
 }) {
   return (
-    <Button asChild variant="outline" size="sm">
+    <Button asChild variant="outline" size="sm" className={className}>
       <Link href={canvasFocusHref(entity, { from, to })}>
         <Workflow className="h-3.5 w-3.5" />
         On the Canvas
