@@ -526,6 +526,13 @@
       "when": 1794997539923,
       "tag": "0074_store_connector_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1795287655851,
+      "tag": "0075_store_connector_customer_fields",
+      "breakpoints": true
     }
   ]
 }

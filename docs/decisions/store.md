@@ -111,8 +111,8 @@
 - **Every event is kept whole** in `store_connector_events` (dedup on
   `event_id`; a pulled order's id is its own version). `store_orders` holds
   only what the pages read; the raw log is what later analysis reads. Don't
-  trim the payload, and don't add personal data: the personal-data permission
-  is deliberately closed on the connector side.
+  trim the payload. Personal data (name, phone, email) was opened on the
+  connector side at the user's request (2026-11-21).
 - **The ordering guard:** a connector write lands only when its `updated_at`
   is not older than `store_orders.connector_updated_at`. An older event after
   a newer one is logged, never applied.
@@ -120,7 +120,18 @@
   (`attribution.device`), `order_status` (`status.slug`) —
   `CONNECTOR_OWNED_KEYS`. Each connector write replaces them as a set (a null
   removes the key) and leaves every other key alone. Date = the Riyadh day of
-  `created_at`; total = `amounts.total`.
+  `created_at`.
+- **The total is the SAR total** — `amounts.total_sar`, because the module is
+  SAR. Every other connector amount is in the order's own currency. A payload
+  from before the connector sent it uses `amounts.total` only when the order
+  is SAR or names no currency; a foreign-currency order with no SAR total is
+  logged and NOT applied — a QAR figure is never filed as riyals.
+- **The feed FILLS three customer keys, it does not own them** —
+  `customer_name`, `phone` (written `+<digits>`, the export's form), `email`
+  (`CONNECTOR_CUSTOMER_KEYS`). Written when sent, never removed when absent
+  (no personal-data grant means the keys are missing, not empty), and an
+  upload may still set them. Migration 0075 gives each linked brand the three
+  fields it lacked.
 - **THE SALLA FEED WINS over an upload (user decision).** An order the feed
   holds (`connector_updated_at` set) is never an S051, in either mode; the
   upload keeps the feed's date, total and three attributes and only patches
@@ -405,3 +416,14 @@ products, creatives, angles and platform field mappings had gained
 - Go-live order: migrations → deploy in `record` mode → Mohamad points
   delivery at the URL → compare 10–20 orders with an export → `live` →
   `db/connector-backfill.ts`.
+- Test phase (2026-11-20): 516 orders compared with uploads. Dates matched on
+  all; nine totals differed, and Salla itself showed the feed's figure on
+  eight (edited after the export). The ninth was a Qatar order: the feed sent
+  305.88 QAR with no currency, which would have been stored as SAR. Mohamad
+  added `currency`, `exchange_rate` and `amounts.total_sar` on 2026-11-21, and
+  the total switched to `total_sar`. Live since 2026-11-20 evening; the 30-day
+  backfill ran 2026-11-21 (2,488 orders, 46 totals corrected).
+- Personal data (2026-11-21): first left out on purpose; the user then asked
+  for name, phone and email, so the connector opened them. They fill the
+  same keys Urjwan's uploads already used rather than new ones, so an
+  uploaded and a fed order read alike.

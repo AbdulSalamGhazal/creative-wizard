@@ -23,7 +23,17 @@ export const connectorOrderSchema = z
       .passthrough()
       .nullish()
       .catch(undefined),
-    amounts: z.object({ total: amount }).passthrough().nullish().catch(undefined),
+    currency: text,
+    amounts: z
+      .object({ total: amount, total_sar: amount })
+      .passthrough()
+      .nullish()
+      .catch(undefined),
+    customer: z
+      .object({ name: text, phone: text, email: text })
+      .passthrough()
+      .nullish()
+      .catch(undefined),
     attribution: z
       .object({ utm_source: text, device: text })
       .passthrough()

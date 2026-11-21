@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { signConnectorBody, verifyConnectorSignature } from "@/lib/connector/verify";
-import { CONNECTOR_OWNED_KEYS, mapConnectorOrder } from "@/lib/connector/map-order";
+import {
+  CONNECTOR_CUSTOMER_KEYS,
+  CONNECTOR_OWNED_KEYS,
+  mapConnectorOrder,
+} from "@/lib/connector/map-order";
 import { pulledOrderEvent } from "@/lib/connector/ingest";
 import { riyadhToday } from "@/lib/connector/time";
 import { orderStatusLabel, orderStatusTone } from "@/store/order-status";
@@ -85,6 +89,35 @@ describe("mapConnectorOrder", () => {
   it("tolerates a numeric reference and a numeric-string total", () => {
     const m = mapConnectorOrder(order({ reference: 298890143, amounts: { total: "99.5" } }));
     expect(m).toMatchObject({ orderId: "298890143", totalAmount: "99.50" });
+  });
+
+  it("files the SAR total, so a foreign-currency order is never stored as riyals", () => {
+    const qar = order({ currency: "QAR", amounts: { total: 305.88, total_sar: 314.05 } });
+    expect(mapConnectorOrder(qar)?.totalAmount).toBe("314.05");
+    // Foreign currency and no SAR total: not applied (the raw event is still kept).
+    expect(mapConnectorOrder(order({ currency: "QAR", amounts: { total: 305.88 } }))).toBeNull();
+    // A SAR order, or a payload from before the connector sent a currency, uses `total`.
+    expect(mapConnectorOrder(order({ currency: "SAR", amounts: { total: 412 } }))?.totalAmount).toBe(
+      "412.00",
+    );
+    expect(mapConnectorOrder(order({ currency: null }))?.totalAmount).toBe("412.00");
+  });
+
+  it("fills the customer's name, phone (+digits, like the export) and email when sent", () => {
+    const m = mapConnectorOrder(
+      order({ customer: { salla_id: 1, name: " Sara ", phone: "966500000000", email: "s@x.sa" } }),
+    );
+    expect(m?.attributes).toMatchObject({
+      customer_name: "Sara",
+      phone: "+966500000000",
+      email: "s@x.sa",
+    });
+    // Personal data not opened: the keys are absent, and nothing is written.
+    const none = mapConnectorOrder(order({ customer: { salla_id: 1 } }));
+    expect(Object.keys(none!.attributes)).not.toContain("customer_name");
+    expect(Object.keys(none!.attributes)).not.toContain("phone");
+    // Customer keys are filled, never owned: an absent name never erases an uploaded one.
+    expect([...CONNECTOR_OWNED_KEYS]).not.toContain(CONNECTOR_CUSTOMER_KEYS.name);
   });
 
   it("returns null for what can't be a Store row — never a guess", () => {
