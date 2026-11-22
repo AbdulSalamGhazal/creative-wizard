@@ -22,7 +22,7 @@ import { COMPARE_COLORS } from "@/components/charts/compare-chart";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import type { CompareDimensionRow } from "@/db/queries/performance";
-import type { CompareSide, SideKey } from "@/validators/compare";
+import { OWN_LANDING_PAGE, type CompareSide, type SideKey } from "@/validators/compare";
 import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle";
 import { panelClass } from "@/components/ui/panel";
 
@@ -87,7 +87,7 @@ export function CompareControls({ dimensions, sides, from, to, range, includeExc
   const addSideC = () => update((p) => p.set("sides", "3"));
   const removeSideC = () =>
     update((p) => {
-      ["sides", "cPlatforms", "cCampaigns", "cCreatives", "cFrom", "cTo"].forEach(
+      ["sides", "cPlatforms", "cCampaigns", "cCreatives", "cLandingPages", "cFrom", "cTo"].forEach(
         (k) => p.delete(k),
       );
     });
@@ -192,6 +192,32 @@ function SideCard({
     });
   }
 
+  // Landing pages the chosen platforms + campaigns + creatives sent traffic
+  // to; "Product page" (no @code) first when any record had none.
+  const landingPool = creativePool.filter(
+    (d) => side.creatives.length === 0 || side.creatives.includes(d.creativeId),
+  );
+  const landingSeen = new Set<string>();
+  const landingOpts: Option[] = [];
+  let hasOwnPage = false;
+  for (const d of landingPool) {
+    if (d.landingPageId === null) {
+      hasOwnPage = true;
+      continue;
+    }
+    if (landingSeen.has(d.landingPageId)) continue;
+    landingSeen.add(d.landingPageId);
+    landingOpts.push({
+      value: d.landingPageId,
+      label: d.landingPageName ?? d.landingPageId,
+      sub: d.landingPageCode ? `@${d.landingPageCode} · ${d.productName}` : d.productName,
+    });
+  }
+  landingOpts.sort((x, y) => x.label.localeCompare(y.label));
+  if (hasOwnPage) {
+    landingOpts.unshift({ value: OWN_LANDING_PAGE, label: "Product page", sub: "No @code" });
+  }
+
   const hasOwnWindow = Boolean(side.from && side.to);
 
   return (
@@ -217,7 +243,7 @@ function SideCard({
 
       {/* Side-specific window — overrides the shared one for this side only. */}
       <div className="flex items-start gap-2">
-        <span className="text-eyebrow text-ink-3 w-16 shrink-0 pt-2">
+        <span className="text-eyebrow text-ink-3 w-16 sm:w-24 shrink-0 pt-2">
           Window
         </span>
         <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
@@ -276,6 +302,14 @@ function SideCard({
           setParam(`${prefix}Creatives`, toggle(side.creatives, v))
         }
       />
+      <MultiSelect
+        label="Landing page"
+        options={landingOpts}
+        selected={side.landingPages}
+        onToggle={(v) =>
+          setParam(`${prefix}LandingPages`, toggle(side.landingPages, v))
+        }
+      />
     </div>
   );
 }
@@ -297,7 +331,7 @@ function MultiSelect({
     selected.length === 0 ? "All" : selected.map(labelFor).join(", ");
   return (
     <div className="flex items-start gap-2">
-      <span className="text-eyebrow text-ink-3 w-16 shrink-0 pt-2">
+      <span className="text-eyebrow text-ink-3 w-16 sm:w-24 shrink-0 pt-2">
         {label}
       </span>
       <div className="flex-1 min-w-0 space-y-1.5">

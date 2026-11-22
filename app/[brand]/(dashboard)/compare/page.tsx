@@ -18,6 +18,7 @@ import { resolveIncludeExcluded, resolvePreferredRange } from "@/db/queries/user
 import {
   compareFiltersSchema,
   sideIsEmpty,
+  sideLandingFilter,
   type CompareSide,
 } from "@/validators/compare";
 import { pickFirst } from "@/lib/url";
@@ -36,6 +37,7 @@ function sideFilter(
     platforms: side.platforms.length ? side.platforms : undefined,
     campaignNames: side.campaigns.length ? side.campaigns : undefined,
     creativeIds: side.creatives.length ? side.creatives : undefined,
+    ...sideLandingFilter(side.landingPages),
     includeExcluded,
     ...range,
   };
@@ -46,6 +48,8 @@ function sideSummary(side: CompareSide): string {
   if (side.platforms.length) parts.push(`${side.platforms.length} platform(s)`);
   if (side.campaigns.length) parts.push(`${side.campaigns.length} campaign(s)`);
   if (side.creatives.length) parts.push(`${side.creatives.length} creative(s)`);
+  if (side.landingPages.length)
+    parts.push(`${side.landingPages.length} landing page(s)`);
   const sel = sideIsEmpty(side) ? "All data" : parts.join(" · ");
   // Surface a side-specific window so the totals row says what it covers.
   return side.from && side.to ? `${sel} · ${side.from} → ${side.to}` : sel;
@@ -63,16 +67,19 @@ export default async function ComparePage({
     aPlatforms: pickFirst(params.aPlatforms),
     aCampaigns: pickFirst(params.aCampaigns),
     aCreatives: pickFirst(params.aCreatives),
+    aLandingPages: pickFirst(params.aLandingPages),
     aFrom: pickFirst(params.aFrom),
     aTo: pickFirst(params.aTo),
     bPlatforms: pickFirst(params.bPlatforms),
     bCampaigns: pickFirst(params.bCampaigns),
     bCreatives: pickFirst(params.bCreatives),
+    bLandingPages: pickFirst(params.bLandingPages),
     bFrom: pickFirst(params.bFrom),
     bTo: pickFirst(params.bTo),
     cPlatforms: pickFirst(params.cPlatforms),
     cCampaigns: pickFirst(params.cCampaigns),
     cCreatives: pickFirst(params.cCreatives),
+    cLandingPages: pickFirst(params.cLandingPages),
     cFrom: pickFirst(params.cFrom),
     cTo: pickFirst(params.cTo),
     sides: pickFirst(params.sides),

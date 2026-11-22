@@ -258,8 +258,27 @@ as it stood before the restructure.*
   platforms. An **Edit** button reuses the registry's dialog for a holder of
   `catalog.landing_pages`; Comments and Activity follow the page
   (`landing_page` anchor — comments-notifications.md). No Compare link:
-  Compare sides don't take landing pages. The MCP reads it through
-  `get_landing_pages` with `code`.
+  Compare sides didn't take landing pages (until 2026-11-22, below). The MCP
+  reads it through `get_landing_pages` with `code`.
+
+### Landing pages in Compare (2026-11-22, user ask)
+
+- Each Compare side gains a FOURTH picker, **Landing page**, after Creative
+  (user choice: last, so nothing above it changes) — `?aLandingPages=` /
+  `b…` / `c…`, CSV of registered page ids. It cascades like the others: it
+  lists only the pages the side's platforms · campaigns · creatives sent
+  traffic to (`compareDimensions` now left-joins `landing_pages`).
+- **"Product page"** (sub-line "No @code") is offered too (user choice) — the
+  records whose ad name carried no code, the sentinel `OWN_LANDING_PAGE`
+  (`"own"`, never a uuid) in the same param. `KpiFilters.ownLandingPage`
+  reads it as `landing_page_id IS NULL`, ORed with `landingPageIds` when both
+  are chosen (`sideLandingFilter`, `validators/compare.ts`).
+- The landing page detail page gets **Compare** with the page as side A over
+  its range: in the rail from `lg` (`RailLinks`), the in-page "Compare…"
+  button below it — exactly the creative page's pair. No Canvas link (the
+  Canvas has no landing-page node).
+- MCP: not relevant — Compare is a view over `kpis` / `compareSideSeries`,
+  which the MCP already reads per landing page through `get_landing_pages`.
 
 ### Landing pages — the independent review's fixes (2026-10-20)
 

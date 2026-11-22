@@ -3,13 +3,19 @@ import { GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /** Compare with `side` as side A over the shared window — the link and the rail's (2026-11-21). */
+export type CompareEntity =
+  | { creatives: string }
+  | { campaigns: string }
+  | { landingPages: string };
+
 export function compareHref(
-  side: { creatives: string } | { campaigns: string },
+  side: CompareEntity,
   range: { from: string; to: string },
 ): string {
   const p = new URLSearchParams();
   if ("creatives" in side) p.set("aCreatives", side.creatives);
-  else p.set("aCampaigns", side.campaigns);
+  else if ("campaigns" in side) p.set("aCampaigns", side.campaigns);
+  else p.set("aLandingPages", side.landingPages);
   p.set("from", range.from);
   p.set("to", range.to);
   return `/compare?${p.toString()}`;
@@ -27,8 +33,9 @@ export function CompareLink({
   to,
   className,
 }: {
-  /** Side A's selection: one creative (by id) or one campaign (by name). */
-  side: { creatives: string } | { campaigns: string };
+  /** Side A's selection: one creative (by id), one campaign (by name) or
+   *  one landing page (by id). */
+  side: CompareEntity;
   from: string;
   to: string;
   className?: string;

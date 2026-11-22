@@ -50,6 +50,13 @@ function csvPlatforms(s: string | undefined): Platform[] {
   return uniq(parseCsvEnum(s, platformEnum));
 }
 
+/**
+ * The Landing page picker's "Product page" option — records whose ad name
+ * carried no ` @code`. Not a uuid, so it never collides with a registered
+ * page's id in the same CSV param.
+ */
+export const OWN_LANDING_PAGE = "own";
+
 /** Side slots. A and B are always shown; C appears via "Add side". */
 export const SIDE_KEYS = ["a", "b", "c"] as const;
 export type SideKey = (typeof SIDE_KEYS)[number];
@@ -63,6 +70,8 @@ export interface CompareSide {
   campaigns: string[];
   /** Creative ids. */
   creatives: string[];
+  /** Registered landing page ids, and/or `OWN_LANDING_PAGE`. */
+  landingPages: string[];
   /** Side-specific window — null means "follow the shared range". */
   from: string | null;
   to: string | null;
@@ -83,7 +92,8 @@ function sideRange(
 
 /**
  * Compare is a 2-or-3-sided comparison. Each side is defined by an independent
- * 3-level filter (Platform → Campaign → Creative; an empty level = "all") plus
+ * 4-level filter (Platform → Campaign → Creative → Landing page; an empty
+ * level = "all") plus
  * an optional side-specific time window (`aFrom`/`aTo`, …) that overrides the
  * shared `from`/`to`. Side params are CSV in the URL. The third side renders
  * when `sides=3` or when any `c*` param carries state (so shared URLs keep
@@ -94,16 +104,19 @@ export const compareFiltersSchema = z
     aPlatforms: z.string().optional(),
     aCampaigns: z.string().optional(),
     aCreatives: z.string().optional(),
+    aLandingPages: z.string().optional(),
     aFrom: z.string().optional(),
     aTo: z.string().optional(),
     bPlatforms: z.string().optional(),
     bCampaigns: z.string().optional(),
     bCreatives: z.string().optional(),
+    bLandingPages: z.string().optional(),
     bFrom: z.string().optional(),
     bTo: z.string().optional(),
     cPlatforms: z.string().optional(),
     cCampaigns: z.string().optional(),
     cCreatives: z.string().optional(),
+    cLandingPages: z.string().optional(),
     cFrom: z.string().optional(),
     cTo: z.string().optional(),
     sides: z.string().optional(),
@@ -138,6 +151,7 @@ export const compareFiltersSchema = z
       platforms: string | undefined,
       campaigns: string | undefined,
       creatives: string | undefined,
+      landingPages: string | undefined,
       from: string | undefined,
       to: string | undefined,
     ): CompareSide => {
@@ -148,24 +162,40 @@ export const compareFiltersSchema = z
         platforms: csvPlatforms(platforms),
         campaigns: csvList(campaigns),
         creatives: csvList(creatives),
+        landingPages: csvList(landingPages),
         from: r?.from ?? null,
         to: r?.to ?? null,
       };
     };
     const sides: CompareSide[] = [
-      mk("a", v.aPlatforms, v.aCampaigns, v.aCreatives, v.aFrom, v.aTo),
-      mk("b", v.bPlatforms, v.bCampaigns, v.bCreatives, v.bFrom, v.bTo),
+      mk("a", v.aPlatforms, v.aCampaigns, v.aCreatives, v.aLandingPages, v.aFrom, v.aTo),
+      mk("b", v.bPlatforms, v.bCampaigns, v.bCreatives, v.bLandingPages, v.bFrom, v.bTo),
     ];
-    const c = mk("c", v.cPlatforms, v.cCampaigns, v.cCreatives, v.cFrom, v.cTo);
+    const c = mk("c", v.cPlatforms, v.cCampaigns, v.cCreatives, v.cLandingPages, v.cFrom, v.cTo);
     if (v.sides === "3" || !sideIsEmpty(c) || c.from !== null) sides.push(c);
     return { sides, metrics: v.metrics, from: v.from, to: v.to };
   });
 
 /** True when a side has no selection at any level (i.e. "all data"). */
-export function sideIsEmpty(s: Pick<CompareSide, "platforms" | "campaigns" | "creatives">): boolean {
+export function sideIsEmpty(
+  s: Pick<CompareSide, "platforms" | "campaigns" | "creatives" | "landingPages">,
+): boolean {
   return (
     s.platforms.length === 0 &&
     s.campaigns.length === 0 &&
-    s.creatives.length === 0
+    s.creatives.length === 0 &&
+    s.landingPages.length === 0
   );
+}
+
+/** A side's landing-page selection as `KpiFilters` reads it. */
+export function sideLandingFilter(landingPages: readonly string[]): {
+  landingPageIds?: string[];
+  ownLandingPage?: boolean;
+} {
+  const ids = landingPages.filter((v) => v !== OWN_LANDING_PAGE);
+  return {
+    landingPageIds: ids.length ? ids : undefined,
+    ownLandingPage: landingPages.includes(OWN_LANDING_PAGE) || undefined,
+  };
 }

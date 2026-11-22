@@ -1,10 +1,11 @@
-import { and, asc, between, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   campaigns,
   creatives,
   creativeAngles,
+  landingPages,
   performanceRecords,
   products,
   platformEnum,
@@ -82,6 +83,9 @@ export interface KpiFilters {
   /** Registered landing pages to include (records whose ad name carried the
    *  page's ` @code`) — the landing page detail page's scope. */
   landingPageIds?: string[];
+  /** Also include records with NO landing code — the product's own page.
+   *  With `landingPageIds`, the two OR together (Compare's "Product page"). */
+  ownLandingPage?: boolean;
   /** Combined "Campaign ➤ Adset" values to include (used by Compare sides). */
   campaignNames?: string[];
   includeExcluded?: boolean;
@@ -217,8 +221,16 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
     conditions.push(inArray(performanceRecords.creativeId, filters.creativeIds));
   }
   // Rides `perf_landing_page_idx`. Record-level, so no join and no fan-out.
-  if (filters.landingPageIds && filters.landingPageIds.length > 0) {
-    conditions.push(inArray(performanceRecords.landingPageId, filters.landingPageIds));
+  // "Product page" (no @code) is the NULL landing page; with registered
+  // pages chosen too, the side is their union.
+  {
+    const lpConds: SQL[] = [];
+    if (filters.landingPageIds && filters.landingPageIds.length > 0) {
+      lpConds.push(inArray(performanceRecords.landingPageId, filters.landingPageIds));
+    }
+    if (filters.ownLandingPage) lpConds.push(isNull(performanceRecords.landingPageId));
+    if (lpConds.length === 1) conditions.push(lpConds[0]!);
+    else if (lpConds.length > 1) conditions.push(or(...lpConds)!);
   }
   if (filters.campaignNames && filters.campaignNames.length > 0) {
     const campIds = await db
@@ -1740,11 +1752,17 @@ export interface CompareDimensionRow {
   creativeId: string;
   creativeName: string;
   productName: string;
+  /** The registered landing page the ads named (` @code`); null = the
+   *  product's own page (no code). */
+  landingPageId: string | null;
+  landingPageName: string | null;
+  landingPageCode: string | null;
 }
 
 /**
- * Distinct (platform, campaign, creative) combinations present in the data —
- * powers the cascading Platform → Campaign → Creative selectors on Compare.
+ * Distinct (platform, campaign, creative, landing page) combinations present
+ * in the data — powers the cascading Platform → Campaign → Creative → Landing
+ * page selectors on Compare.
  */
 export async function compareDimensions(): Promise<CompareDimensionRow[]> {
   const acct = await getActiveAccountId();
@@ -1755,11 +1773,15 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
       creativeId: creatives.id,
       creativeName: creatives.name,
       productName: products.name,
+      landingPageId: performanceRecords.landingPageId,
+      landingPageName: landingPages.name,
+      landingPageCode: landingPages.code,
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
+    .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
     .where(
       and(
         eq(performanceRecords.accountId, acct),
@@ -1783,6 +1805,9 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
     creativeId: r.creativeId,
     creativeName: r.creativeName,
     productName: r.productName,
+    landingPageId: r.landingPageId,
+    landingPageName: r.landingPageName,
+    landingPageCode: r.landingPageCode,
   }));
 }
 

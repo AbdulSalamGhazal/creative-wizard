@@ -15,6 +15,8 @@ import { ExcludedParamToggle } from "@/components/filters/excluded-param-toggle"
 import { Chip } from "@/components/ui/chip";
 import { LandingPageEditButton } from "@/components/landing-page/landing-page-edit-button";
 import { LandingPageAnalyticsBody } from "@/components/landing-page/landing-page-detail-sections";
+import { CompareLink, compareHref } from "@/components/compare/compare-link";
+import { RailLinks } from "@/components/layout/rail-links";
 import { defaultDateRange } from "@/lib/date-presets";
 import { int } from "@/lib/format";
 import { pickFirst, safeDecodeURIComponent } from "@/lib/url";
@@ -118,6 +120,10 @@ export default async function LandingPageDetailPage({
         <div className="flex items-center justify-between gap-3 flex-wrap border-b border-line pb-3">
           <h2 className="text-label text-ink-3">Analytics</h2>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Into Compare with this landing page as side A (R-045) — in
+                the rail from lg, in-page below it, as on a creative. */}
+            <RailLinks compare={compareHref({ landingPages: page.id }, range)} />
+            <CompareLink side={{ landingPages: page.id }} from={range.from} to={range.to} className="lg:hidden" />
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={from ?? null}

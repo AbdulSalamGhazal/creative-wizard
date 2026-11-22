@@ -12,7 +12,7 @@ vi.mock("@/lib/tenant", () => ({
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
 import { landingPages, performanceRecords, uploadBatches } from "@/db/schema";
-import { campaignMix, kpis, platformMix } from "@/db/queries/performance";
+import { campaignMix, compareDimensions, kpis, platformMix } from "@/db/queries/performance";
 import { getLandingPageByCode, landingPageCreatives } from "@/db/queries/landing-pages";
 import { resolveAnchorPath } from "@/db/queries/comments";
 import {
@@ -130,5 +130,24 @@ describe("a landing page as a comment anchor", () => {
       label: "Ramadan offer",
     });
     expect(await resolveAnchorPath("landing_page", LP_A, ACCOUNT_B)).toBeNull();
+  });
+});
+
+describe("Compare's Landing page level (2026-11-22)", () => {
+  it("\"Product page\" is the no-@code records; with a page chosen, the union", async () => {
+    const all = (await kpis({ ...RANGE })).spend ?? 0;
+    const own = await kpis({ ownLandingPage: true, ...RANGE });
+    expect(own.spend).toBeCloseTo(all - 80, 6);
+    const both = await kpis({ ownLandingPage: true, landingPageIds: [LP_A], ...RANGE });
+    expect(both.spend).toBeCloseTo(all, 6);
+  });
+
+  it("the picker offers this brand's pages by name and code, plus the own page", async () => {
+    const dims = await compareDimensions();
+    const lp = dims.filter((d) => d.landingPageId === LP_A);
+    expect(lp.length).toBeGreaterThan(0);
+    expect(lp[0]).toMatchObject({ landingPageName: "Ramadan offer", landingPageCode: "ramadan" });
+    expect(dims.some((d) => d.landingPageId === null && d.landingPageName === null)).toBe(true);
+    expect(dims.some((d) => d.landingPageId === LP_B)).toBe(false);
   });
 });
