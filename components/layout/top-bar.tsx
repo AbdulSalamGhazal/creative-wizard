@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/auth";
 import type { ToastScope } from "@/lib/notifications";
 import { UserMenu } from "@/components/auth/user-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { PanelToggles } from "@/components/comments/comment-panel";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
@@ -77,6 +78,9 @@ export function TopBar({
             this row fit a phone. */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <CommandPalette accountId={activeAccountId} granted={granted} />
+          {/* Two-letter page shortcuts + the "?" list — renders nothing
+              until a key asks for it. */}
+          <KeyboardShortcuts granted={granted} />
           {/* Comments + Activity on an entity's page — HERE only below lg; on
               a desktop they live in the rail at the page's right edge
               (2026-11-07). Elsewhere they don't render at all. */}

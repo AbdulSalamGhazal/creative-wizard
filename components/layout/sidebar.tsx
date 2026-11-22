@@ -23,8 +23,14 @@ import {
 } from "@/components/layout/use-nav-link";
 import { useOpenSection } from "@/components/layout/use-open-section";
 import { NavSectionToggle } from "@/components/layout/nav-section-toggle";
+import { formatKeys } from "@/components/layout/nav-shortcuts";
 
 const STORAGE_KEY = "sidebar-collapsed";
+
+/** "Budget · Plan" + "bp" → "Budget · Plan (B P)" — a nav tooltip with its shortcut. */
+function withKeys(label: string, keys: string | undefined): string {
+  return keys ? `${label} (${formatKeys(keys)})` : label;
+}
 
 export function Sidebar({ granted }: { granted: string[] }) {
   const pathname = usePathname();
@@ -181,7 +187,8 @@ function NavLink({
     <Link
       href={link.href}
       onClick={link.onClick}
-      title={collapsed ? railTitle : undefined}
+      // The tooltip carries the page's shortcut, open or collapsed (2026-11-22).
+      title={withKeys(railTitle, item.keys)}
       aria-label={collapsed ? railTitle : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -275,6 +282,7 @@ function NavGroup({
               <Link
                 key={c.href}
                 href={c.href}
+                title={withKeys(`${item.label} · ${c.label}`, c.keys)}
                 className={cn(
                   "relative flex items-center rounded-md text-sm transition-colors py-1.5 pl-10 pr-3",
                   active

@@ -32,6 +32,15 @@ describe("keyboard access", () => {
     expect(s).not.toContain('addEventListener("keydown"');
   });
 
+  it("page shortcuts stand down while typing or under a dialog, and read physical keys (2026-11-22)", () => {
+    const s = src("components/layout/keyboard-shortcuts.tsx");
+    expect(s).toContain("ownsKeys(e.target)");
+    expect(s).toContain("shortcutKey(e)");
+    const lib = src("components/layout/nav-shortcuts.ts");
+    expect(lib).toContain('[role="dialog"]');
+    expect(lib).toContain("e.code");
+  });
+
   it("hover-only affordances use the one reveal recipe (R-002)", () => {
     for (const f of [
       "components/creative/thumbnail-upload.tsx",

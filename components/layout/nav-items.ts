@@ -47,6 +47,8 @@ import { NAV_ROUTE_GATES } from "@/lib/page-gates";
 export interface NavChild {
   href: string;
   label: string;
+  /** Its keyboard shortcut — the hub's key then its own (`nav-shortcuts.ts`). */
+  keys: string;
 }
 
 /**
@@ -58,13 +60,13 @@ export interface NavChild {
 export const NAV_SECTIONS = [
   // The key stays "ads" (it is a code name, read by qualifiedNavLabel and the
   // tests); only the visible label is the long form (2026-11-08).
-  { key: "ads", label: "Advertisements", icon: MonitorPlay },
-  { key: "budget", label: "Budget", icon: DollarSign },
-  { key: "store", label: "Store", icon: Store },
+  { key: "ads", label: "Advertisements", icon: MonitorPlay, shortcut: "g" },
+  { key: "budget", label: "Budget", icon: DollarSign, shortcut: "b" },
+  { key: "store", label: "Store", icon: Store, shortcut: "s" },
   // The module is "Price Structure" in code and URLs; its NAME is Pricing
   // (user, 2026-11-08) — labels, eyebrows, tab titles, the Team page.
-  { key: "pricing", label: "Pricing", icon: Calculator },
-  { key: "admin", label: "Admin", icon: Shield },
+  { key: "pricing", label: "Pricing", icon: Calculator, shortcut: "p" },
+  { key: "admin", label: "Admin", icon: Shield, shortcut: "a" },
 ] as const;
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];
 
@@ -75,6 +77,14 @@ export interface NavItem {
   group: NavSectionKey;
   /** When present, this item is a collapsible section, not a direct link. */
   children?: NavChild[];
+  /**
+   * Its keyboard shortcut: the section's `shortcut` then its own letter
+   * ("bp" = B then P → Budget · Plan; user-approved key map, 2026-11-22). A
+   * hub has none — its `hubShortcut` leads its children's `keys`.
+   */
+  keys?: string;
+  /** A hub's own first key (Analyzers: T). */
+  hubShortcut?: string;
   /**
    * Highlight only on an exact pathname match (no prefix matching). Needed for
    * an index item whose siblings live under it (e.g. Budget's Today at
@@ -97,27 +107,27 @@ export interface NavItem {
  * links and comment anchors point at.
  */
 export const ANALYZERS_CHILDREN: NavChild[] = [
-  { href: "/compare", label: "Compare" },
-  { href: "/trends/over-time", label: "Changes" },
-  { href: "/trends/by-angle", label: "Angles" },
-  { href: "/trends/by-type", label: "Types" },
-  { href: "/trends/launches", label: "Launches" },
-  { href: "/trends/video", label: "Video" },
+  { href: "/compare", label: "Compare", keys: "tc" },
+  { href: "/trends/over-time", label: "Changes", keys: "th" },
+  { href: "/trends/by-angle", label: "Angles", keys: "ta" },
+  { href: "/trends/by-type", label: "Types", keys: "ty" },
+  { href: "/trends/launches", label: "Launches", keys: "tl" },
+  { href: "/trends/video", label: "Video", keys: "tv" },
   // Performance by the landing page an ad sent traffic to (its ` @code`).
-  { href: "/trends/landing-pages", label: "LPs" },
+  { href: "/trends/landing-pages", label: "LPs", keys: "tp" },
 ];
 
 export const NAV_ITEMS: NavItem[] = [
   // ── Advertisements ───────────────────────────────────────────────────────
   // Order (user, 2026-11-08): Dashboard · Library · Ads · Campaigns · Canvas ·
   // Funnel · Analyzers · Upload ads.
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "ads" },
-  { href: "/library", label: "Library", icon: Images, group: "ads" },
-  { href: "/summary", label: "Ads", icon: Table2, group: "ads" },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads" },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "ads", keys: "gd" },
+  { href: "/library", label: "Library", icon: Images, group: "ads", keys: "gl" },
+  { href: "/summary", label: "Ads", icon: Table2, group: "ads", keys: "ga" },
+  { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads", keys: "gc" },
   // The campaign↔creative graph — read-only, sits with the two things it joins.
-  { href: "/canvas", label: "Canvas", icon: Workflow, group: "ads" },
-  { href: "/funnel", label: "Funnel", icon: Filter, group: "ads" },
+  { href: "/canvas", label: "Canvas", icon: Workflow, group: "ads", keys: "gn" },
+  { href: "/funnel", label: "Funnel", icon: Filter, group: "ads", keys: "gf" },
   // Analyzers is a hub, not a page: the href is its first child (used when the
   // desktop rail is collapsed to icons).
   {
@@ -126,9 +136,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: LineChart,
     group: "ads",
     children: ANALYZERS_CHILDREN,
+    hubShortcut: "t",
   },
   {
     href: "/uploads",
+    keys: "gu",
     label: "Upload ads",
     icon: Upload,
     group: "ads",
@@ -140,20 +152,21 @@ export const NAV_ITEMS: NavItem[] = [
   // gated behind budget.manage on the Plan page). Today is the section's
   // index route, so it matches exactly — otherwise it would stay lit on every
   // sibling page. (Today replaced the Overview, 2026-11-14.)
-  { href: "/budget", label: "Today", icon: Wallet, group: "budget", exact: true },
+  { href: "/budget", label: "Today", icon: Wallet, group: "budget", keys: "bt", exact: true },
   // Day pacing: any day against that day's plan (2026-11-14).
-  { href: "/budget/days", label: "Daily", icon: CalendarDays, group: "budget" },
+  { href: "/budget/days", label: "Daily", icon: CalendarDays, group: "budget", keys: "bd" },
   // Analysis is the range page (it was Pacing until 2026-11-14): pacing and
   // results for any dates. /budget/pacing and /budget/tracker redirect here.
-  { href: "/budget/analysis", label: "Analysis", icon: Gauge, group: "budget" },
+  { href: "/budget/analysis", label: "Analysis", icon: Gauge, group: "budget", keys: "ba" },
   // The manager's page: months compared, plan accuracy, who changed what.
-  { href: "/budget/review", label: "Review", icon: ClipboardCheck, group: "budget" },
-  { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget" },
+  { href: "/budget/review", label: "Review", icon: ClipboardCheck, group: "budget", keys: "br" },
+  { href: "/budget/plan", label: "Plan", icon: NotebookPen, group: "budget", keys: "bp" },
 
   // ── Store ────────────────────────────────────────────────────────────────
   {
     // The orders table — open to any brand member, like the ads data pages.
     href: "/store/orders",
+    keys: "so",
     label: "Orders",
     icon: ShoppingBag,
     group: "store",
@@ -163,6 +176,7 @@ export const NAV_ITEMS: NavItem[] = [
     // store facts only, no ads side. Sits BETWEEN the raw table and the
     // ads-vs-store comparison, which is the order you read them in.
     href: "/store/insights",
+    keys: "si",
     label: "Insights",
     icon: ChartPie,
     group: "store",
@@ -172,6 +186,7 @@ export const NAV_ITEMS: NavItem[] = [
     // conversions compare with the orders its UTMs show. Sits after Insights
     // (store facts) and before Reconciliation (the per-day tables).
     href: "/store/utms",
+    keys: "sm",
     label: "UTMs",
     icon: Tags,
     group: "store",
@@ -180,6 +195,7 @@ export const NAV_ITEMS: NavItem[] = [
     // Store order counts vs platform-claimed conversions, per day — open to any
     // signed-in brand member, like the other analytics pages.
     href: "/store/reconciliation",
+    keys: "sr",
     label: "Reconciliation",
     icon: Scale,
     group: "store",
@@ -190,6 +206,7 @@ export const NAV_ITEMS: NavItem[] = [
     // 2026-11-07). Prefix-matches /store/uploads/new so the item stays
     // highlighted on the new-upload page.
     href: "/store/uploads",
+    keys: "su",
     label: "Upload orders",
     icon: FileUp,
     group: "store",
@@ -203,6 +220,7 @@ export const NAV_ITEMS: NavItem[] = [
   // not from here. Links carry the open version (`?v=`) like Budget's month.
   {
     href: "/price-structure/overview",
+    keys: "po",
     label: "Overview",
     icon: Coins,
     group: "pricing",
@@ -210,6 +228,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/price-structure/plan",
+    keys: "pp",
     label: "Plan",
     icon: TrendingUp,
     group: "pricing",
@@ -217,6 +236,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/price-structure/products",
+    keys: "px",
     label: "Products & offers",
     icon: Package,
     group: "pricing",
@@ -224,6 +244,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/price-structure/targets",
+    keys: "pt",
     label: "Targets",
     icon: Target,
     group: "pricing",
@@ -233,6 +254,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ── Admin ────────────────────────────────────────────────────────────────
   {
     href: "/admin/catalog",
+    keys: "ac",
     label: "Configuration",
     icon: SlidersHorizontal,
     group: "admin",
@@ -242,6 +264,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/admin/users",
+    keys: "am",
     label: "Team",
     icon: Users,
     group: "admin",
@@ -249,6 +272,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/admin/audit",
+    keys: "al",
     label: "Audit log",
     icon: ScrollText,
     group: "admin",

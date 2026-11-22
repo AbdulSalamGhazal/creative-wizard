@@ -285,6 +285,21 @@ and as-you-type name validation.
   icons live on `NAV_SECTIONS` and never repeat an item's: Advertisements
   `MonitorPlay` (Campaigns has the megaphone), Budget `DollarSign`, Store
   `Store`, Pricing `Calculator`, Admin `Shield`.
+- **Page shortcuts are two LETTERS, declared on the nav data (2026-11-22,
+  user-approved key map).** Group key then page key: G Advertisements,
+  T Analyzers, B Budget, S Store, P Pricing, A Admin — B P is Budget · Plan.
+  The letters live on `NAV_SECTIONS[].shortcut`, `NavItem.keys` and a hub's
+  `hubShortcut` + `NavChild.keys`; `shortcutGroups` derives them from the
+  VISIBLE nav, so a page the viewer can't see has no shortcut (absent from
+  the list, keys do nothing). `nav-shortcuts.test.ts` fails on a page without
+  keys, a duplicate, or a key outside its group. Letters, never positions: a
+  number scheme was weighed and declined because positions move with
+  permissions and reorders. Keys read the PHYSICAL key (`e.code`, so an
+  Arabic layout works), stand down under ⌘/Ctrl/Alt, while typing, and under
+  any dialog/menu (`ownsKeys`), and navigate through `navItemHref` so Budget
+  keeps `?month=` and Pricing `?v=`. "?" (and the account menu's "Keyboard
+  shortcuts", md+) opens the list; every sidebar tooltip carries its keys.
+  A printed key is `Kbd` (`components/ui/kbd.tsx`).
 - **An entity name links to its page** (an `href` on a table's identity
   column; row click alone is not enough) (R-008, R-015).
 - **A gated page refuses in the shell with `AccessRefused` via
@@ -709,3 +724,20 @@ as it stood before the restructure.*
   the `Link` never fires), opens the house `Dialog`, and pushes the
   destination itself on discard; `beforeunload` covers a real leave. It is a
   component, not a hook, so the dialog comes with it and no editor forks one.
+
+### Keyboard page shortcuts (2026-11-22)
+
+- The user proposed number keys: 1 opens the first section, a second number
+  a page inside it. Weighed and declined together, for four reasons: the
+  numbers would differ per person (the sidebar hides pages by permission),
+  break on every reorder (the nav moves often), run out (Advertisements +
+  Analyzers alone is fifteen pages), and say nothing about where they go.
+  Three options were mocked up (letters · numbers with a guide · ⌘K search);
+  the user picked letters only and approved the full key map, Analyzers as
+  its own group (T — its URLs are `/trends`), sidebar tooltips plus an
+  account-menu entry for discovery, and "hidden, does nothing" for a page
+  the viewer can't open.
+- The first key raises a strip at the bottom with that group's second keys
+  (what the mockup showed); it lapses after 4 s, on Esc, on a click, on a
+  navigation or on any key that isn't one of them. A modifier alone (Shift on
+  the way to "?") does not end it.

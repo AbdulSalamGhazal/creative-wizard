@@ -4,6 +4,7 @@ import { brandFetch } from "@/lib/brand-nav";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Search } from "lucide-react";
+import { Kbd } from "@/components/ui/kbd";
 import type { CreativeOption } from "@/db/queries/creatives";
 import type { PaletteCampaign } from "@/db/queries/campaign";
 import type { SavedViewOption } from "@/db/queries/summary-views";
@@ -173,9 +174,7 @@ export function CommandPalette({ accountId, granted, showTrigger = true }: Props
           >
             <Search className="w-3.5 h-3.5 text-ink-3" />
             <span className="text-ink-3">Search creatives, pages…</span>
-            <span className="ml-auto px-1.5 py-0.5 rounded-sm text-[10px] bg-surface-2 border border-line text-ink-2">
-              ⌘K
-            </span>
+            <Kbd className="ml-auto">⌘K</Kbd>
           </button>
           {/* Below md: the same dialog behind an icon (R-001). */}
           <button

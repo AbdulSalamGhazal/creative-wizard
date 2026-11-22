@@ -7,6 +7,7 @@ import {
   Bell,
   Camera,
   ImagePlus,
+  Keyboard,
   KeyRound,
   Loader2,
   LogOut,
@@ -43,6 +44,8 @@ import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { usePhotoChange } from "@/components/user/user-photo-control";
 import { captureScreenshot } from "@/lib/screenshot";
+import { openShortcutSheet } from "@/lib/shortcut-sheet";
+import { Kbd } from "@/components/ui/kbd";
 
 interface Props {
   user: {
@@ -230,6 +233,19 @@ export function UserMenu({ user, toastScope }: Props) {
           >
             <Camera className="w-3.5 h-3.5" />
             Copy screenshot
+          </DropdownMenuItem>
+          {/* The shortcut list (2026-11-22). Not on a phone — it has no
+              keyboard to use them with. */}
+          <DropdownMenuItem
+            className="hidden md:flex"
+            onSelect={() => {
+              // After the menu closes, so its focus return doesn't race the dialog.
+              window.setTimeout(openShortcutSheet, 0);
+            }}
+          >
+            <Keyboard className="w-3.5 h-3.5" />
+            Keyboard shortcuts
+            <Kbd className="ml-auto">?</Kbd>
           </DropdownMenuItem>
 
           {/* Notifications: the same submenu shape as Theme. The setting is
