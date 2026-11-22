@@ -66,6 +66,7 @@ describe("mapConnectorOrder", () => {
       totalAmount: "412.00",
       attributes: { utm_source: "tiktok", channel: "mobile-app", order_status: "delivered" },
       updatedAt: "2026-11-08T18:10:00.000Z",
+      items: [{ position: 0, sku: "A", name: null, quantity: 1, lineTotalSar: null }],
     });
     expect([...CONNECTOR_OWNED_KEYS]).toEqual(["utm_source", "channel", "order_status"]);
   });
@@ -118,6 +119,25 @@ describe("mapConnectorOrder", () => {
     expect(Object.keys(none!.attributes)).not.toContain("phone");
     // Customer keys are filled, never owned: an absent name never erases an uploaded one.
     expect([...CONNECTOR_OWNED_KEYS]).not.toContain(CONNECTOR_CUSTOMER_KEYS.name);
+  });
+
+  it("maps each product line: SAR incl. VAT, quantity rounded, a bad line skipped", () => {
+    const watch = { sku: " S005-Silver ", name: "ساعة", quantity: 1, unit_price: 260, total: 299 };
+    const m = mapConnectorOrder(
+      order({ items: [watch, null, { sku: "B", quantity: "2.6", total: "10" }, { sku: "C", total: 5 }] }),
+    );
+    expect(m?.items).toEqual([
+      { position: 0, sku: "S005-Silver", name: "ساعة", quantity: 1, lineTotalSar: "299.00" },
+      { position: 2, sku: "B", name: null, quantity: 3, lineTotalSar: "10.00" },
+    ]);
+    // A foreign order converts with its rate; without a rate the SAR figure is unknown, never guessed.
+    const qar = { currency: "QAR", amounts: { total: 100, total_sar: 102.67 } };
+    expect(
+      mapConnectorOrder(order({ ...qar, exchange_rate: 1.0267, items: [{ ...watch, total: 100 }] }))?.items[0]
+        ?.lineTotalSar,
+    ).toBe("102.67");
+    expect(mapConnectorOrder(order({ ...qar, items: [watch] }))?.items[0]?.lineTotalSar).toBeNull();
+    expect(mapConnectorOrder(order({ items: "nope" }))?.items).toEqual([]);
   });
 
   it("returns null for what can't be a Store row — never a guess", () => {

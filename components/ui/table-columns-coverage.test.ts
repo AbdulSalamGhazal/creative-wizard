@@ -69,6 +69,7 @@ const HAND_ROLLED_OK: Record<string, string> = {
   "components/platform/mappings-admin.tsx": "an admin editor of header mappings (D22)",
   "components/product/products-admin.tsx": "an admin list with archive/restore rows (D22)",
   "components/budget/budget-plan-revisions.tsx": "a revision snapshot's read-only allocation list in a drawer",
+  "components/store/order-products-sheet.tsx": "one order's read-only product lines in a drawer, a receipt with its total",
   "components/budget/budget-plan-upload.tsx": "the parsed sheet's preview before it is saved",
   "components/creative/bulk-creative-import.tsx": "the validated import preview before commit",
 };

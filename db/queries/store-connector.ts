@@ -1,7 +1,13 @@
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/lib/db";
-import { storeConnections, storeConnectorEvents, storeOrders } from "@/db/schema";
+import {
+  storeConnections,
+  storeConnectorEvents,
+  storeOrderItems,
+  storeOrders,
+} from "@/db/schema";
+import type { MappedOrderItem } from "@/lib/connector/map-order";
 import { getActiveAccountId } from "@/lib/tenant";
 import { riyadhToday } from "@/lib/connector/time";
 
@@ -77,6 +83,8 @@ export interface ConnectorOrderWrite {
   attributes: Record<string, string>;
   /** The version's timestamp — the ordering guard compares on it. */
   connectorUpdatedAt: Date;
+  /** The order's product lines; replace the stored set when this version applies. */
+  items: MappedOrderItem[];
 }
 
 /**
@@ -90,7 +98,9 @@ export interface ConnectorOrderWrite {
  *   has touched yet (an uploaded one) is always taken over;
  * - `attributes` is PATCHED: the feed-owned keys are replaced as a set (a key
  *   with no value is removed), every other stored key is left alone;
- * - `upload_batch_id` is never changed.
+ * - `upload_batch_id` is never changed;
+ * - the order's product lines (`store_order_items`) are REPLACED as a set for
+ *   exactly the rows written — so an older version never replaces newer lines.
  *
  * Returns the number of rows written (inserted + updated).
  */
@@ -126,10 +136,41 @@ export async function upsertConnectorOrders(
         },
         setWhere: sql`${storeOrders.connectorUpdatedAt} IS NULL OR ${storeOrders.connectorUpdatedAt} <= excluded.connector_updated_at`,
       })
-      .returning({ id: storeOrders.id });
+      .returning({ id: storeOrders.id, accountId: storeOrders.accountId, orderId: storeOrders.orderId });
     written += res.length;
+    await replaceOrderItems(exec, res, rows);
   }
   return written;
+}
+
+/** Delete-then-insert the lines of the orders a write just applied. */
+async function replaceOrderItems(
+  exec: Exec,
+  applied: { id: string; accountId: string; orderId: string }[],
+  rows: ConnectorOrderWrite[],
+): Promise<void> {
+  if (applied.length === 0) return;
+  const itemsOf = new Map(rows.map((r) => [`${r.accountId}:${r.orderId}`, r.items]));
+  await exec.delete(storeOrderItems).where(
+    inArray(
+      storeOrderItems.storeOrderId,
+      applied.map((a) => a.id),
+    ),
+  );
+  const lines = applied.flatMap((a) =>
+    (itemsOf.get(`${a.accountId}:${a.orderId}`) ?? []).map((l) => ({
+      accountId: a.accountId,
+      storeOrderId: a.id,
+      position: l.position,
+      sku: l.sku,
+      name: l.name,
+      quantity: l.quantity,
+      lineTotalSar: l.lineTotalSar,
+    })),
+  );
+  for (let i = 0; i < lines.length; i += CHUNK) {
+    await exec.insert(storeOrderItems).values(lines.slice(i, i + CHUNK));
+  }
 }
 
 /** Stamp "an event just arrived" on the stores a batch touched. */

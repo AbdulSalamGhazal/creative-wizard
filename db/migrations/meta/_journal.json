@@ -533,6 +533,20 @@
       "when": 1795287655851,
       "tag": "0075_store_connector_customer_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1795364230384,
+      "tag": "0076_store_order_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1795364292579,
+      "tag": "0077_store_order_items_backfill",
+      "breakpoints": true
     }
   ]
 }

@@ -84,6 +84,7 @@ export default async function StoreOrdersPage({
         />
         <StoreOrdersTable
           rows={orders.rows}
+          itemsByOrder={orders.itemsByOrder}
           fields={fields}
           total={orders.total}
           sumTotal={orders.sumTotal}

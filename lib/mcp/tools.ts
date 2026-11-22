@@ -46,6 +46,7 @@ import { buildMonthReview } from "@/lib/budget-review";
 import { buildRangeModel } from "@/lib/budget-range";
 import { buildAttention } from "@/lib/budget-attention";
 import { storeDataHorizon } from "@/db/queries/series-bounds";
+import { storeTopProducts } from "@/db/queries/store";
 import { storeInsightsBreakdown, storeInsightsDaily } from "@/db/queries/store-insights";
 import { storeConnectionStatus } from "@/db/queries/store-connector";
 import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/reconciliation";
@@ -930,7 +931,7 @@ export function registerMcpTools(server: McpServer): void {
     "get_store",
     {
       description:
-        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. `salla_feed` says whether orders arrive automatically from Salla (`connected`) and when the last one did; a brand without it relies on manual uploads. A brand that has no store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
+        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. `salla_feed` says whether orders arrive automatically from Salla (`connected`) and when the last one did; a brand without it relies on manual uploads. `top_products` = the 10 best-selling products in the range by quantity (a product is its SKU, which carries the colour), with the orders they appear in and `sales_sar` = their line totals incl. VAT; every order counts whatever its status. Only Salla-feed orders carry products: `orders_without_products` counts the range's orders (uploads) the list can't see. A brand that has no store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -945,7 +946,7 @@ export function registerMcpTools(server: McpServer): void {
     async (args) =>
       withBrand(args.brand, async (brand) => {
         const range = defaultRange(args.from, args.to);
-        const [daily, byPlatform, byChannel, overview, recon, storeHorizon, connection] =
+        const [daily, byPlatform, byChannel, overview, recon, storeHorizon, connection, top] =
           await Promise.all([
             storeInsightsDaily(range.from, range.to),
             storeInsightsBreakdown(PLATFORM_LENS, range.from, range.to),
@@ -959,6 +960,7 @@ export function registerMcpTools(server: McpServer): void {
             ),
             storeDataHorizon(),
             storeConnectionStatus(),
+            storeTopProducts(range.from, range.to),
           ]);
         let orders = 0;
         let revenue = 0;
@@ -1004,6 +1006,16 @@ export function registerMcpTools(server: McpServer): void {
               orders: d.orders,
               revenue: r2(d.revenue),
             })),
+            top_products: {
+              rows: top.rows.map((p) => ({
+                sku: p.sku,
+                name: p.name,
+                quantity: p.quantity,
+                orders: p.orders,
+                sales_sar: r2(p.sales),
+              })),
+              orders_without_products: top.ordersWithoutProducts,
+            },
             reconciliation: {
               store_orders: sums.storeOrders,
               claimed_conversions: claimedTotal,

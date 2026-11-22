@@ -1469,6 +1469,39 @@ export const storeOrders = pgTable(
 );
 
 /**
+ * The product lines of a store order, as the Salla feed last delivered them
+ * (`order.items[]`). Written ONLY by the feed, and replaced as a set whenever
+ * the ordering guard lets a newer version of the order through — an upload
+ * never writes lines, so an uploaded-only order has none. `line_total_sar` is
+ * the line incl. VAT in SAR (× the order's `exchange_rate`); NULL when a
+ * foreign-currency order came without a rate — never a foreign figure filed
+ * as riyals. Deleting the order (an upload rollback) deletes its lines.
+ */
+export const storeOrderItems = pgTable(
+  "store_order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    storeOrderId: uuid("store_order_id")
+      .notNull()
+      .references(() => storeOrders.id, { onDelete: "cascade" }),
+    /** The line's index in the order's `items[]`. */
+    position: integer("position").notNull(),
+    sku: varchar("sku", { length: 128 }),
+    name: text("name"),
+    quantity: integer("quantity").notNull(),
+    lineTotalSar: numeric("line_total_sar", { precision: 12, scale: 2 }),
+  },
+  (t) => ({
+    orderPositionUnique: uniqueIndex("store_order_items_order_position_idx").on(
+      t.storeOrderId,
+      t.position,
+    ),
+    accountSkuIdx: index("store_order_items_account_sku_idx").on(t.accountId, t.sku),
+  }),
+);
+
+/**
  * Maps a RAW channel value (as found in an order's `channel` attribute) to
  * WHERE the purchase happened: exactly 'website' or 'application' (app-side
  * enum, no DB enum — the house pattern). The SECOND mapping axis, parallel to

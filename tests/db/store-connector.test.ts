@@ -37,6 +37,7 @@ import { db } from "@/lib/db";
 import {
   storeConnections,
   storeConnectorEvents,
+  storeOrderItems,
   storeOrderFields,
   storeOrders,
   storeSourceMappings,
@@ -51,6 +52,9 @@ import {
   validateStoreUpload,
 } from "@/app/actions/store-upload";
 import { reconciliationByPlatform } from "@/db/queries/reconciliation";
+import { listStoreOrders, storeTopProducts } from "@/db/queries/store";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { resetAndSeed } from "./fixtures";
 
 const HEADERS: Record<string, string[]> = {
@@ -71,7 +75,18 @@ let seq = 0;
 function event(
   store: string,
   reference: string,
-  over: { type?: string; updated?: string; total?: number; status?: string; source?: string | null; id?: string } = {},
+  over: {
+    type?: string;
+    updated?: string;
+    total?: number;
+    status?: string;
+    source?: string | null;
+    id?: string;
+    items?: unknown[];
+    currency?: string;
+    rate?: number;
+    totalSar?: number;
+  } = {},
 ) {
   const updated = over.updated ?? "2026-11-08T21:00:00+03:00";
   return {
@@ -86,13 +101,15 @@ function event(
         created_at: "2026-11-08T20:56:10+03:00",
         updated_at: updated,
         status: { slug: over.status ?? "processing", label: "x" },
-        amounts: { total: over.total ?? 100 },
+        currency: over.currency,
+        exchange_rate: over.rate,
+        amounts: { total: over.total ?? 100, total_sar: over.totalSar },
         attribution: {
           utm_source: over.source === undefined ? "tiktok" : over.source,
           utm_campaign: "c1",
           device: "mobile",
         },
-        items: [{ sku: "SKU-1", name: "Thing", quantity: 2 }],
+        items: over.items ?? [{ sku: "SKU-1", name: "Thing", quantity: 2 }],
       },
     },
   };
@@ -324,5 +341,118 @@ describe("what the pages read", () => {
     expect(await fresh.storeConnectionStatus()).toBeNull();
     await db.insert(storeConnections).values({ accountId: ACCOUNT_A, storeKey: "urjwan" });
     expect(riyadhToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("product lines", () => {
+  const W = "2026-11-08T21:00:00+03:00";
+  const lines = async (acct: string, orderId: string) => {
+    const o = await orderRow(acct, orderId);
+    if (!o) return [];
+    return db
+      .select({
+        position: storeOrderItems.position,
+        sku: storeOrderItems.sku,
+        name: storeOrderItems.name,
+        quantity: storeOrderItems.quantity,
+        lineTotalSar: storeOrderItems.lineTotalSar,
+      })
+      .from(storeOrderItems)
+      .where(eq(storeOrderItems.storeOrderId, o.id))
+      .orderBy(storeOrderItems.position);
+  };
+  const watch = { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, unit_price: 260, total: 299 };
+  const strap = { sku: "A010-Black", name: "Strap", quantity: 2.4, total: 98 };
+
+  it("the feed writes each order's lines in SAR, in order; a foreign order converts with its rate", async () => {
+    await ingestConnectorEvents(
+      [
+        event("urjwan", "7001", { items: [watch, strap, "junk", { sku: "Q", total: 5 }] }),
+        event("urjwan", "7002", { currency: "QAR", rate: 1.0267, total: 305.88, totalSar: 314.05, items: [{ ...watch, total: 100 }] }),
+        event("urjwan", "7003", { currency: "AED", total: 50, items: [{ ...watch, total: 50 }] }),
+      ],
+      "webhook", "live",
+    );
+    expect(await lines(ACCOUNT_A, "7001")).toEqual([
+      { position: 0, sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotalSar: "299.00" },
+      // A fractional quantity rounds; a non-object line and a line with no quantity are skipped.
+      { position: 1, sku: "A010-Black", name: "Strap", quantity: 2, lineTotalSar: "98.00" },
+    ]);
+    expect((await lines(ACCOUNT_A, "7002"))[0]?.lineTotalSar).toBe("102.67");
+    // AED with no total_sar is not applied at all — no order, so no lines.
+    expect(await orderRow(ACCOUNT_A, "7003")).toBeUndefined();
+  });
+
+  it("a newer version replaces the lines; an older one, or record mode, leaves them", async () => {
+    await ingestConnectorEvents([event("urjwan", "7010", { updated: W, items: [watch] })], "webhook", "live");
+    await ingestConnectorEvents(
+      [event("urjwan", "7010", { updated: "2026-11-08T22:00:00+03:00", items: [strap] })],
+      "webhook", "live",
+    );
+    expect((await lines(ACCOUNT_A, "7010")).map((l) => l.sku)).toEqual(["A010-Black"]);
+    await ingestConnectorEvents(
+      [event("urjwan", "7010", { updated: "2026-11-08T20:00:00+03:00", items: [watch] })],
+      "webhook", "live",
+    );
+    await ingestConnectorEvents(
+      [event("urjwan", "7010", { updated: "2026-11-09T09:00:00+03:00", items: [watch] })],
+      "webhook", "record",
+    );
+    expect((await lines(ACCOUNT_A, "7010")).map((l) => l.sku)).toEqual(["A010-Black"]);
+  });
+
+  it("deleting an order deletes its lines; the page reads only the active brand's", async () => {
+    await ingestConnectorEvents(
+      [event("urjwan", "7020", { items: [watch] }), event("misbah", "7020", { items: [strap] })],
+      "webhook", "live",
+    );
+    const page = await listStoreOrders({ from: "2026-11-08", to: "2026-11-08", page: 1, sort: "order_date", dir: "desc" });
+    expect(page.rows).toHaveLength(1);
+    const items = Object.values(page.itemsByOrder).flat();
+    expect(items).toEqual([{ sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotal: 299 }]);
+
+    await db.delete(storeOrders).where(eq(storeOrders.accountId, ACCOUNT_A));
+    const left = await db.select({ a: storeOrderItems.accountId }).from(storeOrderItems);
+    expect(left).toEqual([{ a: ACCOUNT_B }]);
+  });
+
+  it("top products sum quantity and SAR by SKU; upload-only orders are counted apart", async () => {
+    await ingestConnectorEvents(
+      [
+        event("urjwan", "7030", { items: [watch, strap] }),
+        event("urjwan", "7031", { items: [{ ...watch, quantity: 3, total: 897 }] }),
+        event("misbah", "7032", { items: [{ ...watch, quantity: 50, total: 1 }] }),
+      ],
+      "webhook", "live",
+    );
+    await commitStoreUpload(csvForm(`${HEAD.join(",")}\n7033,2026-11-08,10,tiktok,web,X\n`));
+    const top = await storeTopProducts("2026-11-08", "2026-11-08");
+    expect(top.rows).toEqual([
+      { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 4, orders: 2, sales: 1196 },
+      { sku: "A010-Black", name: "Strap", quantity: 2, orders: 1, sales: 98 },
+    ]);
+    expect(top.ordersWithoutProducts).toBe(1);
+  });
+
+  it("the backfill migration fills lines from the raw log for feed orders that have none", async () => {
+    await ingestConnectorEvents(
+      [
+        event("urjwan", "7040", { updated: W, items: [watch] }),
+        event("urjwan", "7040", { updated: "2026-11-08T22:00:00+03:00", items: [watch, strap] }),
+        event("urjwan", "7041", { currency: "QAR", rate: 2, totalSar: 20, items: [{ ...watch, total: 10 }] }),
+      ],
+      "webhook", "live",
+    );
+    await db.delete(storeOrderItems);
+    const file = path.join(process.cwd(), "db/migrations/0077_store_order_items_backfill.sql");
+    await db.execute(sql.raw(readFileSync(file, "utf8")));
+    expect(await lines(ACCOUNT_A, "7040")).toEqual([
+      { position: 0, sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotalSar: "299.00" },
+      { position: 1, sku: "A010-Black", name: "Strap", quantity: 2, lineTotalSar: "98.00" },
+    ]);
+    expect((await lines(ACCOUNT_A, "7041"))[0]?.lineTotalSar).toBe("20.00");
+    // Running it again adds nothing.
+    await db.execute(sql.raw(readFileSync(file, "utf8")));
+    expect(await lines(ACCOUNT_A, "7040")).toHaveLength(2);
   });
 });

@@ -118,6 +118,7 @@ export async function ingestConnectorEvents(
         totalAmount: mapped.totalAmount,
         attributes: mapped.attributes,
         connectorUpdatedAt: version,
+        items: mapped.items,
       });
     }
 

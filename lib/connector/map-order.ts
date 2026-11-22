@@ -2,7 +2,7 @@ import { parseStoreDate } from "@/store/parse";
 import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
 import { STORE_CHANNEL_FIELD_KEY } from "@/store/channels";
 import { ORDER_STATUS_FIELD_KEY } from "@/store/order-status";
-import { connectorOrderSchema } from "@/validators/connector";
+import { connectorItemSchema, connectorOrderSchema } from "@/validators/connector";
 
 
 /**
@@ -43,7 +43,23 @@ export interface MappedConnectorOrder {
   attributes: Record<string, string>;
   /** The connector's `updated_at` (ISO), or null when it sent none. */
   updatedAt: string | null;
+  /** The order's product lines, in the order the connector sent them. */
+  items: MappedOrderItem[];
 }
+
+export interface MappedOrderItem {
+  position: number;
+  sku: string | null;
+  name: string | null;
+  quantity: number;
+  /** The line incl. VAT in SAR, `numeric(12,2)` as text; null when no rate converts it. */
+  lineTotalSar: string | null;
+}
+
+/** More lines than this on one order is not a real order; the rest are kept raw only. */
+const ITEMS_MAX = 200;
+const SKU_MAX = 128;
+const NAME_MAX = 500;
 
 function clean(v: string | null | undefined): string | null {
   const s = (v ?? "").trim();
@@ -81,6 +97,8 @@ function isoInstant(v: string | null | undefined): string | null {
  *   written `+<digits>`, the form Salla's export uses
  * - utm_source = `attribution.utm_source`, channel = `attribution.device`,
  *   order_status = `status.slug`
+ * - items = `items[]` → product lines, each `total` (incl. VAT) in SAR via
+ *   `exchange_rate` (see `mapItems`)
  */
 export function mapConnectorOrder(raw: unknown): MappedConnectorOrder | null {
   const parsed = connectorOrderSchema.safeParse(raw);
@@ -120,5 +138,43 @@ export function mapConnectorOrder(raw: unknown): MappedConnectorOrder | null {
     totalAmount: total.toFixed(2),
     attributes,
     updatedAt: isoInstant(o.updated_at),
+    items: mapItems(o.items, sarRate(currency, o.exchange_rate)),
   };
+}
+
+/** SAR per unit of the order's currency: 1 for SAR (or no currency named), else the sent rate. */
+function sarRate(currency: string | null, rate: string | number | null | undefined): number | null {
+  if (currency === null || currency === "SAR") return 1;
+  const r = toAmount(rate);
+  return r !== null && r > 0 ? r : null;
+}
+
+function trimTo(v: string | null | undefined, max: number): string | null {
+  const s = (v ?? "").trim();
+  return s ? s.slice(0, max) : null;
+}
+
+/**
+ * `order.items[]` → the lines Wizard stores. A line with no readable quantity
+ * is skipped (kept in the raw payload); a fractional quantity rounds.
+ */
+function mapItems(raw: unknown[] | null | undefined, rate: number | null): MappedOrderItem[] {
+  const out: MappedOrderItem[] = [];
+  for (const [position, line] of (raw ?? []).slice(0, ITEMS_MAX).entries()) {
+    const parsed = connectorItemSchema.safeParse(line);
+    if (!parsed.success) continue;
+    const l = parsed.data;
+    const q = toAmount(l.quantity);
+    if (q === null) continue;
+    const t = toAmount(l.total);
+    const sar = t !== null && rate !== null ? t * rate : null;
+    out.push({
+      position,
+      sku: trimTo(l.sku, SKU_MAX),
+      name: trimTo(l.name, NAME_MAX),
+      quantity: Math.round(q),
+      lineTotalSar: sar !== null && Math.abs(sar) < TOTAL_LIMIT ? sar.toFixed(2) : null,
+    });
+  }
+  return out;
 }

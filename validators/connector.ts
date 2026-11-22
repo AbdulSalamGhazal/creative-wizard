@@ -24,6 +24,10 @@ export const connectorOrderSchema = z
       .nullish()
       .catch(undefined),
     currency: text,
+    /** SAR per 1 unit of `currency` (1 for SAR). */
+    exchange_rate: amount,
+    /** Each line is read on its own (`connectorItemSchema`): one bad line never drops the rest. */
+    items: z.array(z.unknown()).nullish().catch(undefined),
     amounts: z
       .object({ total: amount, total_sar: amount })
       .passthrough()
@@ -43,6 +47,16 @@ export const connectorOrderSchema = z
   .passthrough();
 
 export type ConnectorOrder = z.infer<typeof connectorOrderSchema>;
+
+/** One `order.items[]` line: `total` is incl. VAT, in the order's currency. */
+export const connectorItemSchema = z
+  .object({
+    sku: text,
+    name: text,
+    quantity: amount,
+    total: amount,
+  })
+  .passthrough();
 
 export const connectorEventSchema = z
   .object({

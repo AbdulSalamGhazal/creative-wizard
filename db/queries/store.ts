@@ -2,6 +2,7 @@ import { and, asc, between, desc, eq, gte, ilike, inArray, lte, sql, type SQL } 
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
+  storeOrderItems,
   storeOrders,
   storeOrderFields,
   storeUploadBatches,
@@ -122,8 +123,19 @@ export interface StoreOrdersFilters {
   dir: "asc" | "desc";
 }
 
+/** One product line of an order, as the Salla feed last delivered it. */
+export interface StoreOrderItem {
+  sku: string | null;
+  name: string | null;
+  quantity: number;
+  /** The line incl. VAT, SAR; null when a foreign-currency order had no rate. */
+  lineTotal: number | null;
+}
+
 export interface StoreOrdersResult {
   rows: StoreOrderRow[];
+  /** The page's product lines keyed by `StoreOrderRow.id`; an order with none is absent. */
+  itemsByOrder: Record<string, StoreOrderItem[]>;
   /** Total matching the filter (for the pager). */
   total: number;
   /** SUM(total_amount) over the WHOLE filtered set, in SAR (for the footer). */
@@ -200,10 +212,107 @@ export async function listStoreOrders(
 
   return {
     rows: rows.map(toOrderRow),
+    itemsByOrder: await orderItemsFor(
+      acct,
+      rows.map((r) => r.id),
+    ),
     total: agg?.n ?? 0,
     sumTotal: Number(agg?.sum ?? 0),
     page,
     pageSize: STORE_PAGE_SIZE,
+  };
+}
+
+/** The product lines of the given orders (one page), account-scoped. */
+async function orderItemsFor(
+  acct: string,
+  storeOrderIds: string[],
+): Promise<Record<string, StoreOrderItem[]>> {
+  if (storeOrderIds.length === 0) return {};
+  const lines = await db
+    .select({
+      storeOrderId: storeOrderItems.storeOrderId,
+      sku: storeOrderItems.sku,
+      name: storeOrderItems.name,
+      quantity: storeOrderItems.quantity,
+      lineTotal: storeOrderItems.lineTotalSar,
+    })
+    .from(storeOrderItems)
+    .where(
+      and(
+        eq(storeOrderItems.accountId, acct),
+        inArray(storeOrderItems.storeOrderId, storeOrderIds),
+      ),
+    )
+    .orderBy(asc(storeOrderItems.storeOrderId), asc(storeOrderItems.position));
+  const out: Record<string, StoreOrderItem[]> = {};
+  for (const l of lines) {
+    (out[l.storeOrderId] ??= []).push({
+      sku: l.sku,
+      name: l.name,
+      quantity: l.quantity,
+      lineTotal: l.lineTotal === null ? null : Number(l.lineTotal),
+    });
+  }
+  return out;
+}
+
+export interface StoreTopProduct {
+  sku: string | null;
+  name: string | null;
+  quantity: number;
+  orders: number;
+  /** Sum of line totals incl. VAT, SAR (a line with no SAR figure adds nothing). */
+  sales: number;
+}
+
+export interface StoreTopProducts {
+  rows: StoreTopProduct[];
+  /** Orders in the range with no product lines (uploads) — outside `rows`. */
+  ordersWithoutProducts: number;
+}
+
+/**
+ * The best-selling products over a range, by quantity — every order counts,
+ * as everywhere in Store. A product is its SKU (a line with no SKU groups by
+ * name). Only feed orders carry lines.
+ */
+export async function storeTopProducts(
+  from: string,
+  to: string,
+  limit = 10,
+): Promise<StoreTopProducts> {
+  const acct = await getActiveAccountId();
+  const key = sql`COALESCE(${storeOrderItems.sku}, ${storeOrderItems.name})`;
+  const inRange = and(eq(storeOrders.accountId, acct), between(storeOrders.orderDate, from, to));
+  const [rows, [bare]] = await Promise.all([
+    db
+      .select({
+        sku: sql<string | null>`MAX(${storeOrderItems.sku})`,
+        name: sql<string | null>`MAX(${storeOrderItems.name})`,
+        quantity: sql<number>`SUM(${storeOrderItems.quantity})::int`,
+        orders: sql<number>`COUNT(DISTINCT ${storeOrderItems.storeOrderId})::int`,
+        sales: sql<string>`COALESCE(SUM(${storeOrderItems.lineTotalSar}), 0)`,
+      })
+      .from(storeOrderItems)
+      .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.storeOrderId))
+      .where(and(inRange, eq(storeOrderItems.accountId, acct)))
+      .groupBy(key)
+      .orderBy(sql`SUM(${storeOrderItems.quantity}) DESC`, key)
+      .limit(limit),
+    db
+      .select({ n: sql<number>`COUNT(*)::int` })
+      .from(storeOrders)
+      .where(
+        and(
+          inRange,
+          sql`NOT EXISTS (SELECT 1 FROM ${storeOrderItems} WHERE ${storeOrderItems.storeOrderId} = ${storeOrders.id})`,
+        ),
+      ),
+  ]);
+  return {
+    rows: rows.map((r) => ({ ...r, sales: Number(r.sales) })),
+    ordersWithoutProducts: bare?.n ?? 0,
   };
 }
 

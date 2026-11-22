@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "@/components/nav/link";
 import { useSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "@/lib/brand-nav";
@@ -17,7 +17,8 @@ import { useNavTransition } from "@/lib/nav-progress";
 import { exportStoreOrders } from "@/app/actions/store-export";
 import { safeAction } from "@/lib/action-failure";
 import { toastActionFailure } from "@/lib/action-toast";
-import type { StoreOrderRow } from "@/db/queries/store";
+import type { StoreOrderItem, StoreOrderRow } from "@/db/queries/store";
+import { OrderProductsSheet, productsSummary } from "@/components/store/order-products-sheet";
 import type { StoreField } from "@/store/fields";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
@@ -37,6 +38,8 @@ const SYNCED_AT_KEY = "_synced_at";
 const UPLOAD_FILE_KEY = "_upload_file";
 const CREATED_AT_KEY = "_created_at";
 const UPDATED_AT_KEY = "_updated_at";
+/** The order's product lines (Salla feed only). */
+const PRODUCTS_KEY = "_products";
 const BOOKKEEPING_KEYS = [UPLOAD_FILE_KEY, CREATED_AT_KEY, UPDATED_AT_KEY] as const;
 
 /** A timestamp cell: the business day, the exact time on hover. */
@@ -53,6 +56,7 @@ type SortKey = "order_id" | "order_date" | "total_amount";
 
 export function StoreOrdersTable({
   rows,
+  itemsByOrder = {},
   fields,
   total,
   sumTotal,
@@ -66,6 +70,8 @@ export function StoreOrdersTable({
   columnPref,
 }: {
   rows: StoreOrderRow[];
+  /** The page's product lines by order row id (absent = none). */
+  itemsByOrder?: Record<string, StoreOrderItem[]>;
   fields: StoreField[];
   total: number;
   sumTotal: number;
@@ -94,6 +100,7 @@ export function StoreOrdersTable({
     () => [
       "order_date",
       "total_amount",
+      ...(showSource ? [PRODUCTS_KEY] : []),
       ...customCols.map((c) => c.key),
       ...(showSource ? [ORDER_SOURCE_COLUMN_KEY, SYNCED_AT_KEY] : []),
       ...BOOKKEEPING_KEYS,
@@ -121,6 +128,9 @@ export function StoreOrdersTable({
 
   // Core columns sort server-side (URL); custom columns sort client-side over
   // the current page (acceptable v1). `clientSort` overrides the URL sort.
+  const [openOrder, setOpenOrder] = useState<StoreOrderRow | null>(null);
+  // The order-number button that opened the panel gets focus back on close.
+  const returnFocus = useRef<HTMLElement | null>(null);
   const [clientSort, setClientSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
     null,
   );
@@ -146,12 +156,28 @@ export function StoreOrdersTable({
         label: "Order ID",
         pinned: true,
         sortable: true,
-        render: (r) => (
+        render: (r) =>
           // Short in practice, unbounded by type — and this cell is pinned.
-          <span className="block max-w-[12rem] truncate font-mono text-xs sm:max-w-none">
-            {r.orderId}
-          </span>
-        ),
+          // For a linked brand it is also the KEYBOARD way into the products
+          // panel the row click opens (a row isn't focusable).
+          showSource ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                returnFocus.current = e.currentTarget;
+                setOpenOrder(r);
+              }}
+              className="block max-w-[12rem] truncate rounded-sm font-mono text-xs underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:max-w-none"
+              aria-label={`Order ${r.orderId}: show products`}
+            >
+              {r.orderId}
+            </button>
+          ) : (
+            <span className="block max-w-[12rem] truncate font-mono text-xs sm:max-w-none">
+              {r.orderId}
+            </span>
+          ),
         sortValue: (r) => r.orderId,
         csv: (r) => r.orderId,
         total: () => (
@@ -180,6 +206,29 @@ export function StoreOrdersTable({
           <span className="tabular-nums font-semibold">{sarBare(sumTotal)}</span>
         ),
       },
+      // Only a Salla-linked brand has lines to show (uploads carry none).
+      ...(showSource
+        ? [
+            {
+              key: PRODUCTS_KEY,
+              label: "Products",
+              render: (r: StoreOrderRow) => {
+                const p = productsSummary(itemsByOrder[r.id]);
+                if (!p) return "—";
+                return (
+                  <span className="flex max-w-[16rem] items-baseline gap-1.5">
+                    <span dir="auto" className="truncate" title={p.first}>
+                      {p.first}
+                    </span>
+                    {p.more > 0 && (
+                      <span className="shrink-0 tabular-nums text-ink-2">+{p.more}</span>
+                    )}
+                  </span>
+                );
+              },
+            } satisfies DataColumn<StoreOrderRow>,
+          ]
+        : []),
       ...customCols.map((f): DataColumn<StoreOrderRow> => {
         const get = (r: StoreOrderRow) => r.attributes[f.key];
         if (f.type === "number") {
@@ -298,7 +347,7 @@ export function StoreOrdersTable({
       },
     );
     return cols;
-  }, [customCols, total, sumTotal, customSort, showSource]);
+  }, [customCols, total, sumTotal, customSort, showSource, itemsByOrder]);
 
   const displayRows = useMemo(() => {
     if (!clientSort || multiPage) return rows;
@@ -359,6 +408,7 @@ export function StoreOrdersTable({
         dir={activeDir}
         {...cols.tableProps}
         onSort={onSort}
+        onRowClick={showSource ? (r) => setOpenOrder(r) : undefined}
         showTotals={rows.length > 0}
         minWidthClass="min-w-[720px]"
         empty={
@@ -389,6 +439,13 @@ export function StoreOrdersTable({
       />
 
       <Pager page={page} total={total} pageSize={pageSize} onPage={(p) => goToPage(p)} />
+
+      <OrderProductsSheet
+        order={openOrder}
+        items={openOrder ? (itemsByOrder[openOrder.id] ?? []) : []}
+        onClose={() => setOpenOrder(null)}
+        returnFocus={returnFocus}
+      />
     </div>
   );
 }

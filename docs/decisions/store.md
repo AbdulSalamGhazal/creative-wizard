@@ -132,6 +132,23 @@
   (no personal-data grant means the keys are missing, not empty), and an
   upload may still set them. Migration 0075 gives each linked brand the three
   fields it lacked.
+- **An order's products come from the feed ONLY** — `store_order_items`, one
+  row per `order.items[]` line (sku, name, quantity, `line_total_sar`). The
+  set is REPLACED in the same statement batch as the order, for exactly the
+  rows the ordering guard let through, so an older version never replaces
+  newer lines and record mode writes none. An upload never writes lines; an
+  uploaded-only order has none and says so. Deleting the order deletes them
+  (FK cascade); a detached order keeps them.
+- **A line is priced incl. VAT, in SAR** (user decision: "what the customer
+  paid for that line") — `total × exchange_rate`, rate 1 for SAR or no
+  currency, NULL for a foreign order with no rate (never a foreign figure as
+  riyals). Shipping, COD fee and discounts are not split onto lines: the
+  order panel shows them as one "Shipping, fees and discounts" row = total
+  paid − the lines, only when non-zero. A line with no numeric quantity is
+  skipped; a fractional one rounds.
+- **Top products** (`storeTopProducts`, MCP `get_store.top_products`) group by
+  SKU (the SKU carries the colour) and count every order like every Store
+  total; orders without lines are reported apart, never as zero sales.
 - **THE SALLA FEED WINS over an upload (user decision).** An order the feed
   holds (`connector_updated_at` set) is never an S051, in either mode; the
   upload keeps the feed's date, total and three attributes and only patches
@@ -427,3 +444,9 @@ products, creatives, angles and platform field mappings had gained
   for name, phone and email, so the connector opened them. They fill the
   same keys Urjwan's uploads already used rather than new ones, so an
   uploaded and a fed order read alike.
+- Products per order (2026-11-22): every feed event already carried
+  `items[]`; the user asked to see them. Chosen: a Products column plus a
+  row-click panel, prices incl. VAT, and top products on the MCP. The lines
+  got their own table rather than a read of the raw log so the page (100
+  orders) and top products stay one indexed query each; migration 0077
+  backfilled them from the log, so no re-pull was needed.
