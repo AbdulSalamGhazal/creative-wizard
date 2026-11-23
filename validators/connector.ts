@@ -29,7 +29,10 @@ export const connectorOrderSchema = z
     payment_method_raw: text,
     /** Salla's order source (store, lp-…, dashboard…) — not the UTM source. */
     source: text,
+    /** Real coupon codes only since 2026-11-23 13:42 Riyadh; special offers moved to `offers`. */
     coupons: z.array(z.unknown()).nullish().catch(undefined),
+    /** Salla special offers (e.g. buy two, the third free): name + discount excl. VAT. */
+    offers: z.array(z.unknown()).nullish().catch(undefined),
     tags: z.array(z.unknown()).nullish().catch(undefined),
     shipping: z
       .object({ city: text, country: text, company: text, tracking_number: text, delivered_at: text })
@@ -46,7 +49,9 @@ export const connectorOrderSchema = z
         total: amount,
         total_sar: amount,
         subtotal_excl_vat: amount,
+        /** Coupons plus offers. */
         discount: amount,
+        offers_discount: amount,
         shipping: amount,
         cod_fee: amount,
         tax: amount,
@@ -84,6 +89,9 @@ export type ConnectorOrder = z.infer<typeof connectorOrderSchema>;
 
 /** One `order.coupons[]` entry: `discount` excl. VAT, in the order's currency. */
 export const connectorCouponSchema = z.object({ code: text, discount: amount }).passthrough();
+
+/** One `order.offers[]` entry: `discount` excl. VAT, in the order's currency. */
+export const connectorOfferSchema = z.object({ name: text, discount: amount }).passthrough();
 
 /** One `order.items[]` line: `total` is incl. VAT, in the order's currency. */
 export const connectorItemSchema = z

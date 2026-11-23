@@ -204,11 +204,37 @@ describe("mapConnectorOrder", () => {
     expect(noRate?.attributes).not.toHaveProperty("discount");
   });
 
-  it("migration 0078 seeds exactly the feed field list, and only four start shown", () => {
-    const sqlText = readFileSync(
-      path.join(process.cwd(), "db/migrations/0078_store_feed_fields.sql"),
-      "utf8",
+  it("fills Salla special offers apart from coupons; no offer = no value", () => {
+    const withOffer = mapConnectorOrder(
+      order({
+        currency: "QAR",
+        exchange_rate: 2,
+        amounts: { total: 100, total_sar: 200, discount: 9, offers_discount: 6 },
+        coupons: [{ code: "SALE10", discount: 3 }],
+        offers: [{ name: "ساعتين + الثالثة مجانا!", discount: 4 }, { name: "Bundle", discount: 2 }, "junk"],
+      }),
     );
+    expect(withOffer?.attributes).toMatchObject({
+      coupon_code: "SALE10",
+      coupon_discount: 6,
+      offers: "ساعتين + الثالثة مجانا!, Bundle",
+      offers_discount: 12,
+      discount: 18,
+    });
+    // No order total sent: the offers' own discounts add up.
+    expect(
+      mapConnectorOrder(order({ offers: [{ name: "A", discount: 4 }, { name: "B", discount: 1.5 }] }))?.attributes,
+    ).toMatchObject({ offers: "A, B", offers_discount: 5.5 });
+    // The connector sends 0 when there is no offer: nothing is written.
+    const none = mapConnectorOrder(order({ amounts: { total: 100, offers_discount: 0 }, offers: [] }));
+    expect(none?.attributes).not.toHaveProperty("offers");
+    expect(none?.attributes).not.toHaveProperty("offers_discount");
+  });
+
+  it("migrations 0078 + 0080 seed exactly the feed field list, and only four start shown", () => {
+    const sqlText = ["0078_store_feed_fields.sql", "0080_store_offer_fields.sql"]
+      .map((f) => readFileSync(path.join(process.cwd(), "db/migrations", f), "utf8"))
+      .join("\n");
     const seeded = [...sqlText.matchAll(/\('([a-z_]+)', '([^']+)', '([a-z]+)', \d+\)/g)].map((m) => ({
       key: m[1],
       label: m[2],

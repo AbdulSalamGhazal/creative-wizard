@@ -5,6 +5,7 @@ import { ORDER_STATUS_FIELD_KEY } from "@/store/order-status";
 import { FEED_FIELD_KEYS, type FeedFieldKey } from "@/store/feed-fields";
 import {
   connectorCouponSchema,
+  connectorOfferSchema,
   connectorItemSchema,
   connectorOrderSchema,
   type ConnectorOrder,
@@ -175,6 +176,12 @@ const coupons = (o: ConnectorOrder) =>
     return p.success ? [p.data] : [];
   });
 
+const offers = (o: ConnectorOrder) =>
+  (o.offers ?? []).flatMap((c) => {
+    const p = connectorOfferSchema.safeParse(c);
+    return p.success ? [p.data] : [];
+  });
+
 const PAYMENT_TYPE: Record<string, string> = { cod: "COD", prepaid: "Prepaid" };
 
 /**
@@ -214,6 +221,13 @@ const FEED_READERS: Record<FeedFieldKey, (o: ConnectorOrder, rate: number | null
   entry: (o) => clean(o.attribution?.entry),
   currency: (o) => clean(o.currency)?.toUpperCase() ?? null,
   exchange_rate: (o) => toAmount(o.exchange_rate),
+  offers: (o) => joined(offers(o), (c) => clean((c as { name?: string | null }).name)),
+  // The order's own total when sent; else the lines' sum. 0 with no offer = not set.
+  offers_discount: (o, rate) => {
+    const sent = toAmount(o.amounts?.offers_discount);
+    const total = sent ?? (offers(o).length ? offers(o).reduce((a, c) => a + (toAmount(c.discount) ?? 0), 0) : null);
+    return total === null || (total === 0 && offers(o).length === 0) ? null : toSar(total, rate);
+  },
   salla_customer_id: (o) =>
     o.customer?.salla_id === null || o.customer?.salla_id === undefined
       ? null

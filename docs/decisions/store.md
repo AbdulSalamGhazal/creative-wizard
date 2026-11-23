@@ -127,7 +127,7 @@
   is SAR or names no currency; a foreign-currency order with no SAR total is
   logged and NOT applied — a QAR figure is never filed as riyals.
 - **The feed OWNS every other Salla order field too** (2026-11-23, "columns
-  for all data received from Salla"): the 25 keys of `store/feed-fields.ts`
+  for all data received from Salla"): the keys of `store/feed-fields.ts` (25, plus the two offer keys below)
   — payment method and COD/prepaid, coupon code and discount, discount,
   subtotal, shipping, COD fee, VAT, city, country, shipping company,
   tracking number, delivered day, refund amount, tags, UTM medium / campaign
@@ -141,6 +141,16 @@
   the rest start hidden (`FEED_FIELDS_HIDDEN_BY_DEFAULT`). A key the list
   adds is a key an upload of the same name loses on feed orders: check the
   brands' upload fields before adding one.
+- **Special offers are not coupons** (2026-11-23): Salla special offers
+  ("ساعتين + الثالثة مجانا!") used to reach us inside `coupons[]`; since
+  2026-11-23 13:42 Riyadh the connector sends them as `offers[]` (name +
+  discount excl. VAT) and `amounts.offers_discount`, and `coupons[]` holds
+  real codes only (`amounts.discount` stays coupons + offers). Two feed
+  fields, `offers` ("Offer") and `offers_discount`, hidden by default,
+  seeded by migration 0080. The connector sends 0 for an order with no
+  offer; Wizard writes nothing then, like a coupon-less order. An order
+  received before the switch shows its offer as a coupon until it is
+  pulled again (30-day re-pull). MCP: `get_store.by_offer`.
 - **Product costs keep HISTORY** (user decision 2026-11-23):
   `store_product_costs` holds a unit cost (SAR) per product FROM a day; a
   line costs the row with the latest `effective_from` on or before its
