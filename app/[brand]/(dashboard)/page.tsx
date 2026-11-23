@@ -2,7 +2,13 @@ import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { dashboardKpis, type KpiFilters } from "@/db/queries/performance";
+import {
+  dashboardKpis,
+  type BreakdownDimension,
+  type KpiFilters,
+} from "@/db/queries/performance";
+import { levelDimension, parseBreakdownLevel } from "@/lib/breakdown-level";
+import { LevelSwitch } from "@/components/filters/level-switch";
 import { defaultDateRange } from "@/lib/date-presets";
 import {
   resolveIncludeExcluded,
@@ -76,10 +82,12 @@ export default async function DashboardPage({
   };
 
   // When the view is pinned to exactly ONE platform, the metric breakdowns
-  // drill one level deeper — by campaign within that platform. Otherwise they
-  // break down by platform.
+  // drill one level deeper within that platform — by CAMPAIGN (the default)
+  // or by AD SET (`?level=adset`, the switch in the header). Otherwise they
+  // break down by platform, and the level has nothing to say.
   const singlePlatform = parsed.platforms.length === 1 ? parsed.platforms[0] : null;
-  const dimension = singlePlatform ? "campaign" : "platform";
+  const level = parseBreakdownLevel(pickFirst(params.level));
+  const dimension: BreakdownDimension = singlePlatform ? levelDimension(level) : "platform";
 
   // The platforms' NAMES, never the stored keys ("instagram") — copy rule.
   const platformsBadge =
@@ -107,15 +115,20 @@ export default async function DashboardPage({
       <PageHeader
         title="Dashboard"
         rightSlot={
-          // Wraps on a phone: on one line it ran ~11px past a 375px frame.
-          // Phone only (R-049): on desktop the strip right above shows the
-          // range and platforms, and the Excluded toggle states itself.
-          <Badge
-            variant="outline"
-            className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3 lg:hidden"
-          >
-            {from} → {to} · {platformsBadge}
-          </Badge>
+          <div className="flex max-w-full flex-wrap items-center gap-2">
+            {/* One platform picked → its breakdowns go one level deeper, and
+                this says (and switches) which level. */}
+            {singlePlatform && <LevelSwitch level={level} />}
+            {/* Wraps on a phone: on one line it ran ~11px past a 375px frame.
+                Phone only (R-049): on desktop the strip right above shows the
+                range and platforms, and the Excluded toggle states itself. */}
+            <Badge
+              variant="outline"
+              className="h-auto max-w-full whitespace-normal rounded-md text-left text-ink-3 lg:hidden"
+            >
+              {from} → {to} · {platformsBadge}
+            </Badge>
+          </div>
         }
       />
 

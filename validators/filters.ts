@@ -51,7 +51,13 @@ export const dashboardFiltersSchema = z.object({
     .transform((s) => s === "1" || s === "true"),
 });
 
-/** Breakdown dimension for Trends → Over time. Unknown values → campaign. */
+/**
+ * Breakdown dimension for Trends → Changes. `campaign` is the AD SET (the
+ * stored word — lib/campaign.ts "TWO LEVELS"); `parent_campaign` is the
+ * CAMPAIGN, the default since 2026-11 (user decision) and so the clean URL.
+ * Unknown values → the default.
+ */
+export const CHANGE_DIM_DEFAULT = "parent_campaign" as const;
 export const changeDimSchema = z
-  .enum(["platform", "campaign", "creative"])
-  .catch("campaign");
+  .enum(["platform", "parent_campaign", "campaign", "creative"])
+  .catch(CHANGE_DIM_DEFAULT);

@@ -6,6 +6,7 @@ import {
   creativePlatformOverrides,
   creatives,
   creativeAngles,
+  parentCampaigns,
   performanceRecords,
   platformEnum,
 } from "@/db/schema";
@@ -474,14 +475,15 @@ function buildTransitions(
 
 export async function statusFlowBreakdown(
   filters: StatusTransitionFilters,
-  dimension: "platform" | "campaign",
+  /** `campaign` = the AD SET, `parent_campaign` = the CAMPAIGN (2026-11). */
+  dimension: "platform" | "campaign" | "parent_campaign",
   platform?: Platform,
 ): Promise<StatusFlowScope[]> {
   const restrictIds = await statusRestrictIds(filters);
   const acct = await getActiveAccountId();
 
   // --- Per-platform breakdown (default) -----------------------------------
-  if (dimension !== "campaign" || !platform) {
+  if (dimension === "platform" || !platform) {
     // Both days in one reconstruction pass (two scans, not four).
     const [startMap, endMap] = (await creativeStatusMapsAsOf(restrictIds, [
       isoMinusOneDay(filters.from),
@@ -529,16 +531,28 @@ export async function statusFlowBreakdown(
     return c;
   };
 
-  // Top 4 campaigns on P by spend within the window.
-  const topRows = await db
+  // The breakout's own grain: the AD SET, or the CAMPAIGN above it — one
+  // group over all its ad sets on P. On one platform a campaign's name is
+  // unique (unique per network), so the name keys it, like an ad set's.
+  const byParent = dimension === "parent_campaign";
+  const groupId = byParent ? parentCampaigns.id : campaigns.id;
+  const groupName = byParent ? parentCampaigns.name : campaigns.name;
+
+  // Top 4 on P by spend within the window.
+  let topQuery = db
     .select({
-      campaign: campaigns.name,
+      campaign: groupName,
       spend: sql<number>`SUM(${performanceRecords.spend})`,
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    .$dynamic();
+  if (byParent) {
+    topQuery = topQuery.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
+  }
+  const topRows = await topQuery
     .where(and(...scopeConds([between(performanceRecords.date, filters.from, filters.to)])))
-    .groupBy(campaigns.id)
+    .groupBy(groupId, groupName)
     .orderBy(desc(sql`SUM(${performanceRecords.spend})`))
     .limit(4);
   const campaignNames = topRows.map((r) => r.campaign);
@@ -582,24 +596,29 @@ export async function statusFlowBreakdown(
   const endAnchor = (anchors?.d1 as string | null | undefined) ?? null;
 
   // Per-(creative, campaign) last spend date on P, as of each day.
-  const spendRows = await db
+  let spendQuery = db
     .select({
       creativeId: performanceRecords.creativeId,
-      campaign: campaigns.name,
+      campaign: groupName,
       ...maxDateAsOf(asOfDays),
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    .$dynamic();
+  if (byParent) {
+    spendQuery = spendQuery.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
+  }
+  const spendRows = await spendQuery
     .where(
       and(
         ...scopeConds([
-          inArray(campaigns.name, campaignNames),
+          inArray(groupName, campaignNames),
           sql`${performanceRecords.spend} > 0`,
           sql`${performanceRecords.date} <= ${until}`,
         ]),
       ),
     )
-    .groupBy(performanceRecords.creativeId, campaigns.id);
+    .groupBy(performanceRecords.creativeId, groupId, groupName);
   const lastSpendAsOf = (key: "d0" | "d1"): Map<string, Map<string, string>> => {
     const m = new Map<string, Map<string, string>>();
     for (const r of spendRows) {

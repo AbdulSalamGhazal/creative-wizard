@@ -19,12 +19,15 @@ export function TypeMixBars({
   overallLabel,
   dimension,
   dimensionLabel,
+  breakoutNoun = "ad set",
 }: {
   rows: TypeDimensionSpendRow[];
   series: SeriesItem[];
   overallLabel: string;
   dimension: "platform" | "campaign";
   dimensionLabel?: string;
+  /** What the pinned-platform breakout is by: "campaign" or "ad set". */
+  breakoutNoun?: string;
 }) {
   const types = TYPE_ORDER.filter((t) =>
     rows.some((r) => r.type === t && r.spend > 0),
@@ -70,7 +73,7 @@ export function TypeMixBars({
         <CardTitle className="text-sm">Type mix</CardTitle>
         {dimension === "campaign" && (
           <span className="text-[11px] text-ink-3 font-normal">
-            by ad set{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+            by {breakoutNoun}{dimensionLabel ? ` · ${dimensionLabel}` : ""}
           </span>
         )}
       </CardHeader>

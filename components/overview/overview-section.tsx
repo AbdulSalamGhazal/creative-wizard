@@ -52,6 +52,7 @@ import {
 } from "@/components/charts/rating-mix-bars";
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
+import { dimensionNoun } from "@/lib/breakdown-level";
 
 
 const CAMPAIGN_LINE_LIMIT = 6;
@@ -90,6 +91,11 @@ export async function OverviewSection({
   kpis: kpisPromise,
 }: Props) {
   const hasRange = Boolean(filters.from && filters.to);
+  // A pinned platform breaks out one level deeper — by CAMPAIGN (the default)
+  // or by AD SET. The charts only need "platform or a breakout" and its word.
+  const breakout = dimension !== "platform";
+  const chartDimension = breakout ? "campaign" : "platform";
+  const breakoutNoun = dimension === "platform" ? undefined : dimensionNoun(dimension);
 
   // Edge-fill bounds for the over-time chart, from TWO per-platform reads that
   // also give the grouped-total bounds (W2-3, 2026-10): the data horizon is the
@@ -145,7 +151,7 @@ export async function OverviewSection({
             angles: filters.angles,
           },
           dimension,
-          dimension === "campaign" && filters.platforms?.length === 1
+          breakout && filters.platforms?.length === 1
             ? filters.platforms[0]
             : undefined,
         )
@@ -180,7 +186,7 @@ export async function OverviewSection({
   const totals = new Map<string, number>();
   for (const r of otRows) totals.set(r.key, (totals.get(r.key) ?? 0) + r.spend);
   let orderedKeys = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
-  if (dimension === "campaign") orderedKeys = orderedKeys.slice(0, CAMPAIGN_LINE_LIMIT);
+  if (breakout) orderedKeys = orderedKeys.slice(0, CAMPAIGN_LINE_LIMIT);
   const keySet = new Set(orderedKeys);
 
   const keys: OverTimeKey[] = orderedKeys.map((k) => ({
@@ -195,7 +201,7 @@ export async function OverviewSection({
         : swatchColor(k),
   }));
   const otFiltered =
-    dimension === "campaign" ? otRows.filter((r) => keySet.has(r.key)) : otRows;
+    breakout ? otRows.filter((r) => keySet.has(r.key)) : otRows;
 
   // Type-mix rows: one per platform — or top campaigns when a platform is
   // pinned — ordered by total spend. The chart adds the emphasized "Overall"
@@ -204,7 +210,7 @@ export async function OverviewSection({
   const typeTotals = new Map<string, number>();
   for (const r of typeData) typeTotals.set(r.key, (typeTotals.get(r.key) ?? 0) + r.spend);
   let typeKeyOrder = [...typeTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
-  if (dimension === "campaign") typeKeyOrder = typeKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
+  if (breakout) typeKeyOrder = typeKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
   const typeSeries = typeKeyOrder.map((k) => ({
     key: k,
     label:
@@ -213,7 +219,7 @@ export async function OverviewSection({
         : k,
   }));
   const typeOverallLabel =
-    dimension === "campaign" ? dimensionLabel ?? "All ad sets" : "Overall";
+    breakout ? dimensionLabel ?? `All ${breakoutNoun}s` : "Overall";
 
   // Rating-mix rows: bucket each (creative, dimension) block's SELECTED-range
   // spend by its rating — where the rating is judged over the chosen lookback
@@ -259,7 +265,7 @@ export async function OverviewSection({
   const ratingTotals = new Map<string, number>();
   for (const r of ratingDimRows) ratingTotals.set(r.key, (ratingTotals.get(r.key) ?? 0) + r.spend);
   let ratingKeyOrder = [...ratingTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
-  if (dimension === "campaign") ratingKeyOrder = ratingKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
+  if (breakout) ratingKeyOrder = ratingKeyOrder.slice(0, CAMPAIGN_LINE_LIMIT);
   const ratingSeries = ratingKeyOrder.map((k) => ({
     key: k,
     label:
@@ -274,7 +280,8 @@ export async function OverviewSection({
       <MetricOverTimeChart
         rows={otFiltered}
         keys={keys}
-        dimension={dimension}
+        dimension={chartDimension}
+        breakoutNoun={breakoutNoun}
         dimensionLabel={dimensionLabel}
         fillFrom={otGroupBounds.fillFrom}
         fillTo={otGroupBounds.fillTo}
@@ -294,7 +301,8 @@ export async function OverviewSection({
           rows={typeData}
           series={typeSeries}
           overallLabel={typeOverallLabel}
-          dimension={dimension}
+          dimension={chartDimension}
+        breakoutNoun={breakoutNoun}
           dimensionLabel={dimensionLabel}
         />
         <AngleLeaderboard rows={angleMixRows} />
@@ -308,7 +316,7 @@ export async function OverviewSection({
 
       {/* Status flow — four diagrams (per platform, or per top campaign when a
           single platform is filtered) */}
-      <StatusFlowGrid scopes={statusScopes} dimension={dimension} />
+      <StatusFlowGrid scopes={statusScopes} dimension={chartDimension} breakoutNoun={breakoutNoun} />
 
       {/* Rating mix + per-creative correlation matrix (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -316,7 +324,8 @@ export async function OverviewSection({
           rowsByWindow={ratingRowsByWindow}
           series={ratingSeries}
           overallLabel={typeOverallLabel}
-          dimension={dimension}
+          dimension={chartDimension}
+        breakoutNoun={breakoutNoun}
           dimensionLabel={dimensionLabel}
         />
         <CorrelationMatrix rows={metricRows} />

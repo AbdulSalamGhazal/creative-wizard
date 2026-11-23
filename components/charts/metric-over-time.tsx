@@ -35,6 +35,8 @@ interface Props {
   dimension: "platform" | "campaign";
   /** Shown next to "by campaign" (e.g. the pinned platform's name). */
   dimensionLabel?: string;
+  /** What the pinned-platform breakout is by: "campaign" or "ad set". */
+  breakoutNoun?: string;
   /**
    * Grouped-total edge bounds (account data horizon + filter-set first-ever,
    * clamped to the window): the "All" line's leading/trailing pause zeros.
@@ -124,6 +126,7 @@ export function MetricOverTimeChart({
   keys,
   dimension,
   dimensionLabel,
+  breakoutNoun = "ad set",
   fillFrom,
   fillTo,
 }: Props) {
@@ -173,14 +176,14 @@ export function MetricOverTimeChart({
         {
           id: "all",
           color: "var(--brand)",
-          label: dimension === "campaign" ? "All ad sets" : "All platforms",
+          label: dimension === "campaign" ? `All ${breakoutNoun}s` : "All platforms",
         },
       ];
     }
     return safeKeys
       .filter((k) => !hidden.has(k.key))
       .map((k) => ({ id: k.id, color: k.color, label: k.label }));
-  }, [group, dimension, safeKeys, hidden]);
+  }, [group, dimension, breakoutNoun, safeKeys, hidden]);
 
   const labelById = useMemo(
     () => new Map(lineSpecs.map((l) => [l.id, l.label])),
@@ -278,7 +281,7 @@ export function MetricOverTimeChart({
               <>
                 {dimension === "campaign" && (
                   <span className="text-[11px] text-ink-3">
-                    by ad set{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+                    by {breakoutNoun}{dimensionLabel ? ` · ${dimensionLabel}` : ""}
                   </span>
                 )}
                 <GroupToggle on={group} onToggle={() => setGroup(!group)} />

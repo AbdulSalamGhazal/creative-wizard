@@ -26,6 +26,8 @@ import { dashboardFiltersSchema } from "@/validators/filters";
 import { pickFirst } from "@/lib/url";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
+import { BREAKDOWN_LEVEL_LABEL, parseBreakdownLevel } from "@/lib/breakdown-level";
+import { LevelSwitch } from "@/components/filters/level-switch";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +81,11 @@ export default async function FunnelPage({
 
   // The live window's daily series and the prior window's overlay come from
   // ONE scan (`funnelDailyWithPrevious`), as do the overview's two totals.
+  // ONE level for the page's two campaign-side tables (2026-11): by CAMPAIGN
+  // (the default, the clean URL) or by AD SET (`?level=adset`).
+  const level = parseBreakdownLevel(pickFirst(params.level));
+  const noun = BREAKDOWN_LEVEL_LABEL[level].toLowerCase();
+
   const [
     overview,
     campaigns,
@@ -87,10 +94,10 @@ export default async function FunnelPage({
     byPlatformCampaign,
   ] = await Promise.all([
     funnelOverview(filters),
-    campaignFunnel(filters),
+    campaignFunnel(filters, level),
     funnelDailyWithPrevious(filters),
     platformFunnel(filters),
-    platformCampaignFunnel(filters),
+    platformCampaignFunnel(filters, level),
   ]);
 
   return (
@@ -134,28 +141,34 @@ export default async function FunnelPage({
 
       {/* Platform-vs-platform comparison */}
       <div className="space-y-2">
-        <div>
-          <h2 className="text-label text-ink-3">
-            Platform comparison · {byPlatform.length} platform
-            {byPlatform.length === 1 ? "" : "s"}
-          </h2>
-          <p className="text-[11px] text-ink-3">
-            Green marks the leader per rate (lowest CPM, highest conversion
-            rates). Click a platform to expand its ad set breakdown.
-          </p>
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div>
+            <h2 className="text-label text-ink-3">
+              Platform comparison · {byPlatform.length} platform
+              {byPlatform.length === 1 ? "" : "s"}
+            </h2>
+            <p className="text-[11px] text-ink-3">
+              Green marks the leader per rate (lowest CPM, highest conversion
+              rates). Click a platform to expand its {noun} breakdown.
+            </p>
+          </div>
+          {/* The one switch for both tables below it. */}
+          <LevelSwitch level={level} />
         </div>
         <PlatformFunnelComparison
           platforms={byPlatform}
           campaigns={byPlatformCampaign}
+          level={level}
         />
       </div>
 
       <div className="space-y-2">
         <h2 className="text-label text-ink-3">
-          By ad set · {campaigns.length} ad set{campaigns.length === 1 ? "" : "s"}
+          By {noun} · {campaigns.length} {noun}
+          {campaigns.length === 1 ? "" : "s"}
         </h2>
         <AdDataGate>
-          <CampaignFunnelTable rows={campaigns} from={from} to={to} />
+          <CampaignFunnelTable rows={campaigns} from={from} to={to} level={level} />
         </AdDataGate>
       </div>
     </PageShell>

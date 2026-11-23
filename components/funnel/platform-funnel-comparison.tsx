@@ -12,6 +12,7 @@ import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import { int, pct, plural, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PlatformFunnelRow, PlatformCampaignRow } from "@/db/queries/funnel";
+import type { BreakdownLevel } from "@/lib/breakdown-level";
 
 type RateKey = "cpm" | "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
 
@@ -77,6 +78,7 @@ type Row =
       platform: PlatformFunnelRow["platform"];
       campaign: string;
       objective: PlatformCampaignRow["objective"];
+      objectives?: PlatformCampaignRow["objectives"];
     } & Metrics)
   | { kind: "none"; key: string; platform: PlatformFunnelRow["platform"] };
 
@@ -94,10 +96,14 @@ const metricOf = (r: Row, k: MetricKey): number | null =>
 export function PlatformFunnelComparison({
   platforms,
   campaigns,
+  level = "adset",
 }: {
   platforms: PlatformFunnelRow[];
   campaigns: PlatformCampaignRow[];
+  /** What a platform expands into (2026-11): its campaigns, or its ad sets. */
+  level?: BreakdownLevel;
 }) {
+  const noun = level === "campaign" ? "campaign" : "ad set";
   const cols = useTableColumns({
     tableKey: TABLE_KEYS.FUNNEL_PLATFORMS,
     hideable: COLUMN_KEYS,
@@ -197,7 +203,7 @@ export function PlatformFunnelComparison({
       csv: (r) => (r.kind === "campaign" ? `  ${r.campaign}` : r.kind === "platform" ? PLATFORM_LABEL[r.platform] : ""),
       render: (r) => {
         if (r.kind === "none")
-          return <span className="pl-7 text-[11px] text-ink-3">No ad sets in this window.</span>;
+          return <span className="pl-7 text-[11px] text-ink-3">No {noun}s in this window.</span>;
         if (r.kind === "campaign")
           return (
             <span
@@ -213,7 +219,7 @@ export function PlatformFunnelComparison({
             type="button"
             onClick={() => toggle(r.platform)}
             aria-expanded={isOpen}
-            aria-label={`${isOpen ? "Collapse" : "Expand"} ${PLATFORM_LABEL[r.platform]} ad sets`}
+            aria-label={`${isOpen ? "Collapse" : "Expand"} ${PLATFORM_LABEL[r.platform]} ${noun}s`}
             className="inline-flex items-center gap-2 whitespace-nowrap text-ink transition-colors hover:text-brand"
           >
             <ChevronRight
@@ -221,7 +227,7 @@ export function PlatformFunnelComparison({
             />
             <PlatformDot platform={r.platform} />
             <span>{PLATFORM_LABEL[r.platform]}</span>
-            <span className="text-[10px] text-ink-2">{plural(r.campaigns, "ad set")}</span>
+            <span className="text-[10px] text-ink-2">{plural(r.campaigns, noun)}</span>
           </button>
         );
       },
@@ -232,10 +238,12 @@ export function PlatformFunnelComparison({
       label: "Objective",
       sortable: true,
       defaultSortDir: "asc",
-      csv: (r) => (r.kind === "campaign" ? r.objective : null),
+      csv: (r) => (r.kind === "campaign" ? (r.objectives ?? [r.objective]).join(" · ") : null),
       render: (r) =>
         r.kind === "campaign" ? (
-          <span className="whitespace-nowrap text-xs text-ink-2">{r.objective}</span>
+          <span className="whitespace-nowrap text-xs text-ink-2">
+            {(r.objectives ?? [r.objective]).join(" · ")}
+          </span>
         ) : null,
     };
     const numbers = NUMBERS.map(
@@ -296,7 +304,7 @@ export function PlatformFunnelComparison({
       }),
     );
     return [identity, objective, ...numbers, ...rates];
-  }, [expanded, best, maxAbs]);
+  }, [expanded, best, maxAbs, noun]);
 
   return (
     <DataTable

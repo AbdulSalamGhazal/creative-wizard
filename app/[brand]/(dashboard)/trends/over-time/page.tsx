@@ -23,34 +23,48 @@ import {
   type ChangeRadarRow,
 } from "@/components/trends/change-radar";
 import { assessChange, CHANGE_TIER_ORDER } from "@/lib/change-radar";
-import { changeDimSchema, dashboardFiltersSchema, STRIP_FILTER_KEYS } from "@/validators/filters";
+import {
+  CHANGE_DIM_DEFAULT,
+  changeDimSchema,
+  dashboardFiltersSchema,
+  STRIP_FILTER_KEYS,
+} from "@/validators/filters";
 import { PLATFORM_LABEL, ALL_PLATFORMS } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
-import { adSetPath } from "@/lib/campaign";
+import { adSetPath, campaignPath } from "@/lib/campaign";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
 
 const TRAILING_DAYS_DEFAULT = 30;
 
+// `campaign` is the AD SET (the stored word), `parent_campaign` the CAMPAIGN —
+// the default since 2026-11, and so the clean URL.
 const DIMS: Array<{ value: ChangeDim; label: string }> = [
   { value: "platform", label: "Platform" },
+  { value: "parent_campaign", label: "Campaign" },
   { value: "campaign", label: "Ad set" },
   { value: "creative", label: "Creative" },
 ];
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-function entityHref(dim: ChangeDim, key: string, label: string): string {
+function entityHref(
+  dim: ChangeDim,
+  row: { key: string; label: string; network: string | null },
+): string {
   switch (dim) {
     case "platform":
-      return `/platforms/${key}`;
+      return `/platforms/${row.key}`;
+    case "parent_campaign":
+      // A campaign's address is its network + name; the key is its id.
+      return row.network ? campaignPath(row.network, row.label) : "/campaigns";
     case "campaign":
-      return adSetPath(key);
+      return adSetPath(row.key);
     case "creative":
-      return `/library/${encodeURIComponent(label)}`;
+      return `/library/${encodeURIComponent(row.label)}`;
   }
 }
 
@@ -120,7 +134,7 @@ export default async function TrendsOverTimePage({
           ? (PLATFORM_LABEL[r.key as keyof typeof PLATFORM_LABEL] ?? r.key)
           : r.label,
       sub: r.sub,
-      href: entityHref(dim, r.key, r.label),
+      href: entityHref(dim, r),
       share: totalCurSpend > 0 ? r.cur.spend / totalCurSpend : null,
       curSpend: r.cur.spend,
       prevSpend: r.prev.spend,
@@ -155,7 +169,7 @@ export default async function TrendsOverTimePage({
       const val = pickFirst(v);
       if (val && key !== "dim") next.set(key, val);
     }
-    if (d !== "campaign") next.set("dim", d);
+    if (d !== CHANGE_DIM_DEFAULT) next.set("dim", d);
     const qs = next.toString();
     return qs ? `/trends/over-time?${qs}` : "/trends/over-time";
   };

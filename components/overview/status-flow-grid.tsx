@@ -135,9 +135,12 @@ function StatusFlowDiagram({ data }: { data: CreativeStatusTransitions }) {
 export function StatusFlowGrid({
   scopes,
   dimension,
+  breakoutNoun = "ad set",
 }: {
   scopes: StatusFlowScope[];
   dimension: "platform" | "campaign";
+  /** What the pinned-platform breakout is by: "campaign" or "ad set". */
+  breakoutNoun?: string;
 }) {
   const labelFor = (key: string) =>
     dimension === "platform"
@@ -153,7 +156,7 @@ export function StatusFlowGrid({
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-sm">Status flow</CardTitle>
         <span className="text-[11px] text-ink-3 font-normal">
-          {dimension === "campaign" ? "top ad sets · " : "by platform · "}
+          {dimension === "campaign" ? `top ${breakoutNoun}s · ` : "by platform · "}
           start of period → now
         </span>
       </CardHeader>
@@ -181,7 +184,7 @@ export function StatusFlowGrid({
                       style={{ background: STATUS_DOT.new }}
                     />
                     +{int(sc.data.untouchedNew)}{" "}
-                    {dimension === "campaign" ? "not in ad set" : "never ran"} ·
+                    {dimension === "campaign" ? `not in ${breakoutNoun}` : "never ran"} ·
                     New
                   </span>
                 ) : (

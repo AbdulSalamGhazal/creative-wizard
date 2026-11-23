@@ -53,7 +53,8 @@ export async function DashboardMetrics({
   const vs = (previous: string) =>
     kd && filters.from && filters.to ? deltaVsLabel(filters.from, filters.to, previous) : undefined;
 
-  const isCampaign = dimension === "campaign";
+  // A pinned platform's breakout — by campaign (the default) or by ad set.
+  const isCampaign = dimension !== "platform";
   const shown = isCampaign ? full.slice(0, CAMPAIGN_LIMIT) : full;
   const moreCount = full.length - shown.length;
 
@@ -169,7 +170,8 @@ export async function DashboardMetrics({
       </div>
       {isCampaign && moreCount > 0 && (
         <p className="text-[11px] text-ink-3">
-          Showing the top {CAMPAIGN_LIMIT} ad sets by spend · {moreCount} more
+          Showing the top {CAMPAIGN_LIMIT}{" "}
+          {dimension === "parent_campaign" ? "campaigns" : "ad sets"} by spend · {moreCount} more
           not shown.
         </p>
       )}

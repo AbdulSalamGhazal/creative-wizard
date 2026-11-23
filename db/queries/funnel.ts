@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import {
   campaigns,
   creatives,
+  parentCampaigns,
   performanceRecords,
   platformEnum,
 } from "@/db/schema";
@@ -27,8 +28,9 @@ import {
   sumSpend,
 } from "@/lib/metrics";
 import { computeDelta, prevPeriod, type Delta } from "@/lib/period";
-import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
-import type { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { ALL_PLATFORMS, PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { CAMPAIGN_OBJECTIVES, type AdNetwork } from "@/lib/campaign";
+import type { BreakdownLevel } from "@/lib/breakdown-level";
 import { getActiveAccountId } from "@/lib/tenant";
 import { fillDailyGaps } from "@/lib/time-series";
 import { dataHorizon, resolveEntityBounds } from "@/db/queries/series-bounds";
@@ -218,10 +220,21 @@ export async function funnelOverview(f: FunnelFilters): Promise<FunnelOverview> 
 
 
 export interface CampaignFunnelRow {
+  /** The ad set's stored name — or, at campaign level, the campaign's name. */
   campaign: string;
+  /** An ad set's platform; a campaign's first one (it lists all in `platforms`). */
   platform: Platform;
   /** The campaign's registered objective — a PK-join column (grouped by id). */
   objective: CampaignObjective;
+  // ── Campaign level only (2026-11): the row is a CAMPAIGN, every ad set under
+  // it summed as ONE group. Absent on an ad-set row. ──
+  /** The campaign's id — the row's key (a name is unique only per network). */
+  parentId?: string;
+  network?: AdNetwork;
+  /** Every platform it had rows on in the window, in platform order. */
+  platforms?: Platform[];
+  /** Every objective its ad sets carry, in vocabulary order. */
+  objectives?: CampaignObjective[];
   spend: number;
   impressions: number;
   clicks: number;
@@ -286,10 +299,119 @@ async function campaignSpend(
   return m;
 }
 
+/** The funnel's per-row columns — one list for both levels of the row. */
+const funnelRowMetrics = {
+  spend: sumSpend,
+  impressions: sumImpressions,
+  clicks: sumClicks,
+  landingPageViews: sumLandingPageViews,
+  addToCart: sumAddToCart,
+  addPayment: sumAddPayment,
+  conversions: sumConversions,
+  conversionValue: sumConversionValue,
+  cpm,
+  ctr,
+  voc,
+  atcRate,
+  apRate,
+  purchaseRate,
+  cvr,
+  roas,
+  cpa,
+  cpc,
+};
+
+/** A campaign's platforms / objectives, read off `array_agg`, in house order. */
+const inPlatformOrder = (ps: readonly string[] | null): Platform[] =>
+  ALL_PLATFORMS.filter((p) => (ps ?? []).includes(p));
+const inObjectiveOrder = (os: readonly string[] | null): CampaignObjective[] =>
+  CAMPAIGN_OBJECTIVES.filter((o) => (os ?? []).includes(o));
+
+/**
+ * The funnel table at CAMPAIGN level (2026-11): one row per campaign (a
+ * `parent_campaigns` row), every record of every ad set under it as ONE
+ * group — so each rate is weighted over the campaign's own component sums,
+ * never a roll-up of its ad sets' rates. A Meta campaign is one row covering
+ * Instagram and Facebook. An ad set with no campaign yet is left out (the
+ * Campaigns list's rule).
+ */
+async function parentCampaignFunnel(f: FunnelFilters, acct: string): Promise<CampaignFunnelRow[]> {
+  const prev = prevPeriod(f.from, f.to);
+  const base = (filters: FunnelFilters) => whereFor(filters, acct);
+  const [rows, priorRows] = await Promise.all([
+    db
+      .select({
+        parentId: parentCampaigns.id,
+        campaign: parentCampaigns.name,
+        network: parentCampaigns.network,
+        platforms: sql<string[] | null>`array_agg(DISTINCT ${performanceRecords.platform})`,
+        objectives: sql<string[] | null>`array_agg(DISTINCT ${campaigns.objective})`,
+        ...funnelRowMetrics,
+        lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
+      })
+      .from(performanceRecords)
+      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+      .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+      .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+      .where(base(f))
+      .groupBy(parentCampaigns.id, parentCampaigns.name, parentCampaigns.network)
+      .orderBy(desc(sumSpend)),
+    db
+      .select({ parentId: parentCampaigns.id, spend: sumSpend })
+      .from(performanceRecords)
+      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+      .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+      .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+      .where(base({ ...f, from: prev.from, to: prev.to }))
+      .groupBy(parentCampaigns.id),
+  ]);
+  const priorSpend = new Map(priorRows.map((r) => [r.parentId, num(r.spend)]));
+
+  return rows.map((r) => {
+    const prior = priorSpend.get(r.parentId) ?? null;
+    const platforms = inPlatformOrder(r.platforms);
+    const objectives = inObjectiveOrder(r.objectives);
+    return {
+      campaign: r.campaign,
+      parentId: r.parentId,
+      network: r.network,
+      platforms,
+      objectives,
+      // A grouped row always has ≥ 1 platform; the fallback only satisfies the type.
+      platform: (platforms[0] ?? PLATFORMS_WITH_CREATIVES[0])!,
+      objective: objectives[0] ?? CAMPAIGN_OBJECTIVES[0],
+      spend: num(r.spend),
+      impressions: num(r.impressions),
+      clicks: num(r.clicks),
+      landingPageViews: numOrNull(r.landingPageViews),
+      addToCart: numOrNull(r.addToCart),
+      addPayment: numOrNull(r.addPayment),
+      conversions: num(r.conversions),
+      conversionValue: num(r.conversionValue),
+      cpm: numOrNull(r.cpm),
+      ctr: numOrNull(r.ctr),
+      voc: numOrNull(r.voc),
+      atcRate: numOrNull(r.atcRate),
+      apRate: numOrNull(r.apRate),
+      purchaseRate: numOrNull(r.purchaseRate),
+      cvr: numOrNull(r.cvr),
+      roas: numOrNull(r.roas),
+      cpa: numOrNull(r.cpa),
+      cpc: numOrNull(r.cpc),
+      priorSpend: prior,
+      lastDate: r.lastDate ?? null,
+      spendDelta: computeDelta(num(r.spend), prior),
+    };
+  });
+}
+
 export async function campaignFunnel(
   f: FunnelFilters,
+  /** `adset` (default — one row per ad set and platform) or `campaign`. */
+  level: BreakdownLevel = "adset",
 ): Promise<CampaignFunnelRow[]> {
   const acct = await getActiveAccountId();
+  if (level === "campaign") return parentCampaignFunnel(f, acct);
   const prev = prevPeriod(f.from, f.to);
   const [rows, priorSpend] = await Promise.all([
     db
@@ -451,9 +573,12 @@ export async function platformFunnel(
 
 export interface PlatformCampaignRow {
   platform: Platform;
+  /** The ad set's stored name — or, at campaign level, the campaign's name. */
   campaign: string;
   /** The campaign's registered objective — a PK-join column (grouped by id). */
   objective: CampaignObjective;
+  /** Campaign level only: every objective its ad sets on this platform carry. */
+  objectives?: CampaignObjective[];
   spend: number;
   impressions: number;
   clicks: number;
@@ -482,8 +607,57 @@ export interface PlatformCampaignRow {
  */
 export async function platformCampaignFunnel(
   f: FunnelFilters,
+  /** `adset` (default) or `campaign` — what a platform expands INTO. */
+  level: BreakdownLevel = "adset",
 ): Promise<PlatformCampaignRow[]> {
   const acct = await getActiveAccountId();
+  if (level === "campaign") {
+    // One row per (platform, CAMPAIGN): the campaign's share ON that platform
+    // — a Meta campaign sits under Instagram and under Facebook, each with
+    // that platform's own sums.
+    const parentRows = await db
+      .select({
+        platform: performanceRecords.platform,
+        campaign: parentCampaigns.name,
+        objectives: sql<string[] | null>`array_agg(DISTINCT ${campaigns.objective})`,
+        ...funnelRowMetrics,
+      })
+      .from(performanceRecords)
+      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+      .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+      .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+      .where(whereFor(f, acct))
+      .groupBy(performanceRecords.platform, parentCampaigns.id, parentCampaigns.name)
+      .having(gt(sumSpend, 0))
+      .orderBy(desc(sumSpend));
+    return parentRows.map((r) => {
+      const objectives = inObjectiveOrder(r.objectives);
+      return {
+        platform: r.platform as Platform,
+        campaign: r.campaign,
+        objective: objectives[0] ?? CAMPAIGN_OBJECTIVES[0],
+        objectives,
+        spend: num(r.spend),
+        impressions: num(r.impressions),
+        clicks: num(r.clicks),
+        landingPageViews: num(r.landingPageViews),
+        addToCart: num(r.addToCart),
+        addPayment: num(r.addPayment),
+        conversions: num(r.conversions),
+        conversionValue: num(r.conversionValue),
+        cpa: numOrNull(r.cpa),
+        cpc: numOrNull(r.cpc),
+        roas: numOrNull(r.roas),
+        cpm: numOrNull(r.cpm),
+        ctr: numOrNull(r.ctr),
+        voc: numOrNull(r.voc),
+        atcRate: numOrNull(r.atcRate),
+        apRate: numOrNull(r.apRate),
+        purchaseRate: numOrNull(r.purchaseRate),
+        cvr: numOrNull(r.cvr),
+      };
+    });
+  }
   const rows = await db
     .select({
       platform: performanceRecords.platform,

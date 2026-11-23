@@ -13,7 +13,8 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { withDateRange } from "@/lib/url";
-import { adSetPath } from "@/lib/campaign";
+import { adSetPath, campaignPath } from "@/lib/campaign";
+import type { BreakdownLevel } from "@/lib/breakdown-level";
 import { TotalLabel } from "@/components/ui/total-label";
 
 export type SortKey =
@@ -130,12 +131,21 @@ export function CampaignFunnelTable({
   rows,
   from,
   to,
+  level = "adset",
 }: {
   rows: CampaignFunnelRow[];
   /** The range the table ran — carried into each campaign's link (R-015). */
   from?: string;
   to?: string;
+  /**
+   * What a row IS (2026-11): an ad set on one platform, or a whole campaign —
+   * every ad set under it, on every platform it ran. Same columns, same
+   * totals math; only the first column's word, its link and the platform /
+   * objective cells (a campaign may carry several) differ.
+   */
+  level?: BreakdownLevel;
 }) {
+  const byCampaign = level === "campaign";
   const [sort, setSort] = useState<{ key: SortKey; dir: Dir }>(DEFAULT_SORT);
 
   const sorted = useMemo(() => {
@@ -183,7 +193,7 @@ export function CampaignFunnelTable({
     return [
       {
         key: "campaign",
-        label: "Ad set",
+        label: byCampaign ? "Campaign" : "Ad set",
         align: "left",
         sortable: true,
         pinned: true,
@@ -202,8 +212,13 @@ export function CampaignFunnelTable({
         ),
         total: () => <TotalLabel className="text-ink" />,
         csv: (r) => r.campaign,
-        // Drill-down to the campaign's page with this range (R-015).
-        href: (r) => withDateRange(adSetPath(r.campaign), from, to),
+        // Drill-down to the row's own page with this range (R-015).
+        href: (r) =>
+          withDateRange(
+            r.network ? campaignPath(r.network, r.campaign) : adSetPath(r.campaign),
+            from,
+            to,
+          ),
       },
       {
         key: "platform",
@@ -211,13 +226,18 @@ export function CampaignFunnelTable({
         align: "left",
         sortable: true,
         defaultSortDir: firstDir("platform"),
+        // A campaign can run on two platforms (Meta): each gets its dot + name.
         render: (r) => (
-          <span className="inline-flex items-center gap-1.5 text-ink-2">
-            <PlatformDot platform={r.platform} />
-            {PLATFORM_LABEL[r.platform]}
+          <span className="inline-flex items-center gap-x-2.5 gap-y-0.5 whitespace-nowrap text-ink-2">
+            {(r.platforms ?? [r.platform]).map((p) => (
+              <span key={p} className="inline-flex items-center gap-1.5">
+                <PlatformDot platform={p} />
+                {PLATFORM_LABEL[p]}
+              </span>
+            ))}
           </span>
         ),
-        csv: (r) => PLATFORM_LABEL[r.platform],
+        csv: (r) => (r.platforms ?? [r.platform]).map((p) => PLATFORM_LABEL[p]).join(" + "),
       },
       num(
         "spend",
@@ -283,8 +303,12 @@ export function CampaignFunnelTable({
         align: "left",
         sortable: true,
         defaultSortDir: firstDir("objective"),
-        render: (r) => <span className="whitespace-nowrap text-ink-2">{r.objective}</span>,
-        csv: (r) => r.objective,
+        render: (r) => (
+          <span className="whitespace-nowrap text-ink-2">
+            {(r.objectives ?? [r.objective]).join(" · ")}
+          </span>
+        ),
+        csv: (r) => (r.objectives ?? [r.objective]).join(" · "),
       },
       num("cpa", METRIC_LABEL.cpa, (r) => <span className="text-ink">{usd(r.cpa)}</span>, () => usd(totals.cpa), (r) => r.cpa),
       num("cpc", METRIC_LABEL.cpc, (r) => <span className="text-ink">{usd(r.cpc)}</span>, () => usd(totals.cpc), (r) => r.cpc),
@@ -305,7 +329,7 @@ export function CampaignFunnelTable({
         csv: (r) => r.lastDate,
       },
     ];
-  }, [totals, priorSpendTotal, from, to]);
+  }, [totals, priorSpendTotal, from, to, byCampaign]);
 
   const columnKeys = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
@@ -319,14 +343,21 @@ export function CampaignFunnelTable({
     <DataTable
       columns={columns}
       rows={sorted}
-      rowKey={(r) => `${r.platform}::${r.campaign}`}
+      // A campaign's id (its name is unique only per network); an ad set's
+      // platform + stored name.
+      rowKey={(r) => r.parentId ?? `${r.platform}::${r.campaign}`}
       sort={sort.key}
       dir={sort.dir}
       onSort={(key) => setSort((prev) => nextSort(prev, key as SortKey))}
       {...cols.tableProps}
       showTotals
       minWidthClass="min-w-max"
-      empty={<EmptyState title="No ad set activity in this window." kind="filtered" />}
+      empty={
+        <EmptyState
+          title={`No ${byCampaign ? "campaign" : "ad set"} activity in this window.`}
+          kind="filtered"
+        />
+      }
     />
   );
 }

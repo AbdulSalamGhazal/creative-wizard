@@ -61,6 +61,7 @@ export function RatingMixBars({
   overallLabel,
   dimension,
   dimensionLabel,
+  breakoutNoun = "ad set",
 }: {
   /** Pre-computed rating mix for every lookback window; switching is instant. */
   rowsByWindow: Record<RatingWindow, RatingRow[]>;
@@ -68,6 +69,8 @@ export function RatingMixBars({
   overallLabel: string;
   dimension: "platform" | "campaign";
   dimensionLabel?: string;
+  /** What the pinned-platform breakout is by: "campaign" or "ad set". */
+  breakoutNoun?: string;
 }) {
   const [window, setWindow] = useState<RatingWindow>("7d");
   const rows = rowsByWindow[window];
@@ -136,7 +139,7 @@ export function RatingMixBars({
           <CardTitle className="text-sm whitespace-nowrap">Spend by rating</CardTitle>
           {dimension === "campaign" && (
             <span className="text-[11px] text-ink-3 font-normal truncate">
-              by ad set{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+              by {breakoutNoun}{dimensionLabel ? ` · ${dimensionLabel}` : ""}
             </span>
           )}
         </div>

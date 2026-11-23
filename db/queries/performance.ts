@@ -41,7 +41,7 @@ import {
   cvrComponents,
 } from "@/lib/metrics";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
-import { AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
+import { AD_NETWORKS, AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
 import {
   computeDelta,
   prevPeriod,
@@ -212,6 +212,8 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
   conditions: SQL[];
   needsCreativeJoin: boolean;
   needsAngleJoin: boolean;
+  /** The active brand the conditions are scoped to. */
+  acct: string;
 }> {
   const acct = await getActiveAccountId();
   const conditions: SQL[] = [eq(performanceRecords.accountId, acct)];
@@ -304,6 +306,53 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
     // Angles are handled via EXISTS above (no join → no fan-out). Always false now;
     // the callers' `if (needsAngleJoin) innerJoin(creativeAngles)` blocks never fire.
     needsAngleJoin: false,
+    acct,
+  };
+}
+
+/**
+ * A CAMPAIGN's key in a breakdown (2026-11): its name — and, only when the
+ * brand has the SAME name on another ad network (a name is unique per
+ * network, not per brand), "Name (Network)", so two campaigns never share a
+ * key. Read with `parent_campaigns` joined and its id, name and network in
+ * the GROUP BY (`breakdownDim`).
+ */
+function parentCampaignKey(acct: string): SQL<string> {
+  const networkLabel = sql.join(
+    AD_NETWORKS.map((n) => sql`WHEN ${n} THEN ${AD_NETWORK_LABEL[n]}`),
+    sql` `,
+  );
+  return sql<string>`CASE WHEN (
+      SELECT count(*) FROM parent_campaigns pc2
+      WHERE pc2.account_id = ${acct} AND pc2.name = ${parentCampaigns.name}
+    ) > 1
+    THEN ${parentCampaigns.name} || ' (' || (CASE ${parentCampaigns.network}::text ${networkLabel} ELSE ${parentCampaigns.network}::text END) || ')'
+    ELSE ${parentCampaigns.name}::text END`;
+}
+
+/**
+ * What a breakdown DIMENSION groups by, in one place for every query that
+ * takes one: the platform, the AD SET (`campaign` — its stored name), or the
+ * CAMPAIGN (`parent_campaign` — every record of every ad set under it, one
+ * group, so its figures are component sums and never a roll-up of ad-set
+ * ratios). An ad set the reconcile hasn't given a campaign yet is left out of
+ * the campaign dimension, the Campaigns list's own rule.
+ */
+function breakdownDim(
+  dimension: BreakdownDimension,
+  acct: string,
+): { key: SQL<string> | AnyPgColumn; groupBy: AnyPgColumn[]; campaigns: boolean; parents: boolean } {
+  if (dimension === "platform") {
+    return { key: performanceRecords.platform, groupBy: [performanceRecords.platform], campaigns: false, parents: false };
+  }
+  if (dimension === "campaign") {
+    return { key: campaigns.name, groupBy: [campaigns.name], campaigns: true, parents: false };
+  }
+  return {
+    key: parentCampaignKey(acct),
+    groupBy: [parentCampaigns.id, parentCampaigns.name, parentCampaigns.network],
+    campaigns: true,
+    parents: true,
   };
 }
 
@@ -1024,13 +1073,13 @@ export type DimensionWindow = number | null;
  */
 export async function creativeDimensionWindows(
   filters: KpiFilters,
-  dimension: "platform" | "campaign",
+  dimension: BreakdownDimension,
   lookbacks: readonly DimensionWindow[],
 ): Promise<{
   selected: CreativeDimensionPoint[];
   windows: Map<DimensionWindow, CreativeDimensionPoint[]>;
 }> {
-  const { conditions, needsCreativeJoin, needsAngleJoin } = await buildBaseConditions({
+  const { conditions, needsCreativeJoin, needsAngleJoin, acct } = await buildBaseConditions({
     ...filters,
     from: undefined,
     to: undefined,
@@ -1056,11 +1105,10 @@ export async function creativeDimensionWindows(
     })),
   ];
 
-  const dimCol: AnyPgColumn =
-    dimension === "platform" ? performanceRecords.platform : campaigns.name;
+  const dim = breakdownDim(dimension, acct);
   const columns: Record<string, SQL | AnyPgColumn> = {
     creativeId: performanceRecords.creativeId,
-    key: dimCol,
+    key: dim.key,
   };
   for (const s of specs) {
     columns[`${s.id}_spend`] = s.sql.spend;
@@ -1071,8 +1119,11 @@ export async function creativeDimensionWindows(
   if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (dimension === "campaign") {
+  if (dim.campaigns) {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
+  }
+  if (dim.parents) {
+    q = q.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
   }
   if (needsAngleJoin) {
     q = q.innerJoin(
@@ -1082,7 +1133,7 @@ export async function creativeDimensionWindows(
   }
   const rows = (await q
     .where(and(...conditions))
-    .groupBy(performanceRecords.creativeId, dimCol)) as Array<Record<string, unknown>>;
+    .groupBy(performanceRecords.creativeId, ...dim.groupBy)) as Array<Record<string, unknown>>;
 
   const pointsFor = (id: string): CreativeDimensionPoint[] =>
     rows
@@ -1099,10 +1150,15 @@ export async function creativeDimensionWindows(
   return { selected: pointsFor("s"), windows };
 }
 
-export type BreakdownDimension = "platform" | "campaign";
+/**
+ * `campaign` is the AD SET (code's word — lib/campaign.ts "TWO LEVELS");
+ * `parent_campaign` is the CAMPAIGN above it (2026-11).
+ */
+export type BreakdownDimension = "platform" | "campaign" | "parent_campaign";
 
 export interface MetricBreakdownRow {
-  /** Platform value (e.g. "instagram") or the combined campaign name. */
+  /** Platform value (e.g. "instagram"), the ad set's stored name, or the
+   *  campaign's name (`parentCampaignKey`). */
   key: string;
   spend: number;
   conversions: number | null;
@@ -1124,15 +1180,14 @@ export async function metricBreakdown(
   filters: KpiFilters,
   dimension: BreakdownDimension,
 ): Promise<MetricBreakdownRow[]> {
-  const { conditions, needsCreativeJoin, needsAngleJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin, acct } =
     await buildBaseConditions(filters);
 
-  const dimCol: AnyPgColumn =
-    dimension === "platform" ? performanceRecords.platform : campaigns.name;
+  const dim = breakdownDim(dimension, acct);
 
   let q = db
     .select({
-      key: dimCol,
+      key: dim.key,
       spend: sumSpend,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
@@ -1145,8 +1200,11 @@ export async function metricBreakdown(
   if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (dimension === "campaign") {
+  if (dim.campaigns) {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
+  }
+  if (dim.parents) {
+    q = q.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
   }
   if (needsAngleJoin) {
     q = q.innerJoin(
@@ -1157,7 +1215,7 @@ export async function metricBreakdown(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(dimCol)
+    .groupBy(...dim.groupBy)
     .orderBy(desc(sumSpend));
 
   return rows.map((r) => ({
@@ -1195,16 +1253,15 @@ export async function metricOverTime(
     fillTo?: Partial<Record<string, string>>;
   },
 ): Promise<MetricOverTimeRow[]> {
-  const { conditions, needsCreativeJoin, needsAngleJoin } =
+  const { conditions, needsCreativeJoin, needsAngleJoin, acct } =
     await buildBaseConditions(filters);
 
-  const dimCol: AnyPgColumn =
-    dimension === "platform" ? performanceRecords.platform : campaigns.name;
+  const dim = breakdownDim(dimension, acct);
 
   let q = db
     .select({
       date: performanceRecords.date,
-      key: dimCol,
+      key: dim.key,
       spend: sumSpend,
       conversions: sumConversions,
       conversionValue: sumConversionValue,
@@ -1217,8 +1274,11 @@ export async function metricOverTime(
   if (needsCreativeJoin || needsAngleJoin) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (dimension === "campaign") {
+  if (dim.campaigns) {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
+  }
+  if (dim.parents) {
+    q = q.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
   }
   if (needsAngleJoin) {
     q = q.innerJoin(
@@ -1229,7 +1289,7 @@ export async function metricOverTime(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(performanceRecords.date, dimCol)
+    .groupBy(performanceRecords.date, ...dim.groupBy)
     .orderBy(performanceRecords.date);
 
   // Fill interior no-data days PER DIMENSION KEY (platform/campaign): 0 for
@@ -1276,23 +1336,25 @@ export async function typeDimensionSpend(
   filters: KpiFilters,
   dimension: BreakdownDimension,
 ): Promise<TypeDimensionSpendRow[]> {
-  const { conditions, needsAngleJoin } = await buildBaseConditions(filters);
+  const { conditions, needsAngleJoin, acct } = await buildBaseConditions(filters);
 
-  const dimCol: AnyPgColumn =
-    dimension === "platform" ? performanceRecords.platform : campaigns.name;
+  const dim = breakdownDim(dimension, acct);
 
   let q = db
     .select({
       type: creatives.type,
-      key: dimCol,
+      key: dim.key,
       spend: sumSpend,
     })
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .$dynamic();
 
-  if (dimension === "campaign") {
+  if (dim.campaigns) {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
+  }
+  if (dim.parents) {
+    q = q.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
   }
   if (needsAngleJoin) {
     q = q.innerJoin(
@@ -1303,7 +1365,7 @@ export async function typeDimensionSpend(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(creatives.type, dimCol);
+    .groupBy(creatives.type, ...dim.groupBy);
 
   return rows.map((r) => ({
     type: r.type as CreativeType,
@@ -1899,15 +1961,18 @@ export async function compareSideSeries(
 // Change breakdown — powers Trends → Over time ("what changed")
 // =====================================================================
 
-export type ChangeDim = "platform" | "campaign" | "creative";
+/** `campaign` = the AD SET, `parent_campaign` = the CAMPAIGN (2026-11). */
+export type ChangeDim = "platform" | "parent_campaign" | "campaign" | "creative";
 
 export interface ChangeBreakdownEntity {
-  /** platform value / campaign name / creative id, per dim. */
+  /** platform value / campaign id / ad set name / creative id, per dim. */
   key: string;
-  /** Display label (creative NAME for the creative dim). */
+  /** Display label (the NAME for the creative and campaign dims). */
   label: string;
-  /** Secondary line — the product name (creative dim only). */
+  /** Secondary line — the product (creative dim) or the ad network (campaign dim). */
   sub: string | null;
+  /** The campaign's ad network key — its page address needs it (campaign dim only). */
+  network: AdNetwork | null;
   cur: ChangeWindowSums;
   prev: ChangeWindowSums;
 }
@@ -1966,13 +2031,23 @@ export async function changeBreakdown(
       ? performanceRecords.platform
       : dim === "campaign"
         ? campaigns.name
-        : creatives.id;
+        : dim === "parent_campaign"
+          ? parentCampaigns.id
+          : creatives.id;
 
   let q = db
     .select({
       key: keyExpr,
-      label: dim === "creative" ? creatives.name : keyExpr,
+      label:
+        dim === "creative"
+          ? creatives.name
+          : dim === "parent_campaign"
+            ? parentCampaigns.name
+            : keyExpr,
       sub: dim === "creative" ? products.name : sql<string | null>`NULL`,
+      // The campaign dim's second line and page address: its ad network.
+      network:
+        dim === "parent_campaign" ? parentCampaigns.network : sql<AdNetwork | null>`NULL`,
       spendCur: spend.cur,
       spendPrev: spend.prev,
       imprCur: impressions.cur,
@@ -1995,8 +2070,14 @@ export async function changeBreakdown(
   if (joinCreatives) {
     q = q.innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId));
   }
-  if (dim === "campaign") {
+  if (dim === "campaign" || dim === "parent_campaign") {
     q = q.innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId));
+  }
+  // A CAMPAIGN is one group over every record of its ad sets — component
+  // sums, never a roll-up of the ad sets' own ratios. An ad set without a
+  // campaign yet is left out (the Campaigns list's rule).
+  if (dim === "parent_campaign") {
+    q = q.innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId));
   }
   if (dim === "creative") {
     q = q.innerJoin(products, eq(products.id, creatives.productId));
@@ -2011,7 +2092,9 @@ export async function changeBreakdown(
   const grouped =
     dim === "creative"
       ? q.groupBy(creatives.id, creatives.name, products.name)
-      : q.groupBy(keyExpr);
+      : dim === "parent_campaign"
+        ? q.groupBy(parentCampaigns.id, parentCampaigns.name, parentCampaigns.network)
+        : q.groupBy(keyExpr);
 
   const rows = await grouped.where(and(...conditions));
 
@@ -2020,7 +2103,13 @@ export async function changeBreakdown(
     rows: rows.map((r) => ({
       key: String(r.key),
       label: String(r.label),
-      sub: r.sub === null ? null : String(r.sub),
+      sub:
+        dim === "parent_campaign" && r.network
+          ? AD_NETWORK_LABEL[r.network as AdNetwork]
+          : r.sub === null
+            ? null
+            : String(r.sub),
+      network: dim === "parent_campaign" ? ((r.network as AdNetwork | null) ?? null) : null,
       cur: {
         spend: num(r.spendCur) ?? 0,
         impressions: num(r.imprCur) ?? 0,
