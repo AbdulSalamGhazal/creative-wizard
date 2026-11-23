@@ -18,7 +18,12 @@ import { ParentCampaignEditDialog } from "@/components/campaign/parent-campaign-
 import { AddAdSetDialog } from "@/components/campaign/add-ad-set-dialog";
 import { DeleteParentCampaignDialog } from "@/components/campaign/delete-parent-campaign-dialog";
 import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
-import { AD_NETWORK_LABEL, adSetLabel } from "@/lib/campaign";
+import { AD_NETWORK_LABEL, adSetLabel, networkPlatforms } from "@/lib/campaign";
+import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { RailLinks } from "@/components/layout/rail-links";
+import { CompareLink, compareHref } from "@/components/compare/compare-link";
+import { CanvasLink } from "@/components/canvas/canvas-link";
+import { canvasFocusHref } from "@/lib/canvas";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { safeDecodeURIComponent } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
@@ -89,6 +94,10 @@ export default async function ParentCampaignPage({
   const eff = await resolvePreferredRange(parsed.from, parsed.to, defaultDateRange());
   const range = { from: eff.from, to: eff.to };
   const scope = { parentId: meta.id };
+  // Compare's pickers only list the platforms that report a funnel.
+  const comparable = networkPlatforms(meta.network).some((p) =>
+    (PLATFORMS_WITH_CREATIVES as readonly string[]).includes(p),
+  );
 
   const user = await auth();
   const canDelete = user ? can(user, "campaign.delete") : false;
@@ -162,6 +171,23 @@ export default async function ParentCampaignPage({
               campaignName={meta.name}
               network={meta.network}
               prefill={prefill}
+            />
+            {/* Into Compare with the whole campaign as side A, and onto the
+                Canvas at campaign level — the ad set page's own pair. From lg
+                they live in the rail. Compare covers the platforms that
+                report a funnel, so a Google campaign has no way in. */}
+            <RailLinks
+              compare={comparable ? compareHref({ parents: meta.id }, range) : undefined}
+              canvas={canvasFocusHref({ parentCampaignId: meta.id }, range)}
+            />
+            {comparable && (
+              <CompareLink side={{ parents: meta.id }} from={range.from} to={range.to} className="lg:hidden" />
+            )}
+            <CanvasLink
+              entity={{ parentCampaignId: meta.id }}
+              from={range.from}
+              to={range.to}
+              className="lg:hidden"
             />
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter

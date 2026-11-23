@@ -6,6 +6,7 @@ import {
   creatives,
   creativeAngles,
   landingPages,
+  parentCampaigns,
   performanceRecords,
   products,
   platformEnum,
@@ -40,6 +41,7 @@ import {
   cvrComponents,
 } from "@/lib/metrics";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
+import { AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
 import {
   computeDelta,
   prevPeriod,
@@ -88,6 +90,12 @@ export interface KpiFilters {
   ownLandingPage?: boolean;
   /** Combined "Campaign ➤ Adset" values to include (used by Compare sides). */
   campaignNames?: string[];
+  /**
+   * CAMPAIGNS to include (`parent_campaigns` ids, 2026-11): every record of
+   * every ad set under them. With `campaignNames` the two AND together — the
+   * chosen ad sets INSIDE the chosen campaigns.
+   */
+  parentCampaignIds?: string[];
   includeExcluded?: boolean;
 }
 
@@ -247,6 +255,19 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
         performanceRecords.campaignId,
         campIds.map((c) => c.id),
       ),
+    );
+  }
+
+  // A whole CAMPAIGN = the records of its ad sets. A subquery, not a join (no
+  // fan-out, no second round-trip), and account-scoped on its own: an id from
+  // another brand matches no ad set here.
+  if (filters.parentCampaignIds && filters.parentCampaignIds.length > 0) {
+    conditions.push(
+      sql`${performanceRecords.campaignId} IN (
+        SELECT ${campaigns.id} FROM ${campaigns}
+        WHERE ${campaigns.accountId} = ${acct}
+          AND ${inArray(campaigns.parentId, filters.parentCampaignIds)}
+      )`,
     );
   }
 
@@ -1748,7 +1769,12 @@ async function spendPerCreative(
 
 export interface CompareDimensionRow {
   platform: Platform;
+  /** The AD SET's stored name. */
   campaign: string;
+  /** The CAMPAIGN the ad set sits under — null until the reconcile reaches it. */
+  parentId: string | null;
+  parentName: string | null;
+  parentNetwork: AdNetwork | null;
   creativeId: string;
   creativeName: string;
   productName: string;
@@ -1770,6 +1796,9 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
     .selectDistinct({
       platform: performanceRecords.platform,
       campaign: campaigns.name,
+      parentId: parentCampaigns.id,
+      parentName: parentCampaigns.name,
+      parentNetwork: parentCampaigns.network,
       creativeId: creatives.id,
       creativeName: creatives.name,
       productName: products.name,
@@ -1779,6 +1808,7 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    .leftJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
     .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
@@ -1802,6 +1832,9 @@ export async function compareDimensions(): Promise<CompareDimensionRow[]> {
   return rows.map((r) => ({
     platform: r.platform as Platform,
     campaign: r.campaign,
+    parentId: r.parentId,
+    parentName: r.parentName,
+    parentNetwork: r.parentNetwork,
     creativeId: r.creativeId,
     creativeName: r.creativeName,
     productName: r.productName,

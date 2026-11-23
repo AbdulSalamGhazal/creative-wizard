@@ -20,6 +20,7 @@ import {
 import { DateRangePicker } from "@/components/filters/date-range-picker";
 import { COMPARE_COLORS } from "@/components/charts/compare-chart";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
+import { AD_NETWORK_LABEL } from "@/lib/campaign";
 import { cn } from "@/lib/utils";
 import type { CompareDimensionRow } from "@/db/queries/performance";
 import { OWN_LANDING_PAGE, type CompareSide, type SideKey } from "@/validators/compare";
@@ -65,11 +66,16 @@ export function CompareControls({ dimensions, sides, from, to, range, includeExc
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }),
     );
   };
-  const setParam = (key: string, values: string[]) =>
+  /** One navigation for one OR several side params (a campaign pick also
+   *  prunes the ad sets it no longer contains). */
+  const setParams = (next: Record<string, string[]>) =>
     update((p) => {
-      if (values.length) p.set(key, values.join(","));
-      else p.delete(key);
+      for (const [key, values] of Object.entries(next)) {
+        if (values.length) p.set(key, values.join(","));
+        else p.delete(key);
+      }
     });
+  const setParam = (key: string, values: string[]) => setParams({ [key]: values });
   const setRange = (f: string | null, t: string | null) =>
     update((p) => {
       if (f) p.set("from", f);
@@ -87,7 +93,7 @@ export function CompareControls({ dimensions, sides, from, to, range, includeExc
   const addSideC = () => update((p) => p.set("sides", "3"));
   const removeSideC = () =>
     update((p) => {
-      ["sides", "cPlatforms", "cCampaigns", "cCreatives", "cLandingPages", "cFrom", "cTo"].forEach(
+      ["sides", "cPlatforms", "cParents", "cCampaigns", "cCreatives", "cLandingPages", "cFrom", "cTo"].forEach(
         (k) => p.delete(k),
       );
     });
@@ -117,6 +123,7 @@ export function CompareControls({ dimensions, sides, from, to, range, includeExc
             dimensions={dimensions}
             sharedRange={sharedRange}
             setParam={setParam}
+            setParams={setParams}
             setSideRange={setSideRange}
             onRemove={side.key === "c" ? removeSideC : undefined}
           />
@@ -152,6 +159,7 @@ function SideCard({
   dimensions,
   sharedRange,
   setParam,
+  setParams,
   setSideRange,
   onRemove,
 }: {
@@ -160,17 +168,48 @@ function SideCard({
   dimensions: CompareDimensionRow[];
   sharedRange: { from: string; to: string } | undefined;
   setParam: (key: string, values: string[]) => void;
+  setParams: (next: Record<string, string[]>) => void;
   setSideRange: (prefix: SideKey, f: string | null, t: string | null) => void;
   onRemove?: () => void;
 }) {
   const prefix = side.key;
   const platformOpts = uniq(dimensions.map((d) => d.platform)) as Platform[];
 
-  // Cascading: campaign options reflect the selected platforms; creative
-  // options reflect selected platforms + campaigns. Empty level = "all".
-  const campaignPool = dimensions.filter(
+  // Cascading, top to bottom: Platform → Campaign → Ad set → Creative →
+  // Landing page. Each level's options reflect what is picked above it; an
+  // empty level = "all".
+  const platformPool = dimensions.filter(
     (d) => side.platforms.length === 0 || side.platforms.includes(d.platform),
   );
+  // CAMPAIGNS (2026-11): one option per campaign, named with its network — a
+  // name is unique only per network, so the id is the value.
+  const parentSeen = new Set<string>();
+  const parentOpts: Option[] = [];
+  for (const d of platformPool) {
+    if (d.parentId === null || d.parentName === null || parentSeen.has(d.parentId)) continue;
+    parentSeen.add(d.parentId);
+    parentOpts.push({
+      value: d.parentId,
+      label: d.parentName,
+      sub: d.parentNetwork ? AD_NETWORK_LABEL[d.parentNetwork] : undefined,
+    });
+  }
+  parentOpts.sort((x, y) => x.label.localeCompare(y.label) || (x.sub ?? "").localeCompare(y.sub ?? ""));
+  /** The ad sets a set of campaigns contains (all of them when none is picked). */
+  const inParents = (parents: readonly string[]) => (d: CompareDimensionRow) =>
+    parents.length === 0 || (d.parentId !== null && parents.includes(d.parentId));
+  const toggleParent = (id: string) => {
+    const parents = toggle(side.parents, id);
+    // A picked ad set outside the campaigns now chosen would silently match
+    // nothing (the two AND together) — drop it with the pick that orphaned it.
+    const stillThere = new Set(platformPool.filter(inParents(parents)).map((d) => d.campaign));
+    setParams({
+      [`${prefix}Parents`]: parents,
+      [`${prefix}Campaigns`]: side.campaigns.filter((c) => stillThere.has(c)),
+    });
+  };
+
+  const campaignPool = platformPool.filter(inParents(side.parents));
   const campaignOpts = uniq(campaignPool.map((d) => d.campaign));
   // One campaign name belongs to exactly one platform (E060), so this is 1:1.
   const platformByCampaign = new Map<string, Platform>(
@@ -281,6 +320,15 @@ function SideCard({
         onToggle={(v) => setParam(`${prefix}Platforms`, toggle(side.platforms, v))}
       />
       <MultiSelect
+        label="Campaign"
+        options={parentOpts}
+        selected={side.parents}
+        onToggle={toggleParent}
+        // The value is an id: one that is no longer an option (deleted, or
+        // on a platform Compare doesn't cover) must not print as a uuid.
+        fallbackLabel="Unavailable campaign"
+      />
+      <MultiSelect
         label="Ad set"
         options={campaignOpts.map((c) => {
           const p = platformByCampaign.get(c);
@@ -319,13 +367,17 @@ function MultiSelect({
   options,
   selected,
   onToggle,
+  fallbackLabel,
 }: {
   label: string;
   options: Option[];
   selected: string[];
   onToggle: (v: string) => void;
+  /** Shown for a selected value that is no longer an option (default: the value). */
+  fallbackLabel?: string;
 }) {
-  const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  const labelFor = (v: string) =>
+    options.find((o) => o.value === v)?.label ?? fallbackLabel ?? v;
   const dotFor = (v: string) => options.find((o) => o.value === v)?.dot;
   const summary =
     selected.length === 0 ? "All" : selected.map(labelFor).join(", ");

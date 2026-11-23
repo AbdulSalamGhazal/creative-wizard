@@ -50,6 +50,13 @@ function csvPlatforms(s: string | undefined): Platform[] {
   return uniq(parseCsvEnum(s, platformEnum));
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ids only — a token that isn't a uuid is dropped, never sent to the query. */
+function csvUuids(s: string | undefined): string[] {
+  return csvList(s).filter((v) => UUID.test(v));
+}
+
 /**
  * The Landing page picker's "Product page" option — records whose ad name
  * carried no ` @code`. Not a uuid, so it never collides with a registered
@@ -66,7 +73,12 @@ export interface CompareSide {
   /** Display label ("Side A"). */
   label: string;
   platforms: Platform[];
-  /** Combined "Campaign ➤ Adset" values. */
+  /**
+   * CAMPAIGN ids (`parent_campaigns` rows, 2026-11) — a whole campaign, every
+   * ad set under it. Ids, not names: a name is unique only per network.
+   */
+  parents: string[];
+  /** AD SETS, by stored name (the combined "Campaign ➤ Adset" value). */
   campaigns: string[];
   /** Creative ids. */
   creatives: string[];
@@ -92,8 +104,9 @@ function sideRange(
 
 /**
  * Compare is a 2-or-3-sided comparison. Each side is defined by an independent
- * 4-level filter (Platform → Campaign → Creative → Landing page; an empty
- * level = "all") plus
+ * 5-level filter (Platform → Campaign → Ad set → Creative → Landing page; an
+ * empty level = "all"; `xParents` is the campaign, `xCampaigns` the ad set —
+ * lib/campaign.ts "TWO LEVELS") plus
  * an optional side-specific time window (`aFrom`/`aTo`, …) that overrides the
  * shared `from`/`to`. Side params are CSV in the URL. The third side renders
  * when `sides=3` or when any `c*` param carries state (so shared URLs keep
@@ -102,18 +115,21 @@ function sideRange(
 export const compareFiltersSchema = z
   .object({
     aPlatforms: z.string().optional(),
+    aParents: z.string().optional(),
     aCampaigns: z.string().optional(),
     aCreatives: z.string().optional(),
     aLandingPages: z.string().optional(),
     aFrom: z.string().optional(),
     aTo: z.string().optional(),
     bPlatforms: z.string().optional(),
+    bParents: z.string().optional(),
     bCampaigns: z.string().optional(),
     bCreatives: z.string().optional(),
     bLandingPages: z.string().optional(),
     bFrom: z.string().optional(),
     bTo: z.string().optional(),
     cPlatforms: z.string().optional(),
+    cParents: z.string().optional(),
     cCampaigns: z.string().optional(),
     cCreatives: z.string().optional(),
     cLandingPages: z.string().optional(),
@@ -149,6 +165,7 @@ export const compareFiltersSchema = z
     const mk = (
       key: SideKey,
       platforms: string | undefined,
+      parents: string | undefined,
       campaigns: string | undefined,
       creatives: string | undefined,
       landingPages: string | undefined,
@@ -160,6 +177,7 @@ export const compareFiltersSchema = z
         key,
         label: `Side ${key.toUpperCase()}`,
         platforms: csvPlatforms(platforms),
+        parents: csvUuids(parents),
         campaigns: csvList(campaigns),
         creatives: csvList(creatives),
         landingPages: csvList(landingPages),
@@ -168,20 +186,21 @@ export const compareFiltersSchema = z
       };
     };
     const sides: CompareSide[] = [
-      mk("a", v.aPlatforms, v.aCampaigns, v.aCreatives, v.aLandingPages, v.aFrom, v.aTo),
-      mk("b", v.bPlatforms, v.bCampaigns, v.bCreatives, v.bLandingPages, v.bFrom, v.bTo),
+      mk("a", v.aPlatforms, v.aParents, v.aCampaigns, v.aCreatives, v.aLandingPages, v.aFrom, v.aTo),
+      mk("b", v.bPlatforms, v.bParents, v.bCampaigns, v.bCreatives, v.bLandingPages, v.bFrom, v.bTo),
     ];
-    const c = mk("c", v.cPlatforms, v.cCampaigns, v.cCreatives, v.cLandingPages, v.cFrom, v.cTo);
+    const c = mk("c", v.cPlatforms, v.cParents, v.cCampaigns, v.cCreatives, v.cLandingPages, v.cFrom, v.cTo);
     if (v.sides === "3" || !sideIsEmpty(c) || c.from !== null) sides.push(c);
     return { sides, metrics: v.metrics, from: v.from, to: v.to };
   });
 
 /** True when a side has no selection at any level (i.e. "all data"). */
 export function sideIsEmpty(
-  s: Pick<CompareSide, "platforms" | "campaigns" | "creatives" | "landingPages">,
+  s: Pick<CompareSide, "platforms" | "parents" | "campaigns" | "creatives" | "landingPages">,
 ): boolean {
   return (
     s.platforms.length === 0 &&
+    s.parents.length === 0 &&
     s.campaigns.length === 0 &&
     s.creatives.length === 0 &&
     s.landingPages.length === 0

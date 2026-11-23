@@ -35,6 +35,7 @@ function sideFilter(
 ): KpiFilters {
   return {
     platforms: side.platforms.length ? side.platforms : undefined,
+    parentCampaignIds: side.parents.length ? side.parents : undefined,
     campaignNames: side.campaigns.length ? side.campaigns : undefined,
     creativeIds: side.creatives.length ? side.creatives : undefined,
     ...sideLandingFilter(side.landingPages),
@@ -46,6 +47,7 @@ function sideFilter(
 function sideSummary(side: CompareSide): string {
   const parts: string[] = [];
   if (side.platforms.length) parts.push(`${side.platforms.length} platform(s)`);
+  if (side.parents.length) parts.push(`${side.parents.length} campaign(s)`);
   if (side.campaigns.length) parts.push(`${side.campaigns.length} ad set(s)`);
   if (side.creatives.length) parts.push(`${side.creatives.length} creative(s)`);
   if (side.landingPages.length)
@@ -65,18 +67,21 @@ export default async function ComparePage({
   const params = await searchParams;
   const parsed = compareFiltersSchema.parse({
     aPlatforms: pickFirst(params.aPlatforms),
+    aParents: pickFirst(params.aParents),
     aCampaigns: pickFirst(params.aCampaigns),
     aCreatives: pickFirst(params.aCreatives),
     aLandingPages: pickFirst(params.aLandingPages),
     aFrom: pickFirst(params.aFrom),
     aTo: pickFirst(params.aTo),
     bPlatforms: pickFirst(params.bPlatforms),
+    bParents: pickFirst(params.bParents),
     bCampaigns: pickFirst(params.bCampaigns),
     bCreatives: pickFirst(params.bCreatives),
     bLandingPages: pickFirst(params.bLandingPages),
     bFrom: pickFirst(params.bFrom),
     bTo: pickFirst(params.bTo),
     cPlatforms: pickFirst(params.cPlatforms),
+    cParents: pickFirst(params.cParents),
     cCampaigns: pickFirst(params.cCampaigns),
     cCreatives: pickFirst(params.cCreatives),
     cLandingPages: pickFirst(params.cLandingPages),

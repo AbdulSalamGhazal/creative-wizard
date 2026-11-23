@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 /** Compare with `side` as side A over the shared window — the link and the rail's (2026-11-21). */
 export type CompareEntity =
   | { creatives: string }
+  /** An AD SET, by stored name. */
   | { campaigns: string }
+  /** A CAMPAIGN, by id — every ad set under it (2026-11). */
+  | { parents: string }
   | { landingPages: string };
 
 export function compareHref(
@@ -15,6 +18,7 @@ export function compareHref(
   const p = new URLSearchParams();
   if ("creatives" in side) p.set("aCreatives", side.creatives);
   else if ("campaigns" in side) p.set("aCampaigns", side.campaigns);
+  else if ("parents" in side) p.set("aParents", side.parents);
   else p.set("aLandingPages", side.landingPages);
   p.set("from", range.from);
   p.set("to", range.to);
@@ -33,8 +37,8 @@ export function CompareLink({
   to,
   className,
 }: {
-  /** Side A's selection: one creative (by id), one campaign (by name) or
-   *  one landing page (by id). */
+  /** Side A's selection: one creative (by id), one ad set (by name), one
+   *  campaign (by id) or one landing page (by id). */
   side: CompareEntity;
   from: string;
   to: string;
