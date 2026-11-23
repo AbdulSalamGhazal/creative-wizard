@@ -35,6 +35,7 @@ const row = (over: Partial<CreativeRecordRow> = {}): CreativeRecordRow => ({
   excludedReason: null,
   excludedAt: null,
   excludedRuleKind: null,
+  excludedRuleCampaign: null,
   excludedRuleObjective: null,
   campaignObjective: "Sales",
   importedAt: new Date("2026-10-02T08:00:00Z"),

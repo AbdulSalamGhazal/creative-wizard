@@ -265,6 +265,9 @@ export function ExclusionRulesAdmin({
                 value={picker.value}
                 onChange={picker.onChange}
                 placeholder={PICKER_PLACEHOLDER[kind]}
+                // Two campaigns may share a name across networks: the picked
+                // one keeps its network (and ad-set count) in view.
+                hintInTrigger={kind === "parent_campaign"}
               />
             )}
           </div>
@@ -446,11 +449,14 @@ function TargetPicker({
   value,
   onChange,
   placeholder,
+  hintInTrigger = false,
 }: {
   options: PickerOption[];
   value: string | null;
   onChange: (id: string | null) => void;
   placeholder: string;
+  /** Show the picked option's hint in the closed control too. */
+  hintInTrigger?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.id === value);
@@ -464,6 +470,9 @@ function TargetPicker({
           <span className={cn("truncate", selected ? "text-ink" : "text-ink-3")}>
             {selected ? selected.name : placeholder}
           </span>
+          {hintInTrigger && selected?.hint && (
+            <span className="ml-auto shrink-0 text-[11px] text-ink-2">{selected.hint}</span>
+          )}
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-3" />
         </button>
       </PopoverTrigger>

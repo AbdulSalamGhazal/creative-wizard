@@ -19,6 +19,7 @@ import {
   creatives,
   creativeAngles,
   landingPages,
+  parentCampaigns,
   performanceRecords,
   products,
   angles,
@@ -655,6 +656,8 @@ export interface CreativeRecordRow {
   /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
   excludedRuleKind: ExclusionRuleKind | null;
   excludedRuleObjective: string | null;
+  /** A whole-campaign rule's CAMPAIGN name (its own target); null otherwise. */
+  excludedRuleCampaign: string | null;
   /** Free offers (defaultHidden columns) — each a column of a row this query
    *  already joins, or a PK join off a column it already reads. */
   campaignObjective: string;
@@ -704,6 +707,7 @@ export async function creativeRecords(
       excludedAt: performanceRecords.excludedAt,
       excludedRuleKind: exclusionRules.kind,
       excludedRuleObjective: exclusionRules.objective,
+      excludedRuleCampaign: parentCampaigns.name,
       campaignObjective: campaigns.objective,
       importedAt: performanceRecords.createdAt,
       uploadFileName: uploadBatches.fileName,
@@ -719,6 +723,8 @@ export async function creativeRecords(
     // A PK join off a column the row already carries: names the rule behind a
     // rule-excluded row (R-007 — "Excluded by rule «…»", never a bare refusal).
     .leftJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
+    // …and, for a WHOLE-CAMPAIGN rule, the campaign it targets (PK join).
+    .leftJoin(parentCampaigns, eq(parentCampaigns.id, exclusionRules.parentCampaignId))
     // A PK join off a column the row already carries — the admission price
     // for a defaultHidden column (docs/decisions/tables-columns.md).
     .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
@@ -759,6 +765,7 @@ export async function creativeRecords(
     excludedAt: r.excludedAt,
     excludedRuleKind: r.excludedRuleKind ?? null,
     excludedRuleObjective: r.excludedRuleObjective ?? null,
+    excludedRuleCampaign: r.excludedRuleCampaign ?? null,
     campaignObjective: r.campaignObjective,
     importedAt: r.importedAt,
     uploadFileName: r.uploadFileName,

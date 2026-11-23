@@ -450,11 +450,14 @@ as it stood before the restructure.*
     names both ("Instagram + Facebook"); the pairing is live when it is live
     on either, each against its own platform's latest spend day; its Rate uses
     that platform's rules when it ran on one, the brand default when on two.
-  - **The node** shows the campaign's name, "N ad sets" (the registry count,
-    its objectives in the tooltip — a campaign may carry several) where an
-    ad set shows its objective, and the same status word, health and spend.
-    The inspector adds its network; "Open campaign" and a double-click go to
-    the campaign page. The second view reads "By campaign".
+  - **The node** shows the campaign's name and "Meta · N ad sets" (its
+    network and the registry count; its objectives in the tooltip — a
+    campaign may carry several) where an ad set shows its objective, and the
+    same status word, health and spend. The network is what tells two
+    same-named campaigns apart (a name is unique only per network) — the walk
+    found them distinguishable by a dot's colour alone — so the search rows
+    and the inspector (header and pairings) say it too. "Open campaign" and a
+    double-click go to the campaign page. The second view reads "By campaign".
   - **Focus across a switch:** an inspected AD SET follows up to its
     campaign, an inspected creative stays (it is drawn at both levels), a
     campaign has no one ad set to land on and clears; a chip's group focus is

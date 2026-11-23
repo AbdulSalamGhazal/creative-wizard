@@ -56,7 +56,9 @@
   CAMPAIGNS (`?level=adset` / `?dim=campaign` switch back). `lib/breakdown-level.ts`
   is the one parser for Funnel and the Dashboard.
 - **A campaign's key in a breakdown is its NAME — "Name (Network)" only when
-  the brand has that name on two networks** (`parentCampaignKey`); where a
+  the brand has that name on two networks AND the query's platform filter
+  spans more than one** (`parentCampaignKey`; pinned to one network — always
+  the case on the one-platform Dashboard — a name is already unique); where a
   key must be stable (Compare's `xParents`, Trends rows, exclusion rules,
   `?focus=p:`) it is the campaign's id.
 - **Saved views: the Campaigns list keys its own by `parent_campaigns`**
@@ -166,8 +168,15 @@ the network added only on a real collision, computed in SQL in one fragment
 so no consumer post-processes keys; Funnel's campaign row lists platforms and
 objectives instead of repeating the campaign once per platform; the campaign
 page hides Compare for Google rather than opening Compare on a side it can't
-show; an ad set's own records table says "Its campaign" for a whole-campaign
-rule (the creative page, which knows the row's ad set, names it).
+show; a record excluded by a whole-campaign rule names the campaign the rule
+targets (one PK join in the two record queries).
+
+Found in the signed-in walk, fixed before reporting: two campaigns that share
+a name across networks (Always-On on Meta and on TikTok) were told apart only
+by a dot's colour — the Canvas node, its search rows and the inspector's
+pairings now say the network, Compare's option and chip carry it ("Always-On
+(Meta)") only for such a name, and the Exclusions picker keeps the picked
+campaign's network and ad-set count in the closed control.
 
 Not built, on purpose: a campaign-level per-creative chart in Compare (a side
 is still a filter, not a new chart), and any change to `get_funnel` (it has

@@ -18,7 +18,7 @@ import {
   type CanvasLevel,
   type CanvasNode,
 } from "@/lib/canvas";
-import { AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
+import { AD_NETWORK_LABEL, isAdNetwork } from "@/lib/campaign";
 
 /**
  * The CLICK INSPECTOR — a read-only panel beside the canvas (an overlay on a
@@ -92,8 +92,8 @@ export function CanvasInspector({
               <>
                 {node.level === "campaign" && (
                   <span className="tabular-nums" title={node.objective || undefined}>
-                    {node.network && AD_NETWORK_LABEL[node.network as AdNetwork]
-                      ? `${AD_NETWORK_LABEL[node.network as AdNetwork]} · `
+                    {node.network && isAdNetwork(node.network)
+                      ? `${AD_NETWORK_LABEL[node.network]} · `
                       : ""}
                     {int(node.adSets)} ad set{node.adSets === 1 ? "" : "s"}
                   </span>
@@ -167,6 +167,11 @@ export function CanvasInspector({
                       {other.name}
                     </span>
                     <span className="block text-[11px] text-ink-2">
+                      {/* A campaign's network — two may share the name. */}
+                      {other.kind === "campaign" &&
+                        other.level === "campaign" &&
+                        other.network &&
+                        isAdNetwork(other.network) && <>{AD_NETWORK_LABEL[other.network]} · </>}
                       {edge.live
                         ? "live"
                         : edge.lastSpendDay

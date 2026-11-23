@@ -772,6 +772,8 @@ export interface CampaignRecordRow {
   /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
   excludedRuleKind: ExclusionRuleKind | null;
   excludedRuleObjective: string | null;
+  /** A whole-campaign rule's CAMPAIGN name (its own target); null otherwise. */
+  excludedRuleCampaign: string | null;
   /** Free offers (defaultHidden, 2026-11): the inner-joined creative's own
    *  columns, the row's exclusion provenance, and two PK joins off columns
    *  the row already carries (its product, its ` @code` landing page). */
@@ -816,6 +818,7 @@ export async function campaignRecords(
       excludedSource: performanceRecords.excludedSource,
       excludedRuleKind: exclusionRules.kind,
       excludedRuleObjective: exclusionRules.objective,
+      excludedRuleCampaign: parentCampaigns.name,
       creativeType: creatives.type,
       creativeStages: creatives.stages,
       creativePriority: creatives.priority,
@@ -831,6 +834,8 @@ export async function campaignRecords(
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     // PK join: names the rule behind a rule-excluded row (R-007).
     .leftJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
+    // …and, for a WHOLE-CAMPAIGN rule, the campaign it targets (PK join).
+    .leftJoin(parentCampaigns, eq(parentCampaigns.id, exclusionRules.parentCampaignId))
     // PK joins off columns the row already carries — the admission price for
     // a defaultHidden column (docs/decisions/tables-columns.md). Every
     // creative has a product, so the inner join drops nothing.
@@ -861,6 +866,7 @@ export async function campaignRecords(
     excludedSource: (r.excludedSource ?? null) as "manual" | "rule" | null,
     excludedRuleKind: r.excludedRuleKind ?? null,
     excludedRuleObjective: r.excludedRuleObjective ?? null,
+    excludedRuleCampaign: r.excludedRuleCampaign ?? null,
     creativeType: r.creativeType as CreativeType,
     // Stored unordered; presented in funnel order like every other surface.
     creativeStages: sortStages(r.creativeStages ?? []),

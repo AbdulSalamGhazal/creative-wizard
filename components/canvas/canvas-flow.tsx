@@ -69,6 +69,7 @@ import {
 } from "@/lib/canvas";
 import { Chip } from "@/components/ui/chip";
 import { LaunchedTag } from "@/components/canvas/launched-tag";
+import { AD_NETWORK_LABEL, isAdNetwork } from "@/lib/campaign";
 
 /**
  * The Network view: campaigns left, creatives right, an edge wherever a
@@ -103,6 +104,9 @@ export interface CanvasFocusRequest {
 type PlatformKey = keyof typeof PLATFORM_COLOR;
 const platformColor = (p: string) =>
   PLATFORM_COLOR[p as PlatformKey] ?? "var(--ink-3)";
+/** "Meta · " for a campaign's network; nothing when it isn't known. */
+const networkLabel = (network: string | null) =>
+  network && isAdNetwork(network) ? `${AD_NETWORK_LABEL[network]} · ` : "";
 
 const TYPE_ICON = { video: Film, image: ImageIcon, slides: Layers } as const;
 
@@ -176,14 +180,15 @@ const CampaignNodeView = memo(function CampaignNodeView({
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
           {/* An ad set carries ONE objective; a campaign's ad sets may carry
-              several, so its chip counts them instead. */}
+              several, so its chip says WHERE it runs and how many it has —
+              the network is also what tells two same-named campaigns apart. */}
           <Chip
             className="min-w-0 shrink"
             title={n.level === "campaign" ? `Registered ad sets · ${n.objective}` : undefined}
           >
             <span className="truncate tabular-nums">
               {n.level === "campaign"
-                ? `${int(n.adSets)} ad set${n.adSets === 1 ? "" : "s"}`
+                ? `${networkLabel(n.network)}${int(n.adSets)} ad set${n.adSets === 1 ? "" : "s"}`
                 : n.objective}
             </span>
           </Chip>
@@ -916,6 +921,12 @@ function Flow({
                         {n.kind === "campaign" ? (n.level === "campaign" ? "Camp" : "Ad set") : "Crtv"}
                       </span>
                       <span className="truncate">{n.name}</span>
+                      {/* Two campaigns may share a name across networks. */}
+                      {n.kind === "campaign" && n.level === "campaign" && n.network && isAdNetwork(n.network) && (
+                        <span className="ml-auto shrink-0 text-[11px] text-ink-3">
+                          {AD_NETWORK_LABEL[n.network]}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}

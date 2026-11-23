@@ -141,7 +141,8 @@ function earliestStageRank(stages: readonly string[]): number | null {
 function ruleLabelOf(r: CampaignRecordRow): string {
   return exclusionRuleLabel(
     { kind: r.excludedRuleKind, objective: r.excludedRuleObjective },
-    { creativeName: r.creativeName },
+    // A whole-campaign rule is named by the campaign it targets.
+    { creativeName: r.creativeName, parentCampaignName: r.excludedRuleCampaign },
   );
 }
 
@@ -306,10 +307,7 @@ export function CampaignRecordsTable({
               tone="warn"
               title={
                 r.excludedSource === "rule"
-                  ? `Excluded by rule «${exclusionRuleLabel(
-                      { kind: r.excludedRuleKind, objective: r.excludedRuleObjective },
-                      { creativeName: r.creativeName },
-                    )}» — manage it in Configuration → Exclusions.`
+                  ? `Excluded by rule «${ruleLabelOf(r)}» — manage it in Configuration → Exclusions.`
                   : undefined
               }
             >

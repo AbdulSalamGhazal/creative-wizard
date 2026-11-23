@@ -41,7 +41,7 @@ import {
   cvrComponents,
 } from "@/lib/metrics";
 import { PLATFORMS_WITH_CREATIVES } from "@/lib/palette";
-import { AD_NETWORKS, AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
+import { AD_NETWORKS, AD_NETWORK_LABEL, adNetwork, type AdNetwork } from "@/lib/campaign";
 import {
   computeDelta,
   prevPeriod,
@@ -317,7 +317,14 @@ async function buildBaseConditions(filters: KpiFilters): Promise<{
  * key. Read with `parent_campaigns` joined and its id, name and network in
  * the GROUP BY (`breakdownDim`).
  */
-function parentCampaignKey(acct: string): SQL<string> {
+function parentCampaignKey(acct: string, platforms?: readonly string[]): SQL<string> {
+  // Scoped to ONE network (a platform filter that is all Meta, or one other
+  // platform — always the case on the one-platform Dashboard), a name is
+  // already unique: no suffix to compute, and none to read.
+  const networks = new Set((platforms ?? []).map((p) => adNetwork(p)));
+  if (networks.size === 1 && !networks.has(null)) {
+    return sql<string>`${parentCampaigns.name}::text`;
+  }
   const networkLabel = sql.join(
     AD_NETWORKS.map((n) => sql`WHEN ${n} THEN ${AD_NETWORK_LABEL[n]}`),
     sql` `,
@@ -341,6 +348,8 @@ function parentCampaignKey(acct: string): SQL<string> {
 function breakdownDim(
   dimension: BreakdownDimension,
   acct: string,
+  /** The query's platform filter — decides whether a campaign key needs its network. */
+  platforms?: readonly string[],
 ): { key: SQL<string> | AnyPgColumn; groupBy: AnyPgColumn[]; campaigns: boolean; parents: boolean } {
   if (dimension === "platform") {
     return { key: performanceRecords.platform, groupBy: [performanceRecords.platform], campaigns: false, parents: false };
@@ -349,7 +358,7 @@ function breakdownDim(
     return { key: campaigns.name, groupBy: [campaigns.name], campaigns: true, parents: false };
   }
   return {
-    key: parentCampaignKey(acct),
+    key: parentCampaignKey(acct, platforms),
     groupBy: [parentCampaigns.id, parentCampaigns.name, parentCampaigns.network],
     campaigns: true,
     parents: true,
@@ -1105,7 +1114,7 @@ export async function creativeDimensionWindows(
     })),
   ];
 
-  const dim = breakdownDim(dimension, acct);
+  const dim = breakdownDim(dimension, acct, filters.platforms);
   const columns: Record<string, SQL | AnyPgColumn> = {
     creativeId: performanceRecords.creativeId,
     key: dim.key,
@@ -1183,7 +1192,7 @@ export async function metricBreakdown(
   const { conditions, needsCreativeJoin, needsAngleJoin, acct } =
     await buildBaseConditions(filters);
 
-  const dim = breakdownDim(dimension, acct);
+  const dim = breakdownDim(dimension, acct, filters.platforms);
 
   let q = db
     .select({
@@ -1256,7 +1265,7 @@ export async function metricOverTime(
   const { conditions, needsCreativeJoin, needsAngleJoin, acct } =
     await buildBaseConditions(filters);
 
-  const dim = breakdownDim(dimension, acct);
+  const dim = breakdownDim(dimension, acct, filters.platforms);
 
   let q = db
     .select({
@@ -1338,7 +1347,7 @@ export async function typeDimensionSpend(
 ): Promise<TypeDimensionSpendRow[]> {
   const { conditions, needsAngleJoin, acct } = await buildBaseConditions(filters);
 
-  const dim = breakdownDim(dimension, acct);
+  const dim = breakdownDim(dimension, acct, filters.platforms);
 
   let q = db
     .select({

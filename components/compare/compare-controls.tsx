@@ -194,7 +194,17 @@ function SideCard({
       sub: d.parentNetwork ? AD_NETWORK_LABEL[d.parentNetwork] : undefined,
     });
   }
-  parentOpts.sort((x, y) => x.label.localeCompare(y.label) || (x.sub ?? "").localeCompare(y.sub ?? ""));
+  // A name on two networks would read as one campaign in the summary and the
+  // chips (they show the label alone) — so only THOSE carry their network.
+  const nameCount = new Map<string, number>();
+  for (const o of parentOpts) nameCount.set(o.label, (nameCount.get(o.label) ?? 0) + 1);
+  for (const o of parentOpts) {
+    if ((nameCount.get(o.label) ?? 0) > 1 && o.sub) {
+      o.label = `${o.label} (${o.sub})`;
+      o.sub = undefined; // said once
+    }
+  }
+  parentOpts.sort((x, y) => x.label.localeCompare(y.label));
   /** The ad sets a set of campaigns contains (all of them when none is picked). */
   const inParents = (parents: readonly string[]) => (d: CompareDimensionRow) =>
     parents.length === 0 || (d.parentId !== null && parents.includes(d.parentId));

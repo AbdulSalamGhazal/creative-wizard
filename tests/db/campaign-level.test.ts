@@ -171,10 +171,23 @@ describe("the campaign breakdown dimension (Dashboard, MCP)", () => {
   it("pinned to one platform it is that platform's share — and the plain name", async () => {
     const rows = await metricBreakdown({ ...JAN, platforms: ["facebook"] }, "parent_campaign");
     const byKey = new Map(rows.map((r) => [r.key, r.spend]));
-    // The brand still has two "Multi" campaigns, so the key says which.
-    expect(byKey.get("Multi (Meta)")).toBe(300);
+    // One network in scope: a name is unique there, so it needs no suffix —
+    // though the brand has a TikTok campaign of the same name.
+    expect(byKey.get("Multi")).toBe(300);
     expect(byKey.get("Camp Two")).toBe(200);
-    expect(byKey.has("Multi (TikTok)")).toBe(false);
+    expect([...byKey.keys()].some((k) => k.includes("("))).toBe(false);
+    // Instagram + Facebook is still ONE network (Meta).
+    const meta = await metricBreakdown(
+      { ...JAN, platforms: ["instagram", "facebook"] },
+      "parent_campaign",
+    );
+    expect(meta.find((r) => r.key === "Multi")!.spend).toBe(400);
+    // Two networks in scope: the collision is real again.
+    const both = await metricBreakdown(
+      { ...JAN, platforms: ["facebook", "tiktok"] },
+      "parent_campaign",
+    );
+    expect(both.map((r) => r.key).sort()).toEqual(["Camp Two", "Multi (Meta)", "Multi (TikTok)"]);
   });
 
   it("includes excluded records only when asked", async () => {
