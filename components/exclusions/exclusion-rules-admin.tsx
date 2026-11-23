@@ -37,7 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { int, isoDate, plural } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
-import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { AD_NETWORK_LABEL, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import type { ExclusionRuleKind } from "@/lib/exclusion-rules";
 import {
   previewExclusionRule,
@@ -56,10 +56,19 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import { panelClass } from "@/components/ui/panel";
 
+// The picker's order: widest net first.
 const KIND_LABEL: Record<ExclusionRuleKind, string> = {
   campaign_objective: "Ad set objective",
+  parent_campaign: "Whole campaign",
   campaign: "Specific ad set",
   creative: "Specific creative",
+};
+
+/** The search picker's own words, per kind that uses one. */
+const PICKER_PLACEHOLDER: Record<Exclude<ExclusionRuleKind, "campaign_objective">, string> = {
+  parent_campaign: "Search campaigns…",
+  campaign: "Search ad sets…",
+  creative: "Search creatives…",
 };
 
 interface PickerOption {
@@ -80,10 +89,14 @@ type PendingAction =
  */
 export function ExclusionRulesAdmin({
   rules,
+  parentCampaigns,
   campaigns,
   creatives,
 }: {
   rules: ExclusionRuleRow[];
+  /** CAMPAIGNS (2026-11) — the hint carries the network and the ad-set count. */
+  parentCampaigns: PickerOption[];
+  /** AD SETS (the stored word is "campaign"). */
   campaigns: PickerOption[];
   creatives: PickerOption[];
 }) {
@@ -94,6 +107,7 @@ export function ExclusionRulesAdmin({
   const [objective, setObjective] = useState<string>("");
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [creativeId, setCreativeId] = useState<string | null>(null);
+  const [parentCampaignId, setParentCampaignId] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -104,9 +118,11 @@ export function ExclusionRulesAdmin({
     objective: kind === "campaign_objective" ? objective || null : null,
     campaignId: kind === "campaign" ? campaignId : null,
     creativeId: kind === "creative" ? creativeId : null,
+    parentCampaignId: kind === "parent_campaign" ? parentCampaignId : null,
   };
   const targetChosen =
     (kind === "campaign_objective" && !!objective) ||
+    (kind === "parent_campaign" && !!parentCampaignId) ||
     (kind === "campaign" && !!campaignId) ||
     (kind === "creative" && !!creativeId);
 
@@ -114,8 +130,19 @@ export function ExclusionRulesAdmin({
     setObjective("");
     setCampaignId(null);
     setCreativeId(null);
+    setParentCampaignId(null);
     setNote("");
   };
+
+  /** The search picker of the kinds that have one — its options and its value. */
+  const picker =
+    kind === "parent_campaign"
+      ? { options: parentCampaigns, value: parentCampaignId, onChange: setParentCampaignId }
+      : kind === "campaign"
+        ? { options: campaigns, value: campaignId, onChange: setCampaignId }
+        : { options: creatives, value: creativeId, onChange: setCreativeId };
+  /** A whole-campaign rule's reach is the one thing the preview can't show. */
+  const pendingKind = pending ? (pending.mode === "create" ? kind : pending.rule.kind) : null;
 
   const openDialog = (action: PendingAction) => {
     setAcked(false);
@@ -234,12 +261,10 @@ export function ExclusionRulesAdmin({
               </Select>
             ) : (
               <TargetPicker
-                options={kind === "campaign" ? campaigns : creatives}
-                value={kind === "campaign" ? campaignId : creativeId}
-                onChange={kind === "campaign" ? setCampaignId : setCreativeId}
-                placeholder={
-                  kind === "campaign" ? "Search ad sets…" : "Search creatives…"
-                }
+                options={picker.options}
+                value={picker.value}
+                onChange={picker.onChange}
+                placeholder={PICKER_PLACEHOLDER[kind]}
               />
             )}
           </div>
@@ -270,7 +295,7 @@ export function ExclusionRulesAdmin({
         <EmptyState
           icon={<ShieldOff className="h-5 w-5" />}
           title="No exclusion rules yet."
-          hint="A rule keeps everything matching an ad set objective, an ad set, or a creative out of every aggregate — including future uploads — until you deactivate it."
+          hint="A rule keeps everything matching an ad set objective, a campaign, an ad set, or a creative out of every aggregate — including future uploads — until you deactivate it."
         />
       ) : (
         <div className="divide-y divide-line rounded-lg border border-line bg-surface">
@@ -282,6 +307,10 @@ export function ExclusionRulesAdmin({
                   <span className={cn("truncate text-sm", r.active ? "text-ink" : "text-ink-3")}>
                     {r.kind === "campaign_objective" ? r.objective : (r.targetLabel ?? "—")}
                   </span>
+                  {/* A campaign name is unique only per network — say which. */}
+                  {r.targetNetwork && (
+                    <span className="text-xs text-ink-2">{AD_NETWORK_LABEL[r.targetNetwork]}</span>
+                  )}
                   {!r.active && (
                     <Chip>Inactive</Chip>
                   )}
@@ -355,8 +384,10 @@ export function ExclusionRulesAdmin({
                         </>
                       )}{" "}
                       from every aggregate, for everyone — and future uploads
-                      that match will arrive excluded. Manually-excluded records
-                      are not touched.
+                      that match will arrive excluded
+                      {pendingKind === "parent_campaign" &&
+                        ", including ad sets added to this campaign later"}
+                      . Manually-excluded records are not touched.
                     </>
                   ) : (
                     <>

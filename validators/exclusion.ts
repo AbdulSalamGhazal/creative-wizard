@@ -23,6 +23,8 @@ export const exclusionRuleTargetSchema = z
     objective: z.enum(CAMPAIGN_OBJECTIVES).nullish(),
     campaignId: z.string().uuid().nullish(),
     creativeId: z.string().uuid().nullish(),
+    /** A whole CAMPAIGN (`parent_campaigns`); `campaignId` is one ad set. */
+    parentCampaignId: z.string().uuid().nullish(),
   })
   .transform(
     (t): ExclusionRuleTarget => ({
@@ -30,6 +32,7 @@ export const exclusionRuleTargetSchema = z
       objective: t.objective ?? null,
       campaignId: t.campaignId ?? null,
       creativeId: t.creativeId ?? null,
+      parentCampaignId: t.parentCampaignId ?? null,
     }),
   );
 

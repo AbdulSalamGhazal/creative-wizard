@@ -45,7 +45,10 @@ import {
 } from "@/lib/metrics";
 import { getActiveAccountId } from "@/lib/tenant";
 import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
-import { deleteRulesTargetingCampaigns } from "@/db/queries/exclusion-rules";
+import {
+  deleteRulesTargetingCampaigns,
+  deleteRulesTargetingParentCampaign,
+} from "@/db/queries/exclusion-rules";
 import type { CampaignStatus } from "@/lib/campaign-status";
 import { numOrNull } from "@/db/queries/values";
 import { fillDailyGaps } from "@/lib/time-series";
@@ -76,6 +79,39 @@ export async function listPaletteParentCampaigns(limit = 500): Promise<PalettePa
     .where(eq(parentCampaigns.accountId, acct))
     .orderBy(asc(parentCampaigns.name), asc(parentCampaigns.network))
     .limit(limit);
+}
+
+/** One campaign as a picker lists it: its id, its network, how many ad sets. */
+export interface ParentCampaignOption {
+  id: string;
+  name: string;
+  network: AdNetwork;
+  adSets: number;
+}
+
+/**
+ * The active brand's campaigns for a picker (the Exclusions rule form) — the
+ * REGISTRY, so a campaign with no records yet can be chosen too. The ad-set
+ * count is a LEFT JOIN on the registry, never a scan of the records.
+ */
+export async function listParentCampaignOptions(): Promise<ParentCampaignOption[]> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({
+      id: parentCampaigns.id,
+      name: parentCampaigns.name,
+      network: parentCampaigns.network,
+      adSets: sql<number>`COUNT(${campaigns.id})::int`,
+    })
+    .from(parentCampaigns)
+    .leftJoin(
+      campaigns,
+      and(eq(campaigns.parentId, parentCampaigns.id), eq(campaigns.accountId, acct)),
+    )
+    .where(eq(parentCampaigns.accountId, acct))
+    .groupBy(parentCampaigns.id, parentCampaigns.name, parentCampaigns.network)
+    .orderBy(asc(parentCampaigns.name), asc(parentCampaigns.network));
+  return rows.map((r) => ({ id: r.id, name: r.name, network: r.network, adSets: num(r.adSets) }));
 }
 
 /** One registered ad set of a campaign. */
@@ -443,7 +479,8 @@ export interface DeletedParentCampaign {
  * (production's pool is ONE connection: nothing here may reach the global
  * `db`). In order, because no FK cascades: the RECORDS of every ad set (one
  * statement), the exclusion rules targeting those ad sets, the ad sets, the
- * campaign. What the audit links to is read with two `SELECT DISTINCT` BEFORE
+ * rule targeting the campaign as a whole, the campaign. What the audit links
+ * to is read with two `SELECT DISTINCT` BEFORE
  * the delete — never a `RETURNING` of tens of thousands of rows.
  *
  * A sanctioned exit path for `performance_records` (CLAUDE.md, Database
@@ -491,6 +528,10 @@ export async function deleteParentCampaignRows(
       .delete(campaigns)
       .where(and(eq(campaigns.accountId, acct), eq(campaigns.parentId, parentId)));
   }
+  // A WHOLE-CAMPAIGN exclusion rule points at the campaign itself. Its
+  // stamped records went with the ad sets above, so nothing references the
+  // rule any more; it must go before the row it points at (no cascade).
+  await deleteRulesTargetingParentCampaign(tx, acct, parentId);
   await tx
     .delete(parentCampaigns)
     .where(and(eq(parentCampaigns.accountId, acct), eq(parentCampaigns.id, parentId)));

@@ -42,6 +42,41 @@ describe("validateRuleTarget", () => {
   });
 });
 
+describe("the whole-campaign kind (2026-11)", () => {
+  it("accepts a campaign target, and only a campaign target", () => {
+    expect(
+      validateRuleTarget(t({ kind: "parent_campaign", parentCampaignId: "p-1" })),
+    ).toBeNull();
+    // Missing its own target; or the AD SET column set instead.
+    expect(validateRuleTarget(t({ kind: "parent_campaign" }))).toMatch(/exactly one target/);
+    expect(
+      validateRuleTarget(t({ kind: "parent_campaign", campaignId: "id-1" })),
+    ).toMatch(/needs a campaign/);
+    // A campaign target on another kind is a second target, or the wrong one.
+    expect(
+      validateRuleTarget(t({ kind: "campaign", campaignId: "id-1", parentCampaignId: "p-1" })),
+    ).toMatch(/exactly one target/);
+    expect(
+      validateRuleTarget(t({ kind: "campaign", parentCampaignId: "p-1" })),
+    ).toMatch(/needs an ad set/);
+  });
+
+  it("a target that predates the kind (no parentCampaignId at all) still validates", () => {
+    expect(
+      validateRuleTarget({ kind: "campaign", objective: null, campaignId: "id-1", creativeId: null }),
+    ).toBeNull();
+  });
+
+  it("is named 'campaign' — the ad set keeps 'ad set'", () => {
+    expect(
+      ruleDescriptor(t({ kind: "parent_campaign", parentCampaignId: "p-1" }), "Ramadan Sale"),
+    ).toBe("campaign “Ramadan Sale”");
+    expect(ruleDescriptor(t({ kind: "parent_campaign", parentCampaignId: "p-1" }))).toBe(
+      "campaign “p-1”",
+    );
+  });
+});
+
 describe("ruleDescriptor", () => {
   it("names each kind, preferring the resolved label", () => {
     expect(ruleDescriptor(t({ objective: "Sales" }))).toBe("objective: Sales");

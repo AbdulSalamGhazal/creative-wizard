@@ -4,11 +4,13 @@ import {
   campaigns,
   creatives,
   exclusionRules,
+  parentCampaigns,
   performanceRecords,
   users,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
 import type { ExclusionRuleTarget } from "@/lib/exclusion-rules";
+import type { AdNetwork } from "@/lib/campaign";
 import type { TouchCollector } from "@/lib/audit-touches";
 
 /**
@@ -28,8 +30,10 @@ export interface ExclusionRuleRow extends ExclusionRuleTarget {
   note: string | null;
   createdAt: Date;
   createdByName: string | null;
-  /** Resolved campaign/creative display name (null for objective rules). */
+  /** Resolved campaign / ad set / creative display name (null for objective rules). */
   targetLabel: string | null;
+  /** A whole-campaign rule's ad network — a campaign name is unique only per network. */
+  targetNetwork: AdNetwork | null;
   /** Records currently excluded by this rule. */
   excludedCount: number;
 }
@@ -49,6 +53,17 @@ function ruleMatchConds(t: ExclusionRuleTarget, acct: string): SQL[] {
     conds.push(eq(performanceRecords.creativeId, t.creativeId));
   } else if (t.kind === "campaign" && t.campaignId) {
     conds.push(eq(performanceRecords.campaignId, t.campaignId));
+  } else if (t.kind === "parent_campaign" && t.parentCampaignId) {
+    // A whole CAMPAIGN: the records of every ad set under it — resolved at
+    // match time, so an ad set added later is covered the moment its first
+    // records land (the commit route stamps new rows against active rules).
+    conds.push(
+      sql`${performanceRecords.campaignId} IN (
+        SELECT ${campaigns.id} FROM ${campaigns}
+        WHERE ${campaigns.accountId} = ${acct}
+          AND ${campaigns.parentId} = ${t.parentCampaignId}
+      )`,
+    );
   } else if (t.kind === "campaign_objective" && t.objective) {
     conds.push(
       sql`${performanceRecords.campaignId} IN (
@@ -217,12 +232,15 @@ export async function listExclusionRules(): Promise<ExclusionRuleRow[]> {
       objective: exclusionRules.objective,
       campaignId: exclusionRules.campaignId,
       creativeId: exclusionRules.creativeId,
+      parentCampaignId: exclusionRules.parentCampaignId,
       active: exclusionRules.active,
       note: exclusionRules.note,
       createdAt: exclusionRules.createdAt,
       createdByName: users.name,
       campaignName: campaigns.name,
       creativeName: creatives.name,
+      parentCampaignName: parentCampaigns.name,
+      parentCampaignNetwork: parentCampaigns.network,
       excludedCount: sql<number>`(
         SELECT count(*)::int FROM ${performanceRecords}
         WHERE ${performanceRecords.excludedRuleId} = ${exclusionRules.id}
@@ -232,6 +250,7 @@ export async function listExclusionRules(): Promise<ExclusionRuleRow[]> {
     .leftJoin(users, eq(users.id, exclusionRules.createdByUserId))
     .leftJoin(campaigns, eq(campaigns.id, exclusionRules.campaignId))
     .leftJoin(creatives, eq(creatives.id, exclusionRules.creativeId))
+    .leftJoin(parentCampaigns, eq(parentCampaigns.id, exclusionRules.parentCampaignId))
     .where(eq(exclusionRules.accountId, acct))
     .orderBy(desc(exclusionRules.active), desc(exclusionRules.createdAt));
   return rows.map((r) => ({
@@ -240,11 +259,14 @@ export async function listExclusionRules(): Promise<ExclusionRuleRow[]> {
     objective: r.objective ?? null,
     campaignId: r.campaignId ?? null,
     creativeId: r.creativeId ?? null,
+    parentCampaignId: r.parentCampaignId ?? null,
     active: r.active,
     note: r.note ?? null,
     createdAt: r.createdAt,
     createdByName: r.createdByName ?? null,
-    targetLabel: r.campaignName ?? r.creativeName ?? null,
+    // Exactly one target is set (the CHECK), so at most one name resolves.
+    targetLabel: r.parentCampaignName ?? r.campaignName ?? r.creativeName ?? null,
+    targetNetwork: r.parentCampaignNetwork ?? null,
     excludedCount: Number(r.excludedCount ?? 0),
   }));
 }
@@ -397,6 +419,29 @@ export async function deleteRulesTargetingCampaigns(
   return deleted.length;
 }
 
+/**
+ * Delete the rule targeting a whole CAMPAIGN (`parent_campaigns` row) — for
+ * deleting that campaign, inside its transaction, AFTER its ad sets' records
+ * are gone (so no `excluded_rule_id` still references the rule) and BEFORE
+ * the campaign row itself (the FK has no cascade, on purpose).
+ */
+export async function deleteRulesTargetingParentCampaign(
+  exec: Exec,
+  acct: string,
+  parentCampaignId: string,
+): Promise<number> {
+  const deleted = await exec
+    .delete(exclusionRules)
+    .where(
+      and(
+        eq(exclusionRules.accountId, acct),
+        eq(exclusionRules.parentCampaignId, parentCampaignId),
+      ),
+    )
+    .returning({ id: exclusionRules.id });
+  return deleted.length;
+}
+
 /** The rule that excluded a record (for the manual-un-exclude guard message). */
 export async function ruleExcludingRecord(recordId: number): Promise<{
   id: string;
@@ -412,11 +457,13 @@ export async function ruleExcludingRecord(recordId: number): Promise<{
       objective: exclusionRules.objective,
       campaignName: campaigns.name,
       creativeName: creatives.name,
+      parentCampaignName: parentCampaigns.name,
     })
     .from(performanceRecords)
     .innerJoin(exclusionRules, eq(exclusionRules.id, performanceRecords.excludedRuleId))
     .leftJoin(campaigns, eq(campaigns.id, exclusionRules.campaignId))
     .leftJoin(creatives, eq(creatives.id, exclusionRules.creativeId))
+    .leftJoin(parentCampaigns, eq(parentCampaigns.id, exclusionRules.parentCampaignId))
     .where(
       and(
         eq(performanceRecords.accountId, acct),
@@ -430,6 +477,6 @@ export async function ruleExcludingRecord(recordId: number): Promise<{
     id: row.id,
     kind: row.kind,
     objective: row.objective ?? null,
-    targetLabel: row.campaignName ?? row.creativeName ?? null,
+    targetLabel: row.parentCampaignName ?? row.campaignName ?? row.creativeName ?? null,
   };
 }

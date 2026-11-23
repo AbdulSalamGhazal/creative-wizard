@@ -22,6 +22,7 @@ import {
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
+import type { ExclusionRuleKind } from "@/lib/enums";
 import {
   completeRate,
   cpa,
@@ -769,7 +770,7 @@ export interface CampaignRecordRow {
   excludedFromAggregates: boolean;
   excludedSource: "manual" | "rule" | null;
   /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
-  excludedRuleKind: "campaign_objective" | "campaign" | "creative" | null;
+  excludedRuleKind: ExclusionRuleKind | null;
   excludedRuleObjective: string | null;
   /** Free offers (defaultHidden, 2026-11): the inner-joined creative's own
    *  columns, the row's exclusion provenance, and two PK joins off columns

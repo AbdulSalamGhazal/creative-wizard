@@ -29,6 +29,7 @@ import {
   uploadBatches,
 } from "@/db/schema";
 import type { CreativeSort } from "@/validators/creative";
+import type { ExclusionRuleKind } from "@/lib/enums";
 import { getActiveAccountId } from "@/lib/tenant";
 import { shiftIso, todayIso } from "@/lib/date-presets";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
@@ -652,7 +653,7 @@ export interface CreativeRecordRow {
   excludedReason: string | null;
   excludedAt: Date | null;
   /** The rule that excluded the row (`excludedSource='rule'`), to name it. */
-  excludedRuleKind: "campaign_objective" | "campaign" | "creative" | null;
+  excludedRuleKind: ExclusionRuleKind | null;
   excludedRuleObjective: string | null;
   /** Free offers (defaultHidden columns) — each a column of a row this query
    *  already joins, or a PK join off a column it already reads. */

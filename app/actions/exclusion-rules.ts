@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { campaigns, creatives, exclusionRules } from "@/db/schema";
+import { campaigns, creatives, exclusionRules, parentCampaigns } from "@/db/schema";
 import { requirePermission } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
@@ -59,6 +59,16 @@ async function resolveTargetLabel(
       .from(campaigns)
       .where(and(eq(campaigns.accountId, acct), eq(campaigns.id, t.campaignId)))
       .limit(1);
+    return c ? { ok: true, label: c.name } : { ok: false, error: "Ad set not found." };
+  }
+  // A whole CAMPAIGN — the same ownership check: an id from another brand is
+  // simply not found.
+  if (t.kind === "parent_campaign" && t.parentCampaignId) {
+    const [c] = await db
+      .select({ name: parentCampaigns.name })
+      .from(parentCampaigns)
+      .where(and(eq(parentCampaigns.accountId, acct), eq(parentCampaigns.id, t.parentCampaignId)))
+      .limit(1);
     return c ? { ok: true, label: c.name } : { ok: false, error: "Campaign not found." };
   }
   if (t.kind === "creative" && t.creativeId) {
@@ -112,6 +122,7 @@ export async function createExclusionRule(input: unknown): Promise<RuleMutationR
           objective: target.objective as (typeof CAMPAIGN_OBJECTIVES)[number] | null,
           campaignId: target.campaignId,
           creativeId: target.creativeId,
+          parentCampaignId: target.parentCampaignId ?? null,
           note: note || null,
           createdByUserId: user.id,
         })
@@ -245,6 +256,7 @@ export async function deleteExclusionRule(input: unknown): Promise<RuleMutationR
         objective: rule.objective,
         campaignId: rule.campaignId,
         creativeId: rule.creativeId,
+        parentCampaignId: rule.parentCampaignId,
       },
       touches: mergeTouches(targetTouches(rule), touched.touches()),
     });
@@ -271,13 +283,17 @@ export async function previewExclusionRuleRemoval(
 }
 
 /**
- * A creative or campaign rule is ABOUT its target, even when no record moved
- * (a rule on a creative with no data yet) — so the target is always linked.
+ * A creative, ad set or campaign rule is ABOUT its target, even when no record
+ * moved (a rule on a creative with no data yet) — so the target is always
+ * linked. A whole-campaign rule links the CAMPAIGN; the ad sets its sweep
+ * actually flipped come from the collector.
  */
 function targetTouches(t: ExclusionRuleTarget): AuditTouches {
   return {
     creative: t.kind === "creative" && t.creativeId ? [t.creativeId] : [],
     campaign: t.kind === "campaign" && t.campaignId ? [t.campaignId] : [],
+    parent_campaign:
+      t.kind === "parent_campaign" && t.parentCampaignId ? [t.parentCampaignId] : [],
   };
 }
 

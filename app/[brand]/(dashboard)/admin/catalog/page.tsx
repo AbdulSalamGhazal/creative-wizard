@@ -13,6 +13,9 @@ import { NotificationRoutesAdmin } from "@/components/notifications/notification
 import { brandMembers, routeRecipients } from "@/db/queries/notifications";
 import { listExclusionRules } from "@/db/queries/exclusion-rules";
 import { listCampaignOptions } from "@/db/queries/campaign";
+import { listParentCampaignOptions } from "@/db/queries/parent-campaign";
+import { AD_NETWORK_LABEL } from "@/lib/campaign";
+import { plural } from "@/lib/format";
 import { listCreativeOptions } from "@/db/queries/creatives";
 import { AccessRefused } from "@/components/layout/access-refused";
 
@@ -100,14 +103,22 @@ export default async function CatalogAdminPage({ searchParams }: Props) {
  * with live counts plus the campaign/creative pickers for the add-rule flow.
  */
 async function ExclusionsTab() {
-  const [rules, ruleCampaigns, ruleCreatives] = await Promise.all([
+  const [rules, ruleParents, ruleCampaigns, ruleCreatives] = await Promise.all([
     listExclusionRules(),
+    listParentCampaignOptions(),
     listCampaignOptions(),
     listCreativeOptions(),
   ]);
   return (
     <ExclusionRulesAdmin
       rules={rules}
+      // A campaign name is unique only per network, so the hint names it —
+      // with the ad-set count, which is what the rule will cover.
+      parentCampaigns={ruleParents.map((p) => ({
+        id: p.id,
+        name: p.name,
+        hint: `${AD_NETWORK_LABEL[p.network]} · ${plural(p.adSets, "ad set")}`,
+      }))}
       campaigns={ruleCampaigns}
       creatives={ruleCreatives.map((c) => ({ id: c.id, name: c.name, hint: c.productName }))}
     />

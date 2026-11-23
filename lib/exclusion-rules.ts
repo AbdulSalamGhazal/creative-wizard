@@ -1,4 +1,5 @@
 import { isolate } from "@/lib/bidi";
+import type { ExclusionRuleKind } from "@/lib/enums";
 
 /**
  * Pure helpers for the exclusion-rules engine ("materialized with provenance"):
@@ -13,30 +14,41 @@ import { isolate } from "@/lib/bidi";
  * - Manual un-exclude refuses rows with `excluded_source='rule'`.
  */
 
-export type ExclusionRuleKind = "campaign_objective" | "campaign" | "creative";
+/** The stored vocabulary — derived, never re-listed (lib/enums.test.ts). */
+export type { ExclusionRuleKind } from "@/lib/enums";
 
-/** The target shape shared by rule rows, previews, and create inputs. */
+/**
+ * The target shape shared by rule rows, previews, and create inputs.
+ * `campaignId` is an AD SET (a `campaigns` row); `parentCampaignId` is a whole
+ * CAMPAIGN (a `parent_campaigns` row — every ad set under it, 2026-11). It is
+ * optional so a caller that predates the campaign kind still type-checks;
+ * absent reads as null.
+ */
 export interface ExclusionRuleTarget {
   kind: ExclusionRuleKind;
   objective: string | null;
   campaignId: string | null;
   creativeId: string | null;
+  parentCampaignId?: string | null;
 }
 
 /**
- * Exactly the kind-matching target column must be set (the schema can't CHECK
- * this portably; every write path validates here). Returns an error message,
- * or null when valid.
+ * Exactly the kind-matching target column must be set (the schema CHECKs it
+ * too; every write path validates here first). Returns an error message, or
+ * null when valid.
  */
 export function validateRuleTarget(t: ExclusionRuleTarget): string | null {
   const set = [
     t.objective !== null && t.objective !== undefined && t.objective !== "",
     t.campaignId != null,
     t.creativeId != null,
+    t.parentCampaignId != null,
   ].filter(Boolean).length;
   if (set !== 1) return "A rule needs exactly one target.";
   if (t.kind === "campaign_objective" && !t.objective)
     return "An objective rule needs an objective.";
+  if (t.kind === "parent_campaign" && !t.parentCampaignId)
+    return "A campaign rule needs a campaign.";
   if (t.kind === "campaign" && !t.campaignId)
     return "An ad set rule needs an ad set.";
   if (t.kind === "creative" && !t.creativeId)
@@ -46,14 +58,16 @@ export function validateRuleTarget(t: ExclusionRuleTarget): string | null {
 
 /**
  * Human descriptor for messages + audit meta, e.g. `objective: Sales`,
- * `ad set "Holiday ➤ Broad (IG)"`, `creative "URJ_VID_001"`. `targetLabel`
- * is the resolved campaign/creative name (ignored for objectives).
+ * `campaign “Holiday”`, `ad set “Holiday ➤ Broad (IG)”`,
+ * `creative “URJ_VID_001”`. `targetLabel` is the resolved campaign / ad set /
+ * creative name (ignored for objectives).
  */
 export function ruleDescriptor(
   t: ExclusionRuleTarget,
   targetLabel?: string | null,
 ): string {
   if (t.kind === "campaign_objective") return `objective: ${t.objective}`;
+  if (t.kind === "parent_campaign") return `campaign “${targetLabel ?? t.parentCampaignId}”`;
   if (t.kind === "campaign") return `ad set “${targetLabel ?? t.campaignId}”`;
   return `creative “${targetLabel ?? t.creativeId}”`;
 }

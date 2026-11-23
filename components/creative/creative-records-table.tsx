@@ -8,6 +8,7 @@ import { TABLE_KEYS } from "@/lib/table-columns";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { ExcludeRowAction } from "@/components/creative/exclude-row-action";
 import { exclusionRuleLabel } from "@/lib/exclusion-rule-label";
+import { parentOfBuiltName } from "@/lib/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { int, isoDate, pct, roas, usd } from "@/lib/format";
@@ -135,7 +136,12 @@ function exclusionSourceText(r: CreativeRecordRow): string {
 function ruleLabel(r: CreativeRecordRow): string {
   return exclusionRuleLabel(
     { kind: r.excludedRuleKind, objective: r.excludedRuleObjective },
-    { campaignName: r.campaignName },
+    {
+      campaignName: r.campaignName,
+      // A whole-campaign rule covers the campaign THIS row's ad set sits
+      // under — read off the built name, the one way to know (lib/campaign).
+      parentCampaignName: parentOfBuiltName(r.campaignName, r.platform)?.campaign,
+    },
   );
 }
 

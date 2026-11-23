@@ -1163,10 +1163,16 @@ export const exclusionRules = pgTable(
     kind: varchar("kind", { length: 24, enum: exclusionRuleKindEnum }).notNull(),
     /** kind='campaign_objective' → which objective. */
     objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum }),
-    /** kind='campaign' → which campaign. */
+    /** kind='campaign' → which AD SET (a `campaigns` row). */
     campaignId: uuid("campaign_id").references(() => campaigns.id),
     /** kind='creative' → which creative. */
     creativeId: uuid("creative_id").references(() => creatives.id),
+    /**
+     * kind='parent_campaign' → which CAMPAIGN (2026-11): the rule covers every
+     * ad set under it, the ones added later included. No cascade, like its
+     * siblings — `deleteParentCampaignRows` drops the rule in its transaction.
+     */
+    parentCampaignId: uuid("parent_campaign_id").references(() => parentCampaigns.id),
     active: boolean("active").notNull().default(true),
     note: varchar("note", { length: 200 }),
     createdByUserId: uuid("created_by_user_id")
@@ -1180,9 +1186,10 @@ export const exclusionRules = pgTable(
     oneTargetCheck: check(
       "exclusion_rules_one_target_check",
       sql`(
-        (${t.kind} = 'campaign_objective' AND ${t.objective} IS NOT NULL AND ${t.campaignId} IS NULL AND ${t.creativeId} IS NULL) OR
-        (${t.kind} = 'campaign' AND ${t.campaignId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.creativeId} IS NULL) OR
-        (${t.kind} = 'creative' AND ${t.creativeId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.campaignId} IS NULL)
+        (${t.kind} = 'campaign_objective' AND ${t.objective} IS NOT NULL AND ${t.campaignId} IS NULL AND ${t.creativeId} IS NULL AND ${t.parentCampaignId} IS NULL) OR
+        (${t.kind} = 'campaign' AND ${t.campaignId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.creativeId} IS NULL AND ${t.parentCampaignId} IS NULL) OR
+        (${t.kind} = 'creative' AND ${t.creativeId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.campaignId} IS NULL AND ${t.parentCampaignId} IS NULL) OR
+        (${t.kind} = 'parent_campaign' AND ${t.parentCampaignId} IS NOT NULL AND ${t.objective} IS NULL AND ${t.campaignId} IS NULL AND ${t.creativeId} IS NULL)
       )`,
     ),
     // One rule per target per account (partial per kind, since the target
@@ -1196,6 +1203,9 @@ export const exclusionRules = pgTable(
     accountCreativeUnique: uniqueIndex("exclusion_rules_account_creative_idx")
       .on(t.accountId, t.creativeId)
       .where(sql`${t.kind} = 'creative'`),
+    accountParentCampaignUnique: uniqueIndex("exclusion_rules_account_parent_campaign_idx")
+      .on(t.accountId, t.parentCampaignId)
+      .where(sql`${t.kind} = 'parent_campaign'`),
   }),
 );
 

@@ -29,6 +29,10 @@ export type RoleTier = (typeof roleEnum)[number];
 /** What an exclusion rule targets. */
 export const exclusionRuleKindEnum = [
   "campaign_objective",
+  // A whole CAMPAIGN (a `parent_campaigns` row, 2026-11): every ad set under
+  // it, the ones added later included. `campaign` is ONE ad set — the stored
+  // word, never renamed (lib/campaign.ts "TWO LEVELS").
+  "parent_campaign",
   "campaign",
   "creative",
 ] as const;
