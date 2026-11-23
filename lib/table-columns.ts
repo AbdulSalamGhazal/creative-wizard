@@ -29,6 +29,8 @@ export const TABLE_KEYS = {
   CAMPAIGNS: "campaigns",
   /** /store/orders → the orders table. */
   STORE_ORDERS: "store-orders",
+  /** /store/costs → the product costs table. */
+  STORE_PRODUCT_COSTS: "store-product-costs",
 
   // ── Phase 2 (2026-10): the rest of the tables ──────────────────────────
   /** Library (`/library`) — the creatives table. */

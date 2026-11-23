@@ -286,6 +286,7 @@ describe("the registry", () => {
         "recon-platforms",
         "store-insights",
         "store-orders",
+        "store-product-costs",
         "store-utm-accuracy",
         "store-utm-compare",
         "store-utm-sources",

@@ -9,6 +9,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Chip } from "@/components/ui/chip";
+import { InfoTip } from "@/components/ui/info-tip";
+import Link from "@/components/nav/link";
+import { orderProfit, type OrderProfit } from "@/store/order-profit";
 import { isoDate, sarBare } from "@/lib/format";
 import type { StoreOrderItem, StoreOrderRow } from "@/db/queries/store";
 import {
@@ -50,6 +53,7 @@ export function OrderProductsSheet({
   const linesKnown = items.every((l) => l.lineTotal !== null);
   const linesSum = items.reduce((a, l) => a + (l.lineTotal ?? 0), 0);
   const other = order && linesKnown ? Math.round((order.totalAmount - linesSum) * 100) / 100 : 0;
+  const profit = orderProfit(items);
 
   return (
     <Sheet open={order !== null} onOpenChange={(o) => !o && onClose()}>
@@ -126,10 +130,57 @@ export function OrderProductsSheet({
                   </tfoot>
                 </table>
               )}
+              {items.length > 0 && <ProfitLines profit={profit} />}
             </div>
           </>
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function ProfitLines({ profit }: { profit: OrderProfit }) {
+  if (profit.costed === 0) {
+    return (
+      <p className="mt-3 border-t border-line pt-3 text-sm text-ink-2">
+        <Link href="/store/costs" className="text-brand underline-offset-2 hover:underline">
+          Add product costs
+        </Link>{" "}
+        to see this order&rsquo;s profit.
+      </p>
+    );
+  }
+  return (
+    <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm tabular-nums">
+      <div className="flex justify-between gap-3 text-ink-2">
+        <dt>
+          Product cost
+          {profit.costed < profit.lines && (
+            <span>
+              {" "}
+              ({profit.costed} of {profit.lines} products)
+            </span>
+          )}
+        </dt>
+        <dd>{sarBare(profit.cost)}</dd>
+      </div>
+      <div className="flex justify-between gap-3">
+        <dt className="inline-flex items-center gap-1 font-semibold">
+          Gross profit
+          <InfoTip label="About gross profit">
+            Product sales before VAT minus product cost. Shipping and COD fees are not included.
+          </InfoTip>
+        </dt>
+        <dd className="font-semibold">
+          {profit.grossProfit === null ? (
+            <Link href="/store/costs" className="font-normal text-brand underline-offset-2 hover:underline">
+              Add the missing costs
+            </Link>
+          ) : (
+            sarBare(profit.grossProfit)
+          )}
+        </dd>
+      </div>
+    </dl>
   );
 }

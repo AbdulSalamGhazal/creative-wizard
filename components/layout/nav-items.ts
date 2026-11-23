@@ -29,6 +29,7 @@ import {
   Store,
   Calculator,
   Shield,
+  Receipt,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 import { NAV_ROUTE_GATES } from "@/lib/page-gates";
@@ -198,6 +199,16 @@ export const NAV_ITEMS: NavItem[] = [
     keys: "sr",
     label: "Reconciliation",
     icon: Scale,
+    group: "store",
+  },
+  {
+    // What each product costs, per unit, from a day (2026-11-23) — the COGS
+    // input. Read-open; editing needs config.store. Before the upload tool,
+    // which stays last.
+    href: "/store/costs",
+    keys: "sc",
+    label: "Product costs",
+    icon: Receipt,
     group: "store",
   },
   {

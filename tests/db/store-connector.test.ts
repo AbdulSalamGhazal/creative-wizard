@@ -53,6 +53,8 @@ import {
 } from "@/app/actions/store-upload";
 import { reconciliationByPlatform } from "@/db/queries/reconciliation";
 import { listStoreOrders, storeTopProducts } from "@/db/queries/store";
+import { listStoreProducts, listStoreProductCosts } from "@/db/queries/store-costs";
+import { deleteStoreProductCostAction, setStoreProductCost } from "@/app/actions/store-costs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { resetAndSeed } from "./fixtures";
@@ -411,7 +413,7 @@ describe("product lines", () => {
     const page = await listStoreOrders({ from: "2026-11-08", to: "2026-11-08", page: 1, sort: "order_date", dir: "desc" });
     expect(page.rows).toHaveLength(1);
     const items = Object.values(page.itemsByOrder).flat();
-    expect(items).toEqual([{ sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotal: 299 }]);
+    expect(items).toEqual([{ sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotal: 299, unitCost: null }]);
 
     await db.delete(storeOrders).where(eq(storeOrders.accountId, ACCOUNT_A));
     const left = await db.select({ a: storeOrderItems.accountId }).from(storeOrderItems);
@@ -430,8 +432,8 @@ describe("product lines", () => {
     await commitStoreUpload(csvForm(`${HEAD.join(",")}\n7033,2026-11-08,10,tiktok,web,X\n`));
     const top = await storeTopProducts("2026-11-08", "2026-11-08");
     expect(top.rows).toEqual([
-      { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 4, orders: 2, sales: 1196 },
-      { sku: "A010-Black", name: "Strap", quantity: 2, orders: 1, sales: 98 },
+      { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 4, orders: 2, sales: 1196, cogs: 0, unitsWithoutCost: 4, grossProfit: null },
+      { sku: "A010-Black", name: "Strap", quantity: 2, orders: 1, sales: 98, cogs: 0, unitsWithoutCost: 2, grossProfit: null },
     ]);
     expect(top.ordersWithoutProducts).toBe(1);
   });
@@ -484,5 +486,87 @@ describe("every Salla field", () => {
     expect(after).not.toHaveProperty("coupon_code");
     expect(after).not.toHaveProperty("city");
     expect(after.notes).toBe("keep me");
+  });
+});
+
+describe("product costs and COGS", () => {
+  const watch = { sku: "S005-Black", name: "Ultra 3", quantity: 1, total: 299 };
+  const onDay = (ref: string, day: string, items: unknown[], store = "urjwan") => {
+    const e = event(store, ref, { updated: `${day}T21:00:00+03:00`, items });
+    (e.data.order as Record<string, unknown>).created_at = `${day}T20:00:00+03:00`;
+    return e;
+  };
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM store_product_costs`);
+  });
+
+  it("an order line costs what was in force on the order's date", async () => {
+    await ingestConnectorEvents(
+      [
+        onDay("9101", "2026-10-31", [watch]),
+        onDay("9102", "2026-11-08", [watch]),
+        onDay("9103", "2026-11-10", [{ ...watch, quantity: 2, total: 598 }]),
+      ],
+      "webhook", "live",
+    );
+    expect(await setStoreProductCost({ productKey: "S005-Black", unitCost: "80", effectiveFrom: "2026-11-01" })).toEqual({ ok: true });
+    expect(await setStoreProductCost({ productKey: "S005-Black", unitCost: "90.5", effectiveFrom: "2026-11-09" })).toEqual({ ok: true });
+
+    const page = await listStoreOrders({ from: "2026-10-01", to: "2026-11-30", page: 1, sort: "order_date", dir: "asc" });
+    const costOf = (orderId: string) => {
+      const row = page.rows.find((r) => r.orderId === orderId)!;
+      return page.itemsByOrder[row.id]?.[0]?.unitCost;
+    };
+    expect(costOf("9101")).toBeNull(); // before any cost
+    expect(costOf("9102")).toBe(80);
+    expect(costOf("9103")).toBe(90.5);
+
+    const top = await storeTopProducts("2026-10-01", "2026-11-30");
+    expect(top.rows[0]).toMatchObject({
+      sku: "S005-Black",
+      quantity: 4,
+      cogs: 80 + 2 * 90.5,
+      unitsWithoutCost: 1,
+      // Sales before VAT of the costed lines (299 + 598 → 260 + 520) minus their cost.
+      grossProfit: 260 + 520 - (80 + 181),
+    });
+  });
+
+  it("the same day replaces its cost; a removed cost is gone; bad input is refused", async () => {
+    await ingestConnectorEvents([onDay("9110", "2026-11-08", [watch])], "webhook", "live");
+    await setStoreProductCost({ productKey: "S005-Black", unitCost: "70", effectiveFrom: "2026-11-01" });
+    await setStoreProductCost({ productKey: "S005-Black", unitCost: "75", effectiveFrom: "2026-11-01" });
+    const history = await listStoreProductCosts();
+    expect(history.map((h) => [h.effectiveFrom, h.unitCost])).toEqual([["2026-11-01", 75]]);
+
+    expect((await setStoreProductCost({ productKey: "S005-Black", unitCost: "-1", effectiveFrom: "2026-11-01" })).ok).toBe(false);
+    expect((await setStoreProductCost({ productKey: "S005-Black", unitCost: "12.345", effectiveFrom: "2026-11-01" })).ok).toBe(false);
+    expect((await setStoreProductCost({ productKey: "", unitCost: "1", effectiveFrom: "2026-11-01" })).ok).toBe(false);
+
+    expect(await deleteStoreProductCostAction({ id: history[0]!.id })).toEqual({ ok: true });
+    expect(await listStoreProductCosts()).toEqual([]);
+    expect((await deleteStoreProductCostAction({ id: history[0]!.id })).ok).toBe(false);
+  });
+
+  it("the products list is the brand's own, with today's cost; another brand's cost never applies", async () => {
+    await ingestConnectorEvents(
+      [onDay("9120", "2026-11-08", [watch, { sku: null, name: "No-SKU thing", quantity: 3, total: 30 }]), onDay("9121", "2026-11-08", [watch], "misbah")],
+      "webhook", "live",
+    );
+    await setStoreProductCost({ productKey: "No-SKU thing", unitCost: "4", effectiveFrom: "2026-11-01" });
+    vi.mocked(getActiveAccountId).mockResolvedValue(ACCOUNT_B);
+    await setStoreProductCost({ productKey: "S005-Black", unitCost: "999", effectiveFrom: "2026-11-01" });
+    vi.mocked(getActiveAccountId).mockResolvedValue(ACCOUNT_A);
+
+    const products = await listStoreProducts("2026-11-23");
+    expect(products.map((p) => [p.productKey, p.currentCost])).toEqual(
+      expect.arrayContaining([
+        ["S005-Black", null],
+        ["No-SKU thing", 4],
+      ]),
+    );
+    expect(products).toHaveLength(2);
+    const page = await listStoreOrders({ from: "2026-11-08", to: "2026-11-08", page: 1, sort: "order_date", dir: "asc" });
+    expect(Object.values(page.itemsByOrder).flat().map((l) => l.unitCost)).toEqual([null, 4]);
   });
 });

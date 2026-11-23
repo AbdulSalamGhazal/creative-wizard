@@ -554,6 +554,13 @@
       "when": 1795424733455,
       "tag": "0078_store_feed_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1795425477841,
+      "tag": "0079_store_product_costs",
+      "breakpoints": true
     }
   ]
 }

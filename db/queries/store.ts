@@ -9,8 +9,10 @@ import {
   users,
 } from "@/db/schema";
 import { getActiveAccountId } from "@/lib/tenant";
+import { beforeVat } from "@/store/vat";
 import { isCoreKey, isSystemRequiredKey, type StoreField, type StoreFieldType } from "@/store/fields";
 import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
+import { lineUnitCost } from "@/db/queries/store-costs";
 import { CONNECTOR_OWNED_KEYS } from "@/lib/connector/map-order";
 
 /** Attribute keys an upload may not change on an order the Salla feed holds. */
@@ -130,6 +132,8 @@ export interface StoreOrderItem {
   quantity: number;
   /** The line incl. VAT, SAR; null when a foreign-currency order had no rate. */
   lineTotal: number | null;
+  /** The unit cost in force on the order's date (SAR), or null when none is entered. */
+  unitCost: number | null;
 }
 
 export interface StoreOrdersResult {
@@ -236,8 +240,10 @@ async function orderItemsFor(
       name: storeOrderItems.name,
       quantity: storeOrderItems.quantity,
       lineTotal: storeOrderItems.lineTotalSar,
+      unitCost: sql<string | null>`${lineUnitCost}`,
     })
     .from(storeOrderItems)
+    .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.storeOrderId))
     .where(
       and(
         eq(storeOrderItems.accountId, acct),
@@ -252,6 +258,7 @@ async function orderItemsFor(
       name: l.name,
       quantity: l.quantity,
       lineTotal: l.lineTotal === null ? null : Number(l.lineTotal),
+      unitCost: l.unitCost === null ? null : Number(l.unitCost),
     });
   }
   return out;
@@ -264,6 +271,12 @@ export interface StoreTopProduct {
   orders: number;
   /** Sum of line totals incl. VAT, SAR (a line with no SAR figure adds nothing). */
   sales: number;
+  /** Units × the cost in force on each order's date, over the units that HAVE a cost. */
+  cogs: number;
+  /** Units sold with no cost entered for their date — outside `cogs`. */
+  unitsWithoutCost: number;
+  /** Sales before VAT − COGS over the costed units; null when no unit has a cost. */
+  grossProfit: number | null;
 }
 
 export interface StoreTopProducts {
@@ -285,9 +298,15 @@ export async function storeTopProducts(
   const acct = await getActiveAccountId();
   const key = sql`COALESCE(${storeOrderItems.sku}, ${storeOrderItems.name})`;
   const inRange = and(eq(storeOrders.accountId, acct), between(storeOrders.orderDate, from, to));
+  // Per line: its quantity, its SAR total, and the unit cost in force.
+  const costed = sql`${storeOrderItems.quantity} * ${lineUnitCost}`;
+  const hasCost = sql`${lineUnitCost} IS NOT NULL`;
   const [rows, [bare]] = await Promise.all([
     db
       .select({
+        cogs: sql<string>`COALESCE(SUM(${costed}), 0)`,
+        unitsWithoutCost: sql<number>`COALESCE(SUM(${storeOrderItems.quantity}) FILTER (WHERE NOT (${hasCost})), 0)::int`,
+        costedSales: sql<string | null>`SUM(${storeOrderItems.lineTotalSar}) FILTER (WHERE ${hasCost})`,
         sku: sql<string | null>`MAX(${storeOrderItems.sku})`,
         name: sql<string | null>`MAX(${storeOrderItems.name})`,
         quantity: sql<number>`SUM(${storeOrderItems.quantity})::int`,
@@ -311,7 +330,13 @@ export async function storeTopProducts(
       ),
   ]);
   return {
-    rows: rows.map((r) => ({ ...r, sales: Number(r.sales) })),
+    rows: rows.map(({ costedSales, cogs, ...r }) => ({
+      ...r,
+      sales: Number(r.sales),
+      cogs: Number(cogs),
+      grossProfit:
+        costedSales === null ? null : Math.round((beforeVat(Number(costedSales)) - Number(cogs)) * 100) / 100,
+    })),
     ordersWithoutProducts: bare?.n ?? 0,
   };
 }

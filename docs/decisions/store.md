@@ -141,6 +141,20 @@
   the rest start hidden (`FEED_FIELDS_HIDDEN_BY_DEFAULT`). A key the list
   adds is a key an upload of the same name loses on feed orders: check the
   brands' upload fields before adding one.
+- **Product costs keep HISTORY** (user decision 2026-11-23):
+  `store_product_costs` holds a unit cost (SAR) per product FROM a day; a
+  line costs the row with the latest `effective_from` on or before its
+  order's date (`lineUnitCost`), so a new cost never rewrites past COGS. A
+  product is keyed like order lines are grouped: the SKU (colour included),
+  or the name when Salla sent none. Saving the same product and day replaces
+  that day's cost. Editing is `config.store`; the page is read-open.
+- **Gross profit = product sales BEFORE VAT − product cost** (user decision:
+  "the VAT isn't yours"; `store/vat.ts`, 15%). Shipping and COD fees are not
+  in it. A line with no cost is never guessed: the order panel shows the cost
+  of the costed lines and withholds the profit ("Add the missing costs");
+  the MCP reports COGS and profit over the costed units and counts the rest
+  as `units_without_cost`. Pricing's per-version unit costs are NOT read —
+  that module has no current version and keys products its own way.
 - **Salla statuses are coloured by stage** (user decision 2026-11-23):
   waiting grey · on the way (shipped, out for delivery) blue (`Chip` tone
   `info`, the theme's blue) · delivered green · refunded amber · cancelled /
@@ -475,3 +489,9 @@ products, creatives, angles and platform field mappings had gained
   Insights' "Analyze by", the CSV and the Columns menu offer them without
   crowding the table. A 30-day re-pull fills them on the orders the
   connector still holds; older orders keep what they had.
+- Product costs (2026-11-23): once every order carried its lines, the user
+  wanted Wizard to know the COGS. Chosen: a Store → Product costs page keyed
+  by SKU (the unit Salla sells), costs with "from" dates so history holds,
+  COGS and gross profit on the order panel and the MCP — not Insights or
+  Budget for now. Pricing already held unit costs, but per pricing version,
+  with optional SKUs and no "current" version, so it could not be the source.

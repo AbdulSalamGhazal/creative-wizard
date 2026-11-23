@@ -1502,6 +1502,35 @@ export const storeOrderItems = pgTable(
 );
 
 /**
+ * What a product COSTS the brand, per unit, in SAR — entered by hand on Store
+ * → Product costs (2026-11-23). A product is keyed the way order lines are
+ * grouped: its SKU (which carries the colour), or its name when Salla sent no
+ * SKU. Costs keep HISTORY: the cost of a line is the row with the latest
+ * `effective_from` on or before the order's date, so changing a cost from
+ * today never rewrites last month's COGS.
+ */
+export const storeProductCosts = pgTable(
+  "store_product_costs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    /** `store_order_items.sku`, or its `name` when the line has no SKU. */
+    productKey: text("product_key").notNull(),
+    unitCostSar: numeric("unit_cost_sar", { precision: 12, scale: 2 }).notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountKeyFromUnique: uniqueIndex("store_product_costs_account_key_from_idx").on(
+      t.accountId,
+      t.productKey,
+      t.effectiveFrom,
+    ),
+  }),
+);
+
+/**
  * Maps a RAW channel value (as found in an order's `channel` attribute) to
  * WHERE the purchase happened: exactly 'website' or 'application' (app-side
  * enum, no DB enum — the house pattern). The SECOND mapping axis, parallel to

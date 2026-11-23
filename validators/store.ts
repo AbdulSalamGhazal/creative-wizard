@@ -69,6 +69,22 @@ export const storeChannelMappingSchema = z.object({
 });
 
 /**
+ * Product costs (Store → Product costs). A cost is SAR per unit, ≥ 0, two
+ * decimals, from a day (the cost in force for every order on or after it until
+ * a later one). The product key is an order line's SKU, or its name.
+ */
+export const storeProductCostSchema = z.object({
+  productKey: z.string().trim().min(1, "Choose a product").max(500),
+  unitCost: z
+    .string()
+    .trim()
+    .regex(/^\d{1,9}(\.\d{1,2})?$/, "Enter a cost in SAR, like 84 or 84.50"),
+  effectiveFrom: z.string().date("Choose a date"),
+});
+
+export const storeProductCostDeleteSchema = z.object({ id: z.string().uuid() });
+
+/**
  * URL filters for Store Insights — the date range, the two mapped-bucket
  * filters, and the analyzed dimension. `by` is validated against the DERIVED
  * dimension list on the page (a field can be deleted), so it is a plain string
