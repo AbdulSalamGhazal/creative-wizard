@@ -47,6 +47,16 @@ export const ENTITY_ACTIVITY_ACTIONS: Record<EntityActivityType, readonly AuditA
     AUDIT_ACTIONS.CAMPAIGN_DELETE,
     ...EXCLUSION_ACTIONS,
   ],
+  // A CAMPAIGN: its own register / rename / delete, and the ad sets added to
+  // it or removed from it. An ad set's own edit or exclusion is the AD SET's
+  // history, not the campaign's.
+  parent_campaign: [
+    AUDIT_ACTIONS.PARENT_CAMPAIGN_CREATE,
+    AUDIT_ACTIONS.PARENT_CAMPAIGN_UPDATE,
+    AUDIT_ACTIONS.PARENT_CAMPAIGN_DELETE,
+    AUDIT_ACTIONS.CAMPAIGN_CREATE,
+    AUDIT_ACTIONS.CAMPAIGN_DELETE,
+  ],
   budget_month: [AUDIT_ACTIONS.BUDGET_UPDATE],
   ps_version: [
     AUDIT_ACTIONS.PS_VERSION_CREATE,
@@ -137,7 +147,8 @@ export async function entityStatusEvents(
   type: EntityActivityType,
   id: string,
 ): Promise<StatusEvent[]> {
-  if (type === "budget_month" || type === "ps_version") return [];
+  // A campaign's went-live / stopped lines are its AD SETS' — on their pages.
+  if (type === "budget_month" || type === "ps_version" || type === "parent_campaign") return [];
   const [acct, windowHours, latestDayByPlatform] = await Promise.all([
     getActiveAccountId(),
     getActiveStatusWindowHours(),

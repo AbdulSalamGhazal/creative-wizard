@@ -141,7 +141,7 @@ export default async function FunnelPage({
           </h2>
           <p className="text-[11px] text-ink-3">
             Green marks the leader per rate (lowest CPM, highest conversion
-            rates). Click a platform to expand its campaign breakdown.
+            rates). Click a platform to expand its ad set breakdown.
           </p>
         </div>
         <PlatformFunnelComparison
@@ -152,7 +152,7 @@ export default async function FunnelPage({
 
       <div className="space-y-2">
         <h2 className="text-label text-ink-3">
-          By campaign · {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
+          By ad set · {campaigns.length} ad set{campaigns.length === 1 ? "" : "s"}
         </h2>
         <AdDataGate>
           <CampaignFunnelTable rows={campaigns} from={from} to={to} />

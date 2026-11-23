@@ -301,7 +301,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className={pillClass(campaignNames.length > 0)}>
-              <span className="text-ink-3">Campaigns</span>
+              <span className="text-ink-3">Ad sets</span>
               <span className="text-ink max-w-[160px] truncate">
                 {campaignLabel}
               </span>
@@ -314,9 +314,9 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
                 value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
               }
             >
-              <CommandInput placeholder="Search campaigns…" />
+              <CommandInput placeholder="Search ad sets…" />
               <CommandList className="max-h-72">
-                <CommandEmpty>No campaigns found.</CommandEmpty>
+                <CommandEmpty>No ad sets found.</CommandEmpty>
                 {campaigns.map((name) => {
                   const checked = campaignNames.includes(name);
                   return (

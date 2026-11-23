@@ -18,9 +18,9 @@ export function exclusionRuleLabel(
 ): string {
   switch (rule.kind) {
     case "campaign_objective":
-      return rule.objective ? `Objective ${rule.objective}` : "Campaign objective";
+      return rule.objective ? `Objective ${rule.objective}` : "Ad set objective";
     case "campaign":
-      return ctx.campaignName ? `Campaign «${ctx.campaignName}»` : "This campaign";
+      return ctx.campaignName ? `Ad set «${ctx.campaignName}»` : "This ad set";
     case "creative":
       return ctx.creativeName ? `Creative «${ctx.creativeName}»` : "This creative";
     default:

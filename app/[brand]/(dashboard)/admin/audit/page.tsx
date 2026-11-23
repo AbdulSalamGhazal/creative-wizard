@@ -22,7 +22,8 @@ export const dynamic = "force-dynamic";
  */
 const CATEGORY_LABELS: Record<AuditEntityType, string> = {
   creative: "Creatives",
-  campaign: "Campaigns",
+  campaign: "Ad sets",
+  parent_campaign: "Campaigns",
   product: "Products",
   landing_page: "Landing pages",
   angle: "Angles",

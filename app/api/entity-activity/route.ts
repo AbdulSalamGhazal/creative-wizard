@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 const AUDIT_ENTITY_OF = {
   creative: "creative",
   campaign: "campaign",
+  parent_campaign: "parent_campaign",
   budget_month: "budget",
   ps_version: "price_structure",
   landing_page: "landing_page",

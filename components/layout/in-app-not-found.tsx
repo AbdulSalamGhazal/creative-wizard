@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 const SEGMENTS: Array<{ prefix: string; title: string; href: string; label: string }> = [
   { prefix: "/library/", title: "This creative isn’t here", href: "/library", label: "Back to Library" },
   { prefix: "/campaigns/", title: "This campaign isn’t here", href: "/campaigns", label: "Back to Campaigns" },
+  { prefix: "/ad-sets/", title: "This ad set isn’t here", href: "/ad-sets", label: "Back to Ad sets" },
 ];
 
 /**

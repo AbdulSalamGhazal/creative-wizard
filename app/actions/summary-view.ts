@@ -10,6 +10,7 @@ import { createSummaryViewSchema } from "@/validators/summary-view";
 import { AUDIT_ACTIONS, logAudit } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 import { actionError } from "@/lib/action-error";
+import { SAVED_VIEW_PATH } from "@/lib/saved-view-href";
 
 /**
  * The route a saved view's internal `page` key lives on. The Library's views
@@ -18,7 +19,9 @@ import { actionError } from "@/lib/action-error";
  * stub, so revalidating it refreshed nothing (W3-7).
  */
 function viewPagePath(page: string): string {
-  return page === "creatives" ? "/library" : `/${page}`;
+  // The stored keys keep their names; the pages moved: "creatives" is the
+  // Library, and "campaigns" is the AD SETS list (2026-11, lib/campaign.ts).
+  return SAVED_VIEW_PATH[page] ?? `/${page}`;
 }
 
 export interface ViewMutationResult {
@@ -55,7 +58,7 @@ export async function createSummaryView(
         .returning({ id: summaryViews.id });
 
       try {
-        // Views live on /summary, /campaigns and /creatives — revalidate the
+        // Views live on /summary, /ad-sets and /library — revalidate the
         // page this view belongs to, not always /summary.
         revalidatePath(viewPagePath(page));
       } catch (err) {

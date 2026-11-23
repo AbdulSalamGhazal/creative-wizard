@@ -13,6 +13,7 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import type { CampaignFunnelRow } from "@/db/queries/funnel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { withDateRange } from "@/lib/url";
+import { adSetPath } from "@/lib/campaign";
 import { TotalLabel } from "@/components/ui/total-label";
 
 export type SortKey =
@@ -182,7 +183,7 @@ export function CampaignFunnelTable({
     return [
       {
         key: "campaign",
-        label: "Campaign",
+        label: "Ad set",
         align: "left",
         sortable: true,
         pinned: true,
@@ -202,7 +203,7 @@ export function CampaignFunnelTable({
         total: () => <TotalLabel className="text-ink" />,
         csv: (r) => r.campaign,
         // Drill-down to the campaign's page with this range (R-015).
-        href: (r) => withDateRange(`/campaigns/${encodeURIComponent(r.campaign)}`, from, to),
+        href: (r) => withDateRange(adSetPath(r.campaign), from, to),
       },
       {
         key: "platform",
@@ -325,7 +326,7 @@ export function CampaignFunnelTable({
       {...cols.tableProps}
       showTotals
       minWidthClass="min-w-max"
-      empty={<EmptyState title="No campaign activity in this window." kind="filtered" />}
+      empty={<EmptyState title="No ad set activity in this window." kind="filtered" />}
     />
   );
 }

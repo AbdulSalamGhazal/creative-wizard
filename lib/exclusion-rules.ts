@@ -38,7 +38,7 @@ export function validateRuleTarget(t: ExclusionRuleTarget): string | null {
   if (t.kind === "campaign_objective" && !t.objective)
     return "An objective rule needs an objective.";
   if (t.kind === "campaign" && !t.campaignId)
-    return "A campaign rule needs a campaign.";
+    return "An ad set rule needs an ad set.";
   if (t.kind === "creative" && !t.creativeId)
     return "A creative rule needs a creative.";
   return null;
@@ -46,7 +46,7 @@ export function validateRuleTarget(t: ExclusionRuleTarget): string | null {
 
 /**
  * Human descriptor for messages + audit meta, e.g. `objective: Sales`,
- * `campaign "Holiday ➤ Broad (IG)"`, `creative "URJ_VID_001"`. `targetLabel`
+ * `ad set "Holiday ➤ Broad (IG)"`, `creative "URJ_VID_001"`. `targetLabel`
  * is the resolved campaign/creative name (ignored for objectives).
  */
 export function ruleDescriptor(
@@ -54,7 +54,7 @@ export function ruleDescriptor(
   targetLabel?: string | null,
 ): string {
   if (t.kind === "campaign_objective") return `objective: ${t.objective}`;
-  if (t.kind === "campaign") return `campaign “${targetLabel ?? t.campaignId}”`;
+  if (t.kind === "campaign") return `ad set “${targetLabel ?? t.campaignId}”`;
   return `creative “${targetLabel ?? t.creativeId}”`;
 }
 

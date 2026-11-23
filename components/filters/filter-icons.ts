@@ -102,7 +102,9 @@ function navIcon(path: string): NavIcon {
  */
 export const ANCHOR_ICONS: Readonly<Record<CommentAnchorType, NavIcon>> = {
   creative: navIcon("/library"),
-  campaign: navIcon("/campaigns"),
+  // `campaign` is the AD SET, `parent_campaign` the CAMPAIGN (lib/campaign.ts).
+  campaign: navIcon("/ad-sets"),
+  parent_campaign: navIcon("/campaigns"),
   budget_month: navIcon("/budget"),
   ps_version: navIcon("/price-structure/overview"),
   // Landing pages live in the Library (its Landing pages tab).

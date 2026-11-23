@@ -10,10 +10,26 @@ import {
 import { MetricCard, type BreakdownBar } from "@/components/overview/metric-card";
 import { seriesColor } from "@/lib/palette";
 import { int, pct, roas, usd } from "@/lib/format";
-import type {
-  CampaignAnalytics,
-  CampaignCreativeRow,
-} from "@/db/queries/campaign";
+import type { CampaignAnalytics } from "@/db/queries/campaign";
+
+/**
+ * One series of the cards' breakdown bars. On an AD SET's page it is a
+ * creative (`CampaignCreativeRow` fits as is); on a CAMPAIGN's page it is an
+ * ad set, handed in under the same keys (`creativeId` = the series id, `name`
+ * = its label) so the two pages draw the same cards (2026-11).
+ */
+export interface KpiBreakdownRow {
+  creativeId: string;
+  name: string;
+  spend: number;
+  conversions: number;
+  conversionValue: number;
+  roas: number | null;
+  cpa: number | null;
+  ctr: number | null;
+  cvr: number | null;
+}
+type CampaignCreativeRow = KpiBreakdownRow;
 
 /**
  * The campaign's headline KPIs, each broken down by creative — same card shape

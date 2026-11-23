@@ -135,7 +135,7 @@ describe("deleteCampaign — exit path 4", () => {
 
   it("another brand's campaign is not found, and its summary is empty from here", async () => {
     expect((await campaignDeletionSummary(CAMPAIGN_B)).records).toBe(0);
-    expect(await deleteCampaign(CAMPAIGN_B)).toEqual({ ok: false, error: "Campaign not found." });
+    expect(await deleteCampaign(CAMPAIGN_B)).toEqual({ ok: false, error: "Ad set not found." });
     expect(await recordIds()).toEqual([1, 2, 3, 4, 5]);
     expect(await hasCampaign(CAMPAIGN_B)).toBe(true);
   });
@@ -147,7 +147,7 @@ describe("deleteCampaign — exit path 4", () => {
   });
 
   it("rejects a non-uuid id without touching the database", async () => {
-    expect(await deleteCampaign("1 OR 1=1")).toEqual({ ok: false, error: "Invalid campaign id." });
+    expect(await deleteCampaign("1 OR 1=1")).toEqual({ ok: false, error: "Invalid ad set id." });
     expect(await deleteCreative("not-a-uuid")).toEqual({ ok: false, error: "Invalid creative id." });
     expect(await recordIds()).toEqual([1, 2, 3, 4, 5]);
   });

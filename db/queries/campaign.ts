@@ -11,6 +11,7 @@ import {
 import { db } from "@/lib/db";
 import {
   campaigns,
+  parentCampaigns,
   creatives,
   creativeTypeEnum,
   performanceRecords,
@@ -155,8 +156,19 @@ export interface CampaignPlatformGrainRow {
 // =====================================================================
 
 export interface CampaignMeta {
+  /** The ad set's registry id. */
+  id: string;
+  /** The full stored name (`Campaign ➤ Ad set (IG)`). */
   campaign: string;
+  /** The ad set's own name; null only on a row the reconcile hasn't reached. */
+  adsetName: string | null;
+  /** The platform it is registered on. */
+  platform: Platform;
   objective: string;
+  /** The CAMPAIGN it belongs to; null only on a row the reconcile hasn't reached. */
+  parent: { id: string; name: string; network: string } | null;
+  /** False until its first record — every fact below is then empty. */
+  hasRecords: boolean;
   platforms: Platform[];
   productNames: string[];
   creativeCount: number;
@@ -204,7 +216,10 @@ export async function campaignRegistry(
 }
 
 /**
- * All-time facts for one campaign. Null when the campaign has no records.
+ * One AD SET: its registry row, the campaign it sits under, and its all-time
+ * facts. REGISTRY-FIRST (2026-11): null only when the name isn't registered —
+ * an ad set with no records yet still has a page (it must be reachable to fix
+ * a typo before its first upload); its facts are then empty.
  *
  * `cache()`-wrapped so the detail page and its `generateMetadata` (which needs
  * the name for the tab title) share ONE fetch per request instead of querying
@@ -214,13 +229,27 @@ export const campaignMeta = cache(async (
   name: string,
 ): Promise<CampaignMeta | null> => {
   const acct = await getActiveAccountId();
+  const [reg] = await db
+    .select({
+      id: campaigns.id,
+      platform: campaigns.platform,
+      objective: campaigns.objective,
+      adsetName: campaigns.adsetName,
+      parentId: parentCampaigns.id,
+      parentName: parentCampaigns.name,
+      parentNetwork: parentCampaigns.network,
+    })
+    .from(campaigns)
+    // LEFT: `parent_id` is nullable until the contract migration.
+    .leftJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+    .where(and(eq(campaigns.accountId, acct), eq(campaigns.name, name)))
+    .limit(1);
+  if (!reg) return null;
+
   const [r] = await db
     .select({
-      // One campaign = one objective, so MIN just returns that single value
-      // without needing a GROUP BY alongside the aggregates.
-      objective: sql<string>`MIN(${campaigns.objective})`,
-      platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
-      productNames: sql<string[]>`array_agg(DISTINCT ${products.name})`,
+      platforms: sql<Platform[] | null>`array_agg(DISTINCT ${performanceRecords.platform})`,
+      productNames: sql<string[] | null>`array_agg(DISTINCT ${products.name})`,
       creativeCount: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
       firstDate: sql<string | null>`MIN(${performanceRecords.date})`,
       lastDate: sql<string | null>`MAX(${performanceRecords.date})`,
@@ -229,23 +258,31 @@ export const campaignMeta = cache(async (
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
-    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
     .where(
       and(
         eq(performanceRecords.accountId, acct),
-        eq(campaigns.name, name),
+        eq(performanceRecords.campaignId, reg.id),
       ),
     );
 
-  if (!r || num(r.rows) === 0) return null;
+  const hasRecords = num(r?.rows) > 0;
   return {
+    id: reg.id,
     campaign: name,
-    objective: r.objective,
-    platforms: r.platforms ?? [],
-    productNames: r.productNames ?? [],
-    creativeCount: num(r.creativeCount),
-    firstDate: r.firstDate,
-    lastDate: r.lastDate,
+    adsetName: reg.adsetName,
+    platform: reg.platform as Platform,
+    objective: reg.objective,
+    parent:
+      reg.parentId && reg.parentName !== null && reg.parentNetwork !== null
+        ? { id: reg.parentId, name: reg.parentName, network: reg.parentNetwork }
+        : null,
+    hasRecords,
+    // Before its first record an ad set is still ON its registered platform.
+    platforms: hasRecords ? (r?.platforms ?? []) : [reg.platform as Platform],
+    productNames: r?.productNames ?? [],
+    creativeCount: num(r?.creativeCount),
+    firstDate: r?.firstDate ?? null,
+    lastDate: r?.lastDate ?? null,
   };
 });
 
@@ -360,15 +397,26 @@ export interface CampaignAnalytics {
   deltas: Record<CampaignDeltaKey, Delta> | null;
 }
 
+/**
+ * WHAT a detail query is about (2026-11): ONE AD SET, by its stored name — or
+ * a whole CAMPAIGN, every ad set under one `parent_campaigns` row. Every
+ * query below joins `campaigns`, so a campaign scope is just a different
+ * predicate on that join; sums stay component sums over the records, never a
+ * roll-up of per-ad-set ratios.
+ */
+export type CampaignScope = string | { parentId: string };
+
 function detailCond(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   acct: string,
   includeExcluded?: boolean,
 ): SQL {
   const c: SQL[] = [
     eq(performanceRecords.accountId, acct),
-    eq(campaigns.name, name),
+    typeof scope === "string"
+      ? eq(campaigns.name, scope)
+      : eq(campaigns.parentId, scope.parentId),
   ];
   if (range.from && range.to) {
     c.push(between(performanceRecords.date, range.from, range.to));
@@ -428,21 +476,21 @@ async function totalsFor(cond: SQL): Promise<CampaignTotals> {
 }
 
 export async function campaignAnalytics(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignAnalytics> {
   const acct = await getActiveAccountId();
   const bounded = Boolean(range.from && range.to);
   if (!bounded) {
-    const totals = await totalsFor(detailCond(name, range, acct, includeExcluded));
+    const totals = await totalsFor(detailCond(scope, range, acct, includeExcluded));
     return { totals, deltas: null };
   }
   const prev = prevPeriod(range.from!, range.to!);
   const [totals, prior] = await Promise.all([
-    totalsFor(detailCond(name, range, acct, includeExcluded)),
+    totalsFor(detailCond(scope, range, acct, includeExcluded)),
     totalsFor(
-      detailCond(name, { from: prev.from, to: prev.to }, acct, includeExcluded),
+      detailCond(scope, { from: prev.from, to: prev.to }, acct, includeExcluded),
     ),
   ]);
   const d = (k: CampaignDeltaKey): Delta =>
@@ -485,7 +533,7 @@ export interface CampaignDailyPoint {
 }
 
 export async function campaignDaily(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignDailyPoint[]> {
@@ -507,7 +555,7 @@ export async function campaignDaily(
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-    .where(detailCond(name, range, acct, includeExcluded))
+    .where(detailCond(scope, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(asc(performanceRecords.date));
   // Insert interior no-data days (0 for sums, null for ratios) so the chart
@@ -595,7 +643,7 @@ export interface CampaignCreativeRow {
 }
 
 export async function campaignCreatives(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignCreativeRow[]> {
@@ -640,7 +688,7 @@ export async function campaignCreatives(
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(products, eq(products.id, creatives.productId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-    .where(detailCond(name, range, acct, includeExcluded))
+    .where(detailCond(scope, range, acct, includeExcluded))
     .groupBy(
       creatives.id,
       creatives.name,
@@ -739,7 +787,7 @@ export interface CampaignRecordRow {
 }
 
 export async function campaignRecords(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignRecordRow[]> {
@@ -787,7 +835,7 @@ export async function campaignRecords(
     // creative has a product, so the inner join drops nothing.
     .innerJoin(products, eq(products.id, creatives.productId))
     .leftJoin(landingPages, eq(landingPages.id, performanceRecords.landingPageId))
-    .where(detailCond(name, range, acct, includeExcluded))
+    .where(detailCond(scope, range, acct, includeExcluded))
     .orderBy(desc(performanceRecords.date), desc(performanceRecords.spend))
     .limit(2000);
   return rows.map((r) => ({
@@ -854,7 +902,7 @@ export interface CampaignDayRow {
 }
 
 export async function campaignRecordsByDay(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignDayRow[]> {
@@ -880,7 +928,7 @@ export async function campaignRecordsByDay(
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-    .where(detailCond(name, range, acct, includeExcluded))
+    .where(detailCond(scope, range, acct, includeExcluded))
     .groupBy(performanceRecords.date)
     .orderBy(desc(performanceRecords.date));
   // Fill interior no-data days with all-zero rows (everything here is a SUM /
@@ -949,7 +997,7 @@ export interface CampaignCreativeDailyPoint {
 }
 
 export async function campaignDailyByCreative(
-  name: string,
+  scope: CampaignScope,
   range: Range,
   includeExcluded?: boolean,
 ): Promise<CampaignCreativeDailyPoint[]> {
@@ -976,7 +1024,7 @@ export async function campaignDailyByCreative(
     .from(performanceRecords)
     .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-    .where(detailCond(name, range, acct, includeExcluded))
+    .where(detailCond(scope, range, acct, includeExcluded))
     .groupBy(performanceRecords.date, creatives.id, creatives.name)
     .orderBy(asc(performanceRecords.date));
   // Fill interior no-data days PER CREATIVE (each line over its own

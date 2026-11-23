@@ -158,6 +158,50 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     }
   });
 
+  it("list_campaigns keeps its ad-set grain, and rolls up per campaign on request (2026-11)", async () => {
+    const tools = loadTools();
+    const call = async (args: Record<string, unknown>) =>
+      parse(
+        await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+          tools.get("list_campaigns")!({ from: "2026-01-01", to: "2026-01-31", ...args }, {}),
+        ),
+      );
+    // Default: one row per AD SET, as always — now naming its two parts.
+    const adSets = await call({});
+    expect(adSets.level).toBe("ad_set");
+    const one = (adSets.campaigns as Array<Record<string, unknown>>).find(
+      (c) => c.campaign === "Camp One ➤ Broad (IG)",
+    )!;
+    expect(one).toMatchObject({ parent_campaign: "Camp One", ad_set: "Broad", spend: 200 });
+    // level "campaign": the campaign above it, its ad sets rolled up.
+    const campaigns = await call({ level: "campaign" });
+    expect(campaigns.level).toBe("campaign");
+    const parent = (campaigns.campaigns as Array<Record<string, unknown>>).find(
+      (c) => c.campaign === "Camp One",
+    )!;
+    expect(parent).toMatchObject({ network: "meta", ad_sets: 1, has_data: true, spend: 200 });
+    expect(parent.objectives).toEqual(["Sales"]);
+    // Another brand's campaign never appears.
+    expect(
+      (campaigns.campaigns as Array<Record<string, unknown>>).some((c) => c.campaign === "Camp B"),
+    ).toBe(false);
+  });
+
+  it("get_campaign names the campaign an ad set sits under", async () => {
+    const tools = loadTools();
+    const out = parse(
+      await runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("get_campaign")!({ name: "Camp One ➤ Broad (IG)" }, {}),
+      ),
+    );
+    expect(out.campaign).toMatchObject({
+      name: "Camp One ➤ Broad (IG)",
+      parent_campaign: "Camp One",
+      network: "meta",
+      ad_set: "Broad",
+    });
+  });
+
   it("get_canvas_patterns returns the Canvas insight strip as data", async () => {
     const tools = loadTools();
     const call = (args: Record<string, unknown>) =>

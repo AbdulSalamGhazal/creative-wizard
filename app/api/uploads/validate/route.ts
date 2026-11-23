@@ -5,6 +5,7 @@ import { can, requirePermission } from "@/lib/auth";
 import { authFailureStatus } from "@/lib/route-auth";
 import {
   campaigns,
+  parentCampaigns,
   creatives,
   landingPages,
   performanceRecords,
@@ -18,6 +19,7 @@ import { uploadTotals, type UploadTotals } from "@/csv/upload-totals";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
 import { getActiveAccountId } from "@/lib/tenant";
+import { parentKey } from "@/lib/campaign";
 import { uploadPlatformSchema } from "@/validators/upload";
 
 const VALIDATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -126,6 +128,14 @@ export async function POST(request: NextRequest) {
     .from(campaigns)
     .where(eq(campaigns.accountId, acct));
   const registeredCampaigns = new Set(allCampaigns.map((r) => r.name));
+  // …and the CAMPAIGNS those ad sets sit under (2026-11), so an unregistered
+  // row can say which level is missing: the campaign (E061) or only the ad
+  // set under a campaign that exists (E062).
+  const allParents = await db
+    .select({ network: parentCampaigns.network, name: parentCampaigns.name })
+    .from(parentCampaigns)
+    .where(eq(parentCampaigns.accountId, acct));
+  const registeredParents = new Set(allParents.map((r) => parentKey(r.network, r.name)));
 
   // Registered landing-page codes (no `@`), scoped to the active brand. A
   // row's ` @code` must be one of them (E023) — see lib/landing-code.ts.
@@ -150,6 +160,7 @@ export async function POST(request: NextRequest) {
     adapter,
     registeredNames,
     registeredCampaigns,
+    registeredParents,
     registeredLandingCodes,
     creativeProducts,
     landingPageProducts,

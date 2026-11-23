@@ -56,6 +56,7 @@ export function mergeTouches(...sets: Array<AuditTouches | null | undefined>): A
   const out: Record<AuditTouchEntity, string[]> = {
     creative: [],
     campaign: [],
+    parent_campaign: [],
     budget_month: [],
     ps_version: [],
     landing_page: [],
@@ -136,6 +137,8 @@ export function selfTouches(input: {
   if (!id) return {};
   if (input.entityType === "creative") return { creative: [id] };
   if (input.entityType === "campaign") return { campaign: [id] };
+  // A Campaign (parent_campaigns, 2026-11) — its own register / rename / delete.
+  if (input.entityType === "parent_campaign") return { parent_campaign: [id] };
   // A Price Structure version (2026-11-07) — every price_structure.* event is
   // about the version it names.
   if (input.entityType === "price_structure") return { ps_version: [id] };

@@ -196,6 +196,7 @@ describe("remembered filters are wired into every page that has them", () => {
     "app/[brand]/(dashboard)/summary/page.tsx",
     "app/[brand]/(dashboard)/library/page.tsx",
     "app/[brand]/(dashboard)/campaigns/page.tsx",
+    "app/[brand]/(dashboard)/ad-sets/page.tsx",
     "app/[brand]/(dashboard)/canvas/page.tsx",
     "app/[brand]/(dashboard)/budget/analysis/page.tsx",
   ];

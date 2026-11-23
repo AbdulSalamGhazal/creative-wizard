@@ -213,7 +213,7 @@ export async function OverviewSection({
         : k,
   }));
   const typeOverallLabel =
-    dimension === "campaign" ? dimensionLabel ?? "All campaigns" : "Overall";
+    dimension === "campaign" ? dimensionLabel ?? "All ad sets" : "Overall";
 
   // Rating-mix rows: bucket each (creative, dimension) block's SELECTED-range
   // spend by its rating — where the rating is judged over the chosen lookback

@@ -151,7 +151,7 @@ describe("what a row carries", () => {
     const rows = (await listActivity(ALL)).rows;
     expect(rows.map((r) => [r.anchorLabel, r.anchorPath])).toEqual([
       ["A-Creative-1", "/library/A-Creative-1"],
-      ["Camp One ➤ Broad (IG)", `/campaigns/${encodeURIComponent("Camp One ➤ Broad (IG)")}`],
+      ["Camp One ➤ Broad (IG)", `/ad-sets/${encodeURIComponent("Camp One ➤ Broad (IG)")}`],
       ["October 2026", "/budget?month=2026-10"],
       // An old page comment keeps its page's name and leads nowhere.
       ["Ads", null],

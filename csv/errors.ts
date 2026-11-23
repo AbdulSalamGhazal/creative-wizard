@@ -50,6 +50,10 @@ export const errorCodes = {
   // be created in the system before an upload can reference it — otherwise a
   // rename at the source would silently spawn a new campaign.
   E061: "ERROR",
+  // E062 (2026-11): the CAMPAIGN is registered, but this AD SET under it is
+  // not. Two levels, both registered by hand — the fix is "Add ad set" on that
+  // campaign's page, not a new campaign.
+  E062: "ERROR",
   W001: "WARNING",
   W002: "WARNING",
   // W003: the workbook had more than one sheet; we read the FIRST and say which.
@@ -71,4 +75,7 @@ export interface ValidationError {
   rows?: number[];
   field?: string;
   value?: string;
+  /** E062 only: the registered campaign the ad set is missing from — what the
+   *  report links to ("Add ad set" on that campaign's page). */
+  campaign?: { network: string; name: string; adSet: string };
 }

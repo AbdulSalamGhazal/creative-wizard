@@ -4,6 +4,7 @@ import {
   accounts,
   campaigns,
   creatives,
+  parentCampaigns,
   performanceRecords,
   platformEnum,
   products,
@@ -37,6 +38,10 @@ export const CREATIVE_B = "33333333-3333-3333-3333-3333333330b1"; // B
 export const CAMPAIGN_1 = "44444444-4444-4444-4444-444444444001"; // A · instagram
 export const CAMPAIGN_2 = "44444444-4444-4444-4444-444444444002"; // A · facebook
 export const CAMPAIGN_B = "44444444-4444-4444-4444-4444444440b1"; // B · instagram
+// The CAMPAIGNS (parent_campaigns) those three ad sets belong to — one each.
+export const PARENT_1 = "66666666-6666-6666-6666-666666666001"; // A · meta · "Camp One"
+export const PARENT_2 = "66666666-6666-6666-6666-666666666002"; // A · meta · "Camp Two"
+export const PARENT_B = "66666666-6666-6666-6666-6666666660b1"; // B · meta · "Camp B"
 export const BATCH_A = "55555555-5555-5555-5555-555555555001";
 const BATCH_B = "55555555-5555-5555-5555-5555555550b1";
 
@@ -79,7 +84,7 @@ export function perf(r: PerfRow) {
 export async function resetAndSeed() {
   await db.execute(sql`
     TRUNCATE TABLE
-      performance_records, upload_batches, campaigns, creatives,
+      performance_records, upload_batches, campaigns, parent_campaigns, creatives,
       products, user_accounts, accounts, users,
       store_orders, store_upload_batches, store_order_fields
     RESTART IDENTITY CASCADE
@@ -108,10 +113,16 @@ export async function resetAndSeed() {
     { id: CREATIVE_B, accountId: ACCOUNT_B, name: "B-Creative-1", productId: PRODUCT_B, type: "video", createdByUserId: USER },
   ]);
 
+  await db.insert(parentCampaigns).values([
+    { id: PARENT_1, accountId: ACCOUNT_A, name: "Camp One", network: "meta", createdByUserId: USER },
+    { id: PARENT_2, accountId: ACCOUNT_A, name: "Camp Two", network: "meta", createdByUserId: USER },
+    { id: PARENT_B, accountId: ACCOUNT_B, name: "Camp B", network: "meta", createdByUserId: USER },
+  ]);
+
   await db.insert(campaigns).values([
-    { id: CAMPAIGN_1, accountId: ACCOUNT_A, name: "Camp One ➤ Broad (IG)", platform: "instagram", objective: "Sales", createdByUserId: USER },
-    { id: CAMPAIGN_2, accountId: ACCOUNT_A, name: "Camp Two ➤ Broad (FB)", platform: "facebook", objective: "Sales", createdByUserId: USER },
-    { id: CAMPAIGN_B, accountId: ACCOUNT_B, name: "Camp B ➤ Broad (IG)", platform: "instagram", objective: "Sales", createdByUserId: USER },
+    { id: CAMPAIGN_1, accountId: ACCOUNT_A, parentId: PARENT_1, adsetName: "Broad", name: "Camp One ➤ Broad (IG)", platform: "instagram", objective: "Sales", createdByUserId: USER },
+    { id: CAMPAIGN_2, accountId: ACCOUNT_A, parentId: PARENT_2, adsetName: "Broad", name: "Camp Two ➤ Broad (FB)", platform: "facebook", objective: "Sales", createdByUserId: USER },
+    { id: CAMPAIGN_B, accountId: ACCOUNT_B, parentId: PARENT_B, adsetName: "Broad", name: "Camp B ➤ Broad (IG)", platform: "instagram", objective: "Sales", createdByUserId: USER },
   ]);
 
   await db.insert(uploadBatches).values([

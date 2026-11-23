@@ -14,7 +14,7 @@ export default async function NewCampaignPage() {
       <PageHeader
         backLink={{ href: "/campaigns", label: "Back to Campaigns" }}
         title="New campaign"
-        info="The stored name is built from Campaign + Ad Set + Platform (matching your ad-platform export), so uploads line up exactly."
+        info="A campaign and its ad sets are registered together. Each ad set is stored as Campaign ➤ Ad set (matching your ad-platform export), so uploads line up exactly."
       />
 
       <CampaignCreateForm />

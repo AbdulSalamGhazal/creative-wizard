@@ -65,7 +65,7 @@ export function SummaryCard({
         <Stat label="Creatives" value={int(summary.creatives)} />
         {summary.totals && (
           <>
-            <Stat label="Campaigns" value={int(summary.totals.campaigns)} />
+            <Stat label="Ad sets" value={int(summary.totals.campaigns)} />
             <Stat label="Spend" value={usd(summary.totals.spend)} />
             <Stat label="Conversions" value={int(summary.totals.conversions)} />
             <Stat label="Revenue" value={usd(summary.totals.revenue)} />

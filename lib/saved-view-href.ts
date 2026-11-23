@@ -13,14 +13,16 @@ import { FILTERS_EXPLICIT_PARAM, VIEW_MARKER_PARAM } from "@/validators/user-pre
 export const SAVED_VIEW_PATH: Record<string, string> = {
   summary: "/summary",
   creatives: "/library",
-  campaigns: "/campaigns",
+  // The stored key predates the two levels (2026-11): a "campaigns" view is a
+  // view of the AD SETS list, which is where that table now lives.
+  campaigns: "/ad-sets",
 };
 
 /** A view's `page` key → that page's sidebar label. */
 export const SAVED_VIEW_PAGE_LABEL: Record<string, string> = {
   summary: "Ads",
   creatives: "Library",
-  campaigns: "Campaigns",
+  campaigns: "Ad sets",
 };
 
 /** Params that are never part of a view's stored state. */

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { FormError } from "@/components/ui/form-error";
 import {
   Select,
   SelectContent,
@@ -13,102 +14,121 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
-import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
-import { createCampaign } from "@/app/actions/campaign";
+import {
+  AD_NETWORK_LABEL,
+  AD_NETWORKS,
+  campaignNameHasSeparator,
+  campaignPath,
+  isAdNetwork,
+  type AdNetwork,
+} from "@/lib/campaign";
+import { createParentCampaign } from "@/app/actions/campaign";
 import { safeAction } from "@/lib/action-failure";
 import { actionSettled } from "@/lib/router-queue";
 import { toastActionFailure } from "@/lib/action-toast";
 import { useNavTransition } from "@/lib/nav-progress";
 import { panelClass } from "@/components/ui/panel";
+import {
+  AdSetRows,
+  adSetDrafts,
+  adSetRowsReady,
+  newAdSetRow,
+  type AdSetRowDraft,
+} from "@/components/campaign/ad-set-rows";
 
 /**
- * Register a campaign. Mirrors how an upload builds the stored name — the buyer
- * gives Campaign + Ad Set + Platform + Objective and sees a live preview of the
- * exact `campaign_name` that will be stored (and matched against uploads).
- * Platform and Objective have NO default: they must be chosen deliberately so a
- * left-on-default value can't slip through.
+ * Register a CAMPAIGN with its first ad sets (2026-11) — both levels on one
+ * screen. The campaign is a name on one ad platform (Meta = Instagram +
+ * Facebook); each ad set under it is a name, an objective and, on Meta, where
+ * it runs. The row shows the exact name an upload must match. Platform and
+ * objective have NO default: both are picked deliberately.
  */
 export function CampaignCreateForm() {
   const router = useRouter();
   // Ties each label to its control (see Field).
   const fid = useId();
-  const [campaign, setCampaign] = useState("");
-  const [adset, setAdset] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [objective, setObjective] = useState("");
+  const [name, setName] = useState("");
+  const [network, setNetwork] = useState<AdNetwork | "">("");
+  const [rows, setRows] = useState<AdSetRowDraft[]>([]);
   const [pending, start] = useTransition();
   // Navigations show the progress bar (W3-6).
   const [, startNav] = useNavTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [adSetErrors, setAdSetErrors] = useState<Record<number, string>>({});
 
-  const preview = buildCampaignName(campaign, adset, platform);
-  const ready = Boolean(campaign.trim()) && Boolean(platform) && Boolean(objective);
+  const nameError = campaignNameHasSeparator(name)
+    ? "A campaign name can’t contain ➤"
+    : fieldErrors.name || null;
+  const ready =
+    name.trim() !== "" && !campaignNameHasSeparator(name) && network !== "" && adSetRowsReady(rows);
+
+  const pickNetwork = (value: string) => {
+    if (!isAdNetwork(value)) return;
+    setNetwork(value);
+    setAdSetErrors({});
+    // The rows follow the platform: their names and objectives are kept, the
+    // platforms they run on become the new network's.
+    setRows((prev) =>
+      prev.length === 0
+        ? [newAdSetRow(value)]
+        : prev.map((r) => ({ ...newAdSetRow(value, r.name, r.objective), key: r.key })),
+    );
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready) return;
+    // `ready` already requires a platform; this pins the narrowed value for
+    // the transition's closure.
+    const chosen: AdNetwork = network;
     setError(null);
+    setFieldErrors({});
+    setAdSetErrors({});
     start(async () => {
-      const res = await safeAction(() => createCampaign({ campaign, adset, platform, objective }));
-      if (res.ok) {
+      const res = await safeAction(() =>
+        createParentCampaign({ name, network: chosen, adSets: adSetDrafts(rows) }),
+      );
+      if (res.ok && res.name && res.network) {
         toast.success(`Created “${res.name}”`);
         // ONE render: the action doesn't revalidate; this navigation renders
-        // the list fresh (W2-1) — once the router is done with the action.
+        // the new campaign's page (W2-1) — once the router is done with the action.
         await actionSettled();
-        startNav(() => router.push("/campaigns"));
-      } else {
-        toastActionFailure(res, "Couldn't register the campaign", { inline: setError });
+        const href = campaignPath(res.network, res.name);
+        startNav(() => router.push(href));
+        return;
       }
+      if ("fieldErrors" in res && res.fieldErrors) setFieldErrors(res.fieldErrors);
+      if ("adSetErrors" in res && res.adSetErrors) setAdSetErrors(res.adSetErrors);
+      toastActionFailure(res, "Couldn't register the campaign", { inline: setError });
     });
   };
 
   return (
-    <form
-      onSubmit={submit}
-      className={`${panelClass()} space-y-4`}
-    >
-      <Field label="Campaign name" htmlFor={`${fid}-campaign`}>
-        <Input
-          id={`${fid}-campaign`}
-          value={campaign}
-          onChange={(e) => setCampaign(e.target.value)}
-          placeholder="e.g. Always-On"
-          autoFocus
-        />
-      </Field>
-      <Field label="Ad Set name" htmlFor={`${fid}-adset`}>
-        <Input
-          id={`${fid}-adset`}
-          value={adset}
-          onChange={(e) => setAdset(e.target.value)}
-          placeholder="e.g. Broad"
-        />
-      </Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Platform" htmlFor={`${fid}-platform`}>
-          <Select value={platform} onValueChange={setPlatform}>
-            <SelectTrigger id={`${fid}-platform`}>
+    <form onSubmit={submit} className={`${panelClass()} space-y-5`}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+        <Field label="Campaign name" htmlFor={`${fid}-name`} error={nameError}>
+          <Input
+            id={`${fid}-name`}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setFieldErrors({});
+            }}
+            placeholder="e.g. Always-On"
+            autoFocus
+            dir="auto"
+          />
+        </Field>
+        <Field label="Platform" htmlFor={`${fid}-network`} error={fieldErrors.network || null}>
+          <Select value={network} onValueChange={pickNetwork}>
+            <SelectTrigger id={`${fid}-network`}>
               <SelectValue placeholder="Select a platform…" />
             </SelectTrigger>
             <SelectContent>
-              {ALL_PLATFORMS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PLATFORM_LABEL[p]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Objective" htmlFor={`${fid}-objective`}>
-          <Select value={objective} onValueChange={setObjective}>
-            <SelectTrigger id={`${fid}-objective`}>
-              <SelectValue placeholder="Select an objective…" />
-            </SelectTrigger>
-            <SelectContent>
-              {CAMPAIGN_OBJECTIVES.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
+              {AD_NETWORKS.map((n) => (
+                <SelectItem key={n} value={n}>
+                  {AD_NETWORK_LABEL[n]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -116,20 +136,26 @@ export function CampaignCreateForm() {
         </Field>
       </div>
 
-      <div className="rounded-md border border-line bg-surface-2 px-3 py-2.5">
-        <div className="text-label text-ink-3 mb-0.5">
-          Will be stored as
-        </div>
-        <div className="text-sm text-ink tabular-nums break-all">
-          {preview || <span className="text-ink-3">—</span>}
-        </div>
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium text-ink">Ad sets</h2>
+        {network === "" ? (
+          <p className="text-xs text-ink-2">Pick the platform first.</p>
+        ) : (
+          <AdSetRows
+            network={network}
+            campaignName={name}
+            rows={rows}
+            onChange={(next) => {
+              setRows(next);
+              setAdSetErrors({});
+            }}
+            errors={adSetErrors}
+            disabled={pending}
+          />
+        )}
       </div>
 
-      {error && (
-        <div className="rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">
-          {error}
-        </div>
-      )}
+      <FormError>{error}</FormError>
 
       <div className="flex items-center justify-end gap-2 pt-1">
         <Button

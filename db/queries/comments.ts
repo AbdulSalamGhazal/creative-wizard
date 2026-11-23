@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import {
   auditEvents,
   campaigns,
+  parentCampaigns,
   commentMentions,
   commentReactions,
   comments,
@@ -350,6 +351,17 @@ export async function resolveAnchorPath(
     const path = row ? anchorPathFor("creative", anchorId, row.name) : null;
     return row && path ? { path, label: row.name } : null;
   }
+  if (anchorType === "parent_campaign") {
+    // A CAMPAIGN — addressed by its network + name.
+    const [row] = await exec
+      .select({ name: parentCampaigns.name, network: parentCampaigns.network })
+      .from(parentCampaigns)
+      .where(and(eq(parentCampaigns.id, anchorId), eq(parentCampaigns.accountId, accountId)))
+      .limit(1);
+    const path = row ? anchorPathFor("parent_campaign", anchorId, row.name, row.network) : null;
+    return row && path ? { path, label: row.name } : null;
+  }
+  // `campaign` — an AD SET, addressed by its full stored name.
   const [row] = await exec
     .select({ name: campaigns.name })
     .from(campaigns)

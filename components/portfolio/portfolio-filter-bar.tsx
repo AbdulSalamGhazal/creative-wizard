@@ -20,6 +20,7 @@ function csv(v: string | null): string[] {
 }
 
 export function PortfolioFilterBar({
+  level = "adset",
   defaultFrom,
   defaultTo,
   views,
@@ -28,12 +29,18 @@ export function PortfolioFilterBar({
   includeExcludedDefault,
   resolvedFilters,
 }: {
+  /**
+   * Which list this bar sits on (2026-11): the AD SETS list (saved views, as
+   * always) or the CAMPAIGNS list — the same filters, no saved views yet.
+   */
+  level?: "adset" | "campaign";
   /** Effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
   defaultTo?: string;
-  views: SummaryViewRow[];
-  currentUserId: string;
-  isAdmin: boolean;
+  /** The ad-set list's saved views; the campaigns list passes none. */
+  views?: SummaryViewRow[];
+  currentUserId?: string;
+  isAdmin?: boolean;
   /** The user's saved Excluded-toggle default (URL param overrides it). */
   includeExcludedDefault?: boolean;
   /**
@@ -137,17 +144,19 @@ export function PortfolioFilterBar({
       filters={filters}
       tier1={({ fullWidth }) => (
         <>
-          <ViewsControl
-            views={views}
-            currentUserId={currentUserId}
-            isAdmin={isAdmin}
-            page="campaigns"
-            clearLabel="Show all campaigns (ignore default)"
-          />
+          {level === "adset" && views && currentUserId ? (
+            <ViewsControl
+              views={views}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin ?? false}
+              page="campaigns"
+              clearLabel="Show all ad sets (ignore default)"
+            />
+          ) : null}
           <FilterSearch
               value={qLocal}
               onChange={setQLocal}
-              placeholder="Search campaigns…"
+              placeholder={level === "campaign" ? "Search campaigns…" : "Search ad sets…"}
           />
           <DateRangePicker
             from={from}

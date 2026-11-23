@@ -118,7 +118,7 @@ export function CanvasInspector({
 
         {/* Pairings */}
         <p className="text-label mb-1 mt-4 text-ink-3">
-          {isCampaign ? "Creatives" : "Campaigns"} · {int(pairings.length)}
+          {isCampaign ? "Creatives" : "Ad sets"} · {int(pairings.length)}
         </p>
         {pairings.length === 0 ? (
           <p className="py-2 text-ink-2">No spend in this range.</p>
@@ -189,7 +189,7 @@ export function CanvasInspector({
           onClick={() => onOpen(node)}
           className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
         >
-          Open {isCampaign ? "campaign" : "creative"}
+          Open {isCampaign ? "ad set" : "creative"}
           <ArrowRight className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>

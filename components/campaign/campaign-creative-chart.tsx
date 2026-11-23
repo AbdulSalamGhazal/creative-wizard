@@ -138,9 +138,16 @@ export function CampaignCreativeChart({
   creatives,
   fillFrom,
   fillTo,
+  seriesNoun = "creative",
 }: {
   points: CampaignCreativeDailyPoint[];
   creatives: Array<{ creativeId: string; name: string }>;
+  /**
+   * What one line IS: a creative on an ad set's page, an ad set on a
+   * campaign's (2026-11 — the same chart, the series handed in under the
+   * same keys). Only the wording changes.
+   */
+  seriesNoun?: "creative" | "ad set";
   /** Edge-fill bounds for the GROUP line (trailing to the data horizon so a
    *  paused campaign shows zeros; leading from the window start). */
   fillFrom?: string;
@@ -243,7 +250,7 @@ export function CampaignCreativeChart({
 
   const header = (inFull: boolean, toggleExpand: () => void) => (
     <ChartHeader
-      title="By creative over time"
+      title={`By ${seriesNoun} over time`}
       picker={
         <MetricPicker
           options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
@@ -322,7 +329,11 @@ export function CampaignCreativeChart({
   );
 
   return (
-    <ChartShell ariaLabel="By creative over time — expanded" summary="Campaign metric per day, one line per creative" legend={legend}>
+    <ChartShell
+      ariaLabel={`By ${seriesNoun} over time — expanded`}
+      summary={`Metric per day, one line per ${seriesNoun}`}
+      legend={legend}
+    >
       {({ inFull, toggleExpand }) => (
         <>
           {header(inFull, toggleExpand)}

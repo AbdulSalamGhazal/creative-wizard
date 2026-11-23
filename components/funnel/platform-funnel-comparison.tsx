@@ -197,7 +197,7 @@ export function PlatformFunnelComparison({
       csv: (r) => (r.kind === "campaign" ? `  ${r.campaign}` : r.kind === "platform" ? PLATFORM_LABEL[r.platform] : ""),
       render: (r) => {
         if (r.kind === "none")
-          return <span className="pl-7 text-[11px] text-ink-3">No campaigns in this window.</span>;
+          return <span className="pl-7 text-[11px] text-ink-3">No ad sets in this window.</span>;
         if (r.kind === "campaign")
           return (
             <span
@@ -213,7 +213,7 @@ export function PlatformFunnelComparison({
             type="button"
             onClick={() => toggle(r.platform)}
             aria-expanded={isOpen}
-            aria-label={`${isOpen ? "Collapse" : "Expand"} ${PLATFORM_LABEL[r.platform]} campaigns`}
+            aria-label={`${isOpen ? "Collapse" : "Expand"} ${PLATFORM_LABEL[r.platform]} ad sets`}
             className="inline-flex items-center gap-2 whitespace-nowrap text-ink transition-colors hover:text-brand"
           >
             <ChevronRight
@@ -221,7 +221,7 @@ export function PlatformFunnelComparison({
             />
             <PlatformDot platform={r.platform} />
             <span>{PLATFORM_LABEL[r.platform]}</span>
-            <span className="text-[10px] text-ink-2">{plural(r.campaigns, "campaign")}</span>
+            <span className="text-[10px] text-ink-2">{plural(r.campaigns, "ad set")}</span>
           </button>
         );
       },

@@ -4,8 +4,9 @@ import {
   type ExistingDayQuery,
   type ExistingRecord,
 } from "@/csv/pipeline";
+import { parentKey } from "@/lib/campaign";
 
-const REGISTERED = new Set(["URJ_VID_001", "URJ_VID_002", "URJ_IMG_010"]);
+const REGISTERED =new Set(["URJ_VID_001", "URJ_VID_002", "URJ_IMG_010"]);
 
 /**
  * Every adapter requires its full column set. The test header mirrors the
@@ -56,6 +57,7 @@ async function run(
     findExisting?: (days: ExistingDayQuery[], p: string) => Promise<ExistingRecord[]>;
     allowExisting?: boolean;
     registeredCampaigns?: Set<string>;
+    registeredParents?: Set<string>;
     registeredLandingCodes?: Set<string>;
     creativeProducts?: Map<string, string>;
     landingPageProducts?: Map<string, string | null>;
@@ -66,6 +68,7 @@ async function run(
     platform: "instagram",
     registeredNames: REGISTERED,
     registeredCampaigns: opts.registeredCampaigns,
+    registeredParents: opts.registeredParents,
     registeredLandingCodes: opts.registeredLandingCodes,
     creativeProducts: opts.creativeProducts,
     landingPageProducts: opts.landingPageProducts,
@@ -366,6 +369,51 @@ describe("CSV pipeline — campaign registration (E061)", () => {
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.errors.some((e) => e.code === "E061")).toBe(true);
+  });
+});
+
+describe("CSV pipeline — two levels: which one is missing (E061 / E062)", () => {
+  // The fixture row is campaign "Spring Launch", ad set "Broad", on instagram
+  // — a Meta campaign's ad set, stored as "Spring Launch ➤ Broad (IG)".
+  const META_PARENT = new Set([parentKey("meta", "Spring Launch")]);
+
+  it("E062 when the campaign is registered but this ad set is not", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredCampaigns: new Set(["Spring Launch ➤ Other (IG)"]),
+      registeredParents: META_PARENT,
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    const [err] = res.errors;
+    expect(err).toMatchObject({
+      code: "E062",
+      field: "adset_name",
+      value: "Spring Launch ➤ Broad (IG)",
+      // What the report links to: "Add ad set" on that campaign's page.
+      campaign: { network: "meta", name: "Spring Launch", adSet: "Broad" },
+    });
+    expect(err!.message).toContain("ad set `'Broad'` is not registered in campaign `'Spring Launch'`");
+    expect(res.errors.some((e) => e.code === "E061")).toBe(false);
+  });
+
+  it("E061 names the CAMPAIGN alone when the campaign itself is missing", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredCampaigns: new Set(),
+      // The same name on ANOTHER network is another campaign.
+      registeredParents: new Set([parentKey("tiktok", "Spring Launch")]),
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors[0]).toMatchObject({ code: "E061", value: "Spring Launch" });
+    expect(res.errors.some((e) => e.code === "E062")).toBe(false);
+  });
+
+  it("a registered ad set passes, whatever the campaign set says", async () => {
+    const res = await run(`${META_HEADER}\n${row({})}\n`, {
+      registeredCampaigns: new Set(["Spring Launch ➤ Broad (IG)"]),
+      registeredParents: new Set(),
+    });
+    expect(res.ok).toBe(true);
   });
 });
 

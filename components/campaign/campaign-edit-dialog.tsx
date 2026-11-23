@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { FormError } from "@/components/ui/form-error";
 import {
   Select,
   SelectContent,
@@ -24,9 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  adSetPath,
   buildCampaignName,
   CAMPAIGN_OBJECTIVES,
   CAMPAIGN_PLATFORM_LOCKED_TIP,
+  isAdNetwork,
+  networkPlatforms,
 } from "@/lib/campaign";
 import { InfoTip } from "@/components/ui/info-tip";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
@@ -38,15 +42,17 @@ import { useCan } from "@/components/auth/permissions-context";
 import { useNavTransition } from "@/lib/nav-progress";
 
 /**
- * Edit a campaign's name (rebuilt from Campaign + Ad Set + Platform), platform
- * and objective. Pre-filled from the current values; shows a live preview of the
+ * Edit an AD SET: its own name, platform and objective (2026-11 — the
+ * campaign's name is edited on the campaign's page, once for all its ad
+ * sets). Pre-filled from the current values; shows a live preview of the
  * stored name (which uploads must match) and only enables Save when something
- * actually changed. On a rename the parent follows the new URL.
+ * actually changed. On a rename the page follows the new URL.
  */
 export function CampaignEditDialog({
   id,
   currentName,
-  campaign: initCampaign,
+  campaign,
+  network,
   adset: initAdset,
   platform: initPlatform,
   objective: initObjective,
@@ -54,7 +60,10 @@ export function CampaignEditDialog({
 }: {
   id: string;
   currentName: string;
+  /** The campaign part of the stored name — fixed here. */
   campaign: string;
+  /** Its campaign's network: the platform can only move inside it. */
+  network: string | null;
   adset: string;
   platform: string;
   objective: string;
@@ -66,7 +75,6 @@ export function CampaignEditDialog({
   const [open, setOpen] = useState(false);
   // Ties each label to its control (see Field).
   const fid = useId();
-  const [campaign, setCampaign] = useState(initCampaign);
   const [adset, setAdset] = useState(initAdset);
   const [platform, setPlatform] = useState(initPlatform);
   const [objective, setObjective] = useState(initObjective);
@@ -75,8 +83,9 @@ export function CampaignEditDialog({
   const [, startNav] = useNavTransition();
   const [error, setError] = useState<string | null>(null);
 
+  const platformOptions = network && isAdNetwork(network) ? networkPlatforms(network) : ALL_PLATFORMS;
   const preview = buildCampaignName(campaign, adset, platform);
-  const ready = Boolean(campaign.trim()) && Boolean(platform) && Boolean(objective);
+  const ready = Boolean(preview) && Boolean(platform) && Boolean(objective);
   const dirty =
     preview !== currentName || platform !== initPlatform || objective !== initObjective;
 
@@ -84,7 +93,6 @@ export function CampaignEditDialog({
   const onOpenChange = (next: boolean) => {
     if (pending) return; // don't allow closing mid-save
     if (next) {
-      setCampaign(initCampaign);
       setAdset(initAdset);
       setPlatform(initPlatform);
       setObjective(initObjective);
@@ -98,21 +106,19 @@ export function CampaignEditDialog({
     if (!ready || !dirty) return;
     setError(null);
     start(async () => {
-      const res = await safeAction(() =>
-        updateCampaign({ id, campaign, adset, platform, objective }),
-      );
+      const res = await safeAction(() => updateCampaign({ id, adset, platform, objective }));
       if (res.ok) {
-        toast.success("Campaign updated");
+        toast.success("Ad set updated");
         setOpen(false);
         // ONE render (W2-1): a rename follows the new URL (the action skips its
         // revalidation then); otherwise the action's re-render already arrived.
         if (res.name && res.name !== currentName) {
           await actionSettled();
-          const href = `/campaigns/${encodeURIComponent(res.name)}`;
+          const href = adSetPath(res.name);
           startNav(() => router.push(href));
         }
       } else {
-        toastActionFailure(res, "Couldn't update the campaign", { inline: setError });
+        toastActionFailure(res, "Couldn't update the ad set", { inline: setError });
       }
     });
   };
@@ -128,30 +134,30 @@ export function CampaignEditDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit campaign</DialogTitle>
+          <DialogTitle>Edit ad set</DialogTitle>
           <DialogDescription>
-            The stored name is rebuilt from Campaign + Ad Set + Platform. Existing
-            performance keeps its link, but renaming changes what future uploads
-            must match — rename your source the same way.
+            Existing performance keeps its link, but renaming changes what future
+            uploads must match — rename your source the same way.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
-          <Field label="Campaign name" htmlFor={`${fid}-campaign`}>
-            <Input
-              id={`${fid}-campaign`}
-              value={campaign}
-              onChange={(e) => setCampaign(e.target.value)}
-              placeholder="e.g. Always-On"
-              autoFocus
-            />
-          </Field>
-          <Field label="Ad Set name" htmlFor={`${fid}-adset`}>
+          <Field
+            label="Ad set name"
+            htmlFor={`${fid}-adset`}
+            hint={
+              <span dir="auto">
+                In campaign {campaign}
+              </span>
+            }
+          >
             <Input
               id={`${fid}-adset`}
               value={adset}
               onChange={(e) => setAdset(e.target.value)}
               placeholder="e.g. Broad"
+              autoFocus
+              dir="auto"
             />
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -169,7 +175,7 @@ export function CampaignEditDialog({
                   <SelectValue placeholder="Select a platform…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ALL_PLATFORMS.map((p) => (
+                  {platformOptions.map((p) => (
                     <SelectItem key={p} value={p}>
                       {PLATFORM_LABEL[p]}
                     </SelectItem>
@@ -197,16 +203,12 @@ export function CampaignEditDialog({
             <div className="text-label text-ink-3 mb-0.5">
               Will be stored as
             </div>
-            <div className="text-sm text-ink tabular-nums break-all">
+            <div className="text-sm text-ink tabular-nums break-all" dir="auto">
               {preview || <span className="text-ink-3">—</span>}
             </div>
           </div>
 
-          {error && (
-            <div className="rounded-md border border-neg/30 bg-neg/5 px-3 py-2 text-xs text-ink">
-              {error}
-            </div>
-          )}
+          <FormError>{error}</FormError>
 
           <DialogFooter>
             <Button

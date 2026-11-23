@@ -23,6 +23,7 @@
 export const BRANDED_SEGMENTS: ReadonlySet<string> = new Set([
   "account",
   "activity",
+  "ad-sets",
   "admin",
   "budget",
   "campaigns",
@@ -147,7 +148,11 @@ export interface SwitchTarget {
 const DETAIL_ROUTES: { re: RegExp; list: string; what: string; section: string }[] = [
   { re: /^\/library\/(?!new$|bulk$)[^/]+$/, list: "/library", what: "creative", section: "Library" },
   { re: /^\/creatives\/[^/]+$/, list: "/library", what: "creative", section: "Library" },
-  { re: /^\/campaigns\/(?!new$)[^/]+$/, list: "/campaigns", what: "campaign", section: "Campaigns" },
+  // An AD SET's page, and a CAMPAIGN's (`/campaigns/<network>/<name>`).
+  { re: /^\/ad-sets\/[^/]+$/, list: "/ad-sets", what: "ad set", section: "Ad sets" },
+  { re: /^\/campaigns\/[^/]+\/[^/]+$/, list: "/campaigns", what: "campaign", section: "Campaigns" },
+  // An old ad-set link (`/campaigns/<stored name>`) — another brand has no such ad set.
+  { re: /^\/campaigns\/(?!new$)[^/]+$/, list: "/ad-sets", what: "ad set", section: "Ad sets" },
   // A landing page's own page (2026-11-12) → the registry it is listed in.
   {
     re: /^\/landing-pages\/[^/]+$/,

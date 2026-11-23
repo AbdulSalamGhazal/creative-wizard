@@ -28,19 +28,23 @@ import type { CampaignDeletionSummary } from "@/db/queries/campaign";
 import { useNavTransition } from "@/lib/nav-progress";
 
 /**
- * Confirm-and-delete a whole campaign. Mirrors DeleteCreativeDialog, with one
- * key difference spelled out for the user: deleting a campaign removes its
- * performance records but KEEPS the creatives that ran in it (they may still
- * hold data in other campaigns). An acknowledgement checkbox gates the button.
+ * Confirm-and-delete an AD SET (a `campaigns` row — lib/campaign.ts, "TWO
+ * LEVELS"). Mirrors DeleteCreativeDialog, with one key difference spelled out
+ * for the user: deleting an ad set removes its performance records but KEEPS
+ * the creatives that ran in it (they may still hold data elsewhere) and its
+ * campaign. An acknowledgement checkbox gates the button.
  */
 export function DeleteCampaignDialog({
   campaignId,
   campaignName,
   summary,
+  afterHref = "/ad-sets",
 }: {
   campaignId: string;
   campaignName: string;
   summary: CampaignDeletionSummary;
+  /** Where to land once it's gone — its campaign's page, else the Ad sets list. */
+  afterHref?: string;
 }) {
   const router = useRouter();
   const canDelete = useCan("campaign.delete");
@@ -59,7 +63,7 @@ export function DeleteCampaignDialog({
     startTransition(async () => {
       const res = await safeAction(() => deleteCampaign(campaignId));
       if (!res.ok) {
-        toastActionFailure(res, "Couldn't delete the campaign");
+        toastActionFailure(res, "Couldn't delete the ad set");
         return;
       }
       toast.success(
@@ -74,7 +78,7 @@ export function DeleteCampaignDialog({
       // no longer exists); the navigation renders the list fresh (W2-1) —
       // once the router is done with the action.
       await actionSettled();
-      startNav(() => router.push("/campaigns"));
+      startNav(() => router.push(afterHref));
     });
   };
 
@@ -105,7 +109,7 @@ export function DeleteCampaignDialog({
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <ToneDialogTitle tone="destructive">Delete this campaign?</ToneDialogTitle>
+          <ToneDialogTitle tone="destructive">Delete this ad set?</ToneDialogTitle>
           <DialogDescription>
             Permanently remove{" "}
             <span className="font-medium text-ink">{campaignName}</span> and all
@@ -159,18 +163,18 @@ export function DeleteCampaignDialog({
             {hasRecords ? (
               <>
                 This removes the {int(summary.records)} record
-                {summary.records === 1 ? "" : "s"} tied to this campaign. The{" "}
+                {summary.records === 1 ? "" : "s"} tied to this ad set. The{" "}
                 <span className="font-medium text-ink">
                   {int(summary.creatives)} creative
                   {summary.creatives === 1 ? "" : "s"} that ran here are kept
                 </span>{" "}
-                — only their data for this campaign is deleted; anything they ran
-                in other campaigns is untouched.
+                — only their data for this ad set is deleted; anything they ran
+                in other ad sets is untouched.
               </>
             ) : (
               <>
-                This campaign has no performance records. Only the campaign
-                registration will be removed — no creative is affected.
+                This ad set has no performance records. Only its registration
+                will be removed — no creative is affected.
               </>
             )}
           </p>

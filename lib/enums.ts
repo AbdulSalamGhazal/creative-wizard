@@ -1,5 +1,5 @@
 import { ALL_PLATFORMS } from "@/lib/palette";
-import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import { AD_NETWORKS, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 
 /**
  * The vocabularies the database stores, in a module the BROWSER can import
@@ -41,14 +41,20 @@ export type StoreFieldType = (typeof storeFieldTypeEnum)[number];
 /** Campaign objectives — `CAMPAIGN_OBJECTIVES` (lib/campaign) is the root. */
 export const campaignObjectiveEnum = CAMPAIGN_OBJECTIVES;
 
+/** Ad networks (a Campaign's level) — `AD_NETWORKS` (lib/campaign) is the root. */
+export const adNetworkEnum = AD_NETWORKS;
+
 /**
  * What an audit event can be LINKED to (`audit_event_entities.entity_type`,
  * 2026-11): the three things that carry a per-entity Activity history. A
  * creative or campaign is named by its uuid, a budget month by `YYYY-MM`.
+ * `campaign` is the UI's AD SET; `parent_campaign` is the UI's CAMPAIGN
+ * (lib/campaign.ts, "TWO LEVELS").
  */
 export const auditTouchEntityEnum = [
   "creative",
   "campaign",
+  "parent_campaign",
   "budget_month",
   "ps_version",
   "landing_page",

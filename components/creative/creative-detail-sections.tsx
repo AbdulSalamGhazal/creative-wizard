@@ -140,7 +140,7 @@ export async function CreativeAnalyticsBody({
       />
 
       <div>
-        <h3 className="text-sm font-medium text-ink mb-3">Campaigns</h3>
+        <h3 className="text-sm font-medium text-ink mb-3">Ad sets</h3>
         <CreativeCampaignsTable campaigns={byCampaign} platforms={byPlatform} />
       </div>
     </>

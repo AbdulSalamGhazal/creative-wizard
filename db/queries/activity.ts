@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, inArray, isNull, not, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   campaigns,
+  parentCampaigns,
   commentMentions,
   comments,
   creatives,
@@ -125,7 +126,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
   const total = count?.n ?? 0;
   if (rows.length === 0) return { ...empty, total };
 
-  // SIX bounded lookups for the page — never one per row (prod's pool is ONE
+  // SEVEN bounded lookups for the page — never one per row (prod's pool is ONE
   // connection). `anchor_id` is text and entity ids are uuid: each lookup
   // takes only the ids of ITS anchor type, which the write path validated.
   const ids = rows.map((r) => r.id);
@@ -133,11 +134,12 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
     [...new Set(rows.filter((r) => r.anchorType === type).map((r) => r.anchorId))];
   const creativeIds = idsOf("creative");
   const campaignIds = idsOf("campaign");
+  const topCampaignIds = idsOf("parent_campaign");
   const versionIds = idsOf("ps_version");
   const landingIds = idsOf("landing_page");
   const parentIds = [...new Set(rows.flatMap((r) => (r.parentId ? [r.parentId] : [])))];
 
-  const [creativeRows, campaignRows, versionRows, landingRows, parentRows, mentionRows] = await Promise.all([
+  const [creativeRows, campaignRows, topCampaignRows, versionRows, landingRows, parentRows, mentionRows] = await Promise.all([
     creativeIds.length > 0
       ? db
           .select({ id: creatives.id, name: creatives.name })
@@ -149,6 +151,18 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
           .select({ id: campaigns.id, name: campaigns.name })
           .from(campaigns)
           .where(and(eq(campaigns.accountId, acct), inArray(campaigns.id, campaignIds)))
+      : [],
+    topCampaignIds.length > 0
+      ? db
+          .select({
+            id: parentCampaigns.id,
+            name: parentCampaigns.name,
+            network: parentCampaigns.network,
+          })
+          .from(parentCampaigns)
+          .where(
+            and(eq(parentCampaigns.accountId, acct), inArray(parentCampaigns.id, topCampaignIds)),
+          )
       : [],
     versionIds.length > 0
       ? db
@@ -178,6 +192,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
 
   const creativeName = new Map(creativeRows.map((r) => [r.id, r.name]));
   const campaignName = new Map(campaignRows.map((r) => [r.id, r.name]));
+  const topCampaign = new Map(topCampaignRows.map((r) => [r.id, r]));
   const versionName = new Map(versionRows.map((r) => [r.id, r.name]));
   const landing = new Map(landingRows.map((r) => [r.id, r]));
   const parentName = new Map(parentRows.map((r) => [r.id, r.name]));
@@ -192,6 +207,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
   const labelOf = (type: CommentAnchorType, id: string): string | null => {
     if (type === "creative") return creativeName.get(id) ?? null;
     if (type === "campaign") return campaignName.get(id) ?? null;
+    if (type === "parent_campaign") return topCampaign.get(id)?.name ?? null;
     if (type === "ps_version") return versionName.get(id) ?? null;
     if (type === "landing_page") return landing.get(id)?.name ?? null;
     if (type === "budget_month") return monthAnchorLabel(id);
@@ -227,6 +243,7 @@ export async function listActivity(params: ActivityParams): Promise<ActivityResu
                 anchorType === "landing_page"
                   ? (landing.get(r.anchorId)?.code ?? null)
                   : anchorLabel,
+                topCampaign.get(r.anchorId)?.network ?? null,
               ),
         mentionNames: mentionsOf.get(r.id) ?? [],
       };

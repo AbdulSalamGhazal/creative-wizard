@@ -57,8 +57,8 @@ import { Chip } from "@/components/ui/chip";
 import { panelClass } from "@/components/ui/panel";
 
 const KIND_LABEL: Record<ExclusionRuleKind, string> = {
-  campaign_objective: "Campaign objective",
-  campaign: "Specific campaign",
+  campaign_objective: "Ad set objective",
+  campaign: "Specific ad set",
   creative: "Specific creative",
 };
 
@@ -238,7 +238,7 @@ export function ExclusionRulesAdmin({
                 value={kind === "campaign" ? campaignId : creativeId}
                 onChange={kind === "campaign" ? setCampaignId : setCreativeId}
                 placeholder={
-                  kind === "campaign" ? "Search campaigns…" : "Search creatives…"
+                  kind === "campaign" ? "Search ad sets…" : "Search creatives…"
                 }
               />
             )}
@@ -270,7 +270,7 @@ export function ExclusionRulesAdmin({
         <EmptyState
           icon={<ShieldOff className="h-5 w-5" />}
           title="No exclusion rules yet."
-          hint="A rule keeps everything matching a campaign objective, a campaign, or a creative out of every aggregate — including future uploads — until you deactivate it."
+          hint="A rule keeps everything matching an ad set objective, an ad set, or a creative out of every aggregate — including future uploads — until you deactivate it."
         />
       ) : (
         <div className="divide-y divide-line rounded-lg border border-line bg-surface">
@@ -343,7 +343,7 @@ export function ExclusionRulesAdmin({
                     <>
                       This will exclude{" "}
                       <b>{plural(pending.preview.records, "record")}</b> across{" "}
-                      {int(pending.preview.campaigns)} campaign
+                      {int(pending.preview.campaigns)} ad set
                       {pending.preview.campaigns === 1 ? "" : "s"} /{" "}
                       {int(pending.preview.creatives)} creative
                       {pending.preview.creatives === 1 ? "" : "s"}

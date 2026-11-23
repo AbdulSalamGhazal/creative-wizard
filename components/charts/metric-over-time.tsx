@@ -173,7 +173,7 @@ export function MetricOverTimeChart({
         {
           id: "all",
           color: "var(--brand)",
-          label: dimension === "campaign" ? "All campaigns" : "All platforms",
+          label: dimension === "campaign" ? "All ad sets" : "All platforms",
         },
       ];
     }
@@ -278,7 +278,7 @@ export function MetricOverTimeChart({
               <>
                 {dimension === "campaign" && (
                   <span className="text-[11px] text-ink-3">
-                    by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+                    by ad set{dimensionLabel ? ` · ${dimensionLabel}` : ""}
                   </span>
                 )}
                 <GroupToggle on={group} onToggle={() => setGroup(!group)} />

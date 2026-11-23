@@ -30,10 +30,17 @@ export const AUDIT_ACTIONS = {
   CREATIVE_SOURCE_UPDATE: "creative.source_update",
   CREATIVE_DELETE: "creative.delete",
 
-  // Campaigns
+  // AD SETS — the stored action keeps its old name (lib/campaign.ts, "TWO
+  // LEVELS"): `campaign.*` is about a `campaigns` row, which the UI calls an
+  // ad set.
   CAMPAIGN_CREATE: "campaign.create",
   CAMPAIGN_UPDATE: "campaign.update",
   CAMPAIGN_DELETE: "campaign.delete",
+
+  // CAMPAIGNS (2026-11) — the level above: a `parent_campaigns` row.
+  PARENT_CAMPAIGN_CREATE: "parent_campaign.create",
+  PARENT_CAMPAIGN_UPDATE: "parent_campaign.update",
+  PARENT_CAMPAIGN_DELETE: "parent_campaign.delete",
 
   // Exclusions
   EXCLUSION_EXCLUDE: "exclusion.exclude",
@@ -163,6 +170,7 @@ export type AuditEntityType =
   | "rating"
   | "account"
   | "campaign"
+  | "parent_campaign"
   | "store"
   | "budget"
   | "audience"
@@ -295,9 +303,12 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "creative.notes_update": "Edited notes",
   "creative.source_update": "Edited source link",
   "creative.delete": "Deleted creative",
-  "campaign.create": "Registered campaign",
-  "campaign.update": "Edited campaign",
-  "campaign.delete": "Deleted campaign",
+  "campaign.create": "Registered ad set",
+  "campaign.update": "Edited ad set",
+  "campaign.delete": "Deleted ad set",
+  "parent_campaign.create": "Registered campaign",
+  "parent_campaign.update": "Renamed campaign",
+  "parent_campaign.delete": "Deleted campaign",
   "exclusion.exclude": "Excluded record",
   "exclusion.include": "Re-included record",
   "exclusion.rule_create": "Created exclusion rule",

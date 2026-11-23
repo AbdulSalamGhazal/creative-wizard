@@ -153,7 +153,7 @@ export function StatusFlowGrid({
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-sm">Status flow</CardTitle>
         <span className="text-[11px] text-ink-3 font-normal">
-          {dimension === "campaign" ? "top campaigns · " : "by platform · "}
+          {dimension === "campaign" ? "top ad sets · " : "by platform · "}
           start of period → now
         </span>
       </CardHeader>
@@ -181,7 +181,7 @@ export function StatusFlowGrid({
                       style={{ background: STATUS_DOT.new }}
                     />
                     +{int(sc.data.untouchedNew)}{" "}
-                    {dimension === "campaign" ? "not in campaign" : "never ran"} ·
+                    {dimension === "campaign" ? "not in ad set" : "never ran"} ·
                     New
                   </span>
                 ) : (

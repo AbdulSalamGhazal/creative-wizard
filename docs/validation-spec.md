@@ -4,7 +4,7 @@
 **Owner:** Salam — Urjwan
 **Related document:** `urjwan-ccms-prd.md`
 **Status:** Live — updated 2026-07 to document production behavior (upsert mode,
-XLSX ingestion, the campaign registry / E060 / E061, and the encoding decision).
+XLSX ingestion, the campaign registry / E060 / E061 / E062, and the encoding decision).
 v1.2 blesses the implemented **trim-then-exact** creative-name matching and the
 **blank-numeric-cell → 0** rule as the intended contract (see §4 / §5.1); the
 prior "known divergence" is now a settled decision, not a bug.
@@ -102,13 +102,16 @@ For each row, the following are checked **independently** (one row can produce m
 - That landing page sells the **creative's product** (E024) — every page is
   registered under one product (2026-10-29); a page that still has none
   (registered earlier, not settled by the backfill) is not checked
-- Campaign (+ ad set) resolves to a **registered campaign** for this account
-  (E061) — like creatives, a campaign must be created in the system before an
-  upload can reference it, otherwise a rename at the source would silently
-  spawn a new campaign
-- The campaign name must not already belong to a **different platform** (E060)
-  — one campaign = one platform; allowing the same name on two platforms would
-  silently merge them (Instagram/Facebook stay distinct via the name tag, §4.1)
+- Campaign + ad set resolve to a **registered ad set** for this account —
+  TWO levels, both registered by hand (2026-11, §4.1). The row says which
+  one is missing: the **campaign** is not registered (E061), or the campaign
+  is and only this **ad set** under it is not (E062). Like creatives, both
+  must exist before an upload can reference them, otherwise a rename at the
+  source would silently spawn a new one
+- The ad set's stored name must not already belong to a **different
+  platform** (E060) — one stored name = one platform; allowing the same name
+  on two platforms would silently merge them (Instagram/Facebook stay
+  distinct via the name tag, §4.1)
 
 ### 3.4 Stage 4 — Intra-file duplicates
 
@@ -139,14 +142,25 @@ The trim-then-exact rule is intentional: trailing/leading whitespace in a platfo
 
 ### 4.1 Campaign identity & the registry
 
-The stored campaign name is built ONLY through `buildCampaignName()`
+**Two levels (2026-11).** A CAMPAIGN (`parent_campaigns`: a name on one ad
+network — Meta = Instagram + Facebook, TikTok, Snapchat, Google) holds AD SETS
+(`campaigns` rows — the object this spec used to call "the campaign"). Both
+are registered by hand: the campaign with its first ad sets on "New
+campaign", later ad sets with "Add ad set" on the campaign's page.
+
+An ad set's stored name is built ONLY through `buildCampaignName()`
 (`lib/campaign.ts`): `Campaign ➤ Adset`, with a short platform tag appended
 for the two Meta channels — `(IG)` for Instagram, `(FB)` for Facebook — so the
-same Meta campaign split across the two stays distinct. Uploads must reference
-a campaign already registered in the system (`/campaigns/new` or the edit
-dialog); unregistered → E061, registered on another platform → E060. The perf
-row stores the registry row's `campaign_id` (uuid FK), so renaming a campaign
-is a single registry update — historical rows follow automatically.
+same Meta ad set split across the two stays distinct. That stored name is the
+upload-matching key and is unique per brand. An uploaded row's campaign and ad
+set cells are built into it and matched against the registry; when it is not
+registered, the campaign it belongs to is read back off the BUILT name
+(`parentOfBuiltName`: the network of the file's platform + the part before the
+first ` ➤ `) — never off the raw cell — and the row is E061 when that campaign
+is not registered, E062 when it is and only the ad set is missing. A stored
+name already on another platform → E060. The perf row stores the ad set's
+`campaign_id` (uuid FK), so renaming an ad set — or a campaign, which rebuilds
+its ad sets' names in one transaction — never touches historical rows.
 
 
 ### 4.2 Landing-page codes (v1.3)
@@ -253,11 +267,12 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E040  | ERROR    | Row {n}: `'{field}'` is not a valid number (`'{value}'`).                                                 | "Row 88: `'Spend'` is not a valid number (`'twelve'`)."                                                       |
 | E041  | ERROR    | Row {n}: `'{field}'` must be non-negative (got `{value}`).                                                | "Row 88: `'Spend'` must be non-negative (got `-12.45`)."                                                      |
 | E042  | ERROR    | Row {n}: required field `'{field}'` is missing. *(Identity fields only — `date`, `campaign_name`, `adset_name`. A blank numeric cell is `0`, never E042; a missing required column is E010.)* | "Row 88: required field `'campaign_name'` is missing." |
-| E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, campaign `'{campaign}'`, platform `{platform}`, date `{date}`. | — |
-| E051  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported (batch {id}).         | — |
-| E052  | ERROR    | Row(s) {rows}: `'{name}'` / campaign `'{campaign}'` on `{platform}` for `{date}` was already imported under a different landing page (`'{stored}'`, batch {id}). The ad was renamed on the platform after that day was imported — upload only the days after the rename. | — |
-| E060  | ERROR    | Campaign `'{name}'` already exists on `{platform}` — one campaign belongs to one platform.                | "Campaign `'Summer ➤ Broad'` already exists on tiktok."                                                       |
-| E061  | ERROR    | Row {n}: campaign `'{name}'` is not registered. Register it before importing.                             | —                                                                                                             |
+| E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, ad set `'{ad set}'`, platform `{platform}`, date `{date}`. | — |
+| E051  | ERROR    | Row(s) {rows}: `'{name}'` / ad set `'{ad set}'` on `{platform}` for `{date}` was already imported (batch {id}).             | — |
+| E052  | ERROR    | Row(s) {rows}: `'{name}'` / ad set `'{ad set}'` on `{platform}` for `{date}` was already imported under a different landing page (`'{stored}'`, batch {id}). The ad was renamed on the platform after that day was imported — upload only the days after the rename. | — |
+| E060  | ERROR    | Ad set “{name}” already exists on {platforms}, but this file is for {platform}. An ad set name must belong to a single platform — … Rename this ad set for {platform} and upload again. | "Ad set “Summer ➤ Broad” already exists on TikTok, but this file is for Snapchat. …" |
+| E061  | ERROR    | Row {n}: campaign `'{campaign}'` is not registered. Create it on the Campaigns page first. *(The CAMPAIGN is missing — the report links to New campaign.)* | "Row 12: campaign `'Summer'` is not registered. Create it on the Campaigns page first." |
+| E062  | ERROR    | Row {n}: ad set `'{ad set}'` is not registered in campaign `'{campaign}'`. Add it on that campaign's page first. *(2026-11 — the campaign IS registered; the report links to that campaign with "Add ad set" open on the name.)* | "Row 12: ad set `'Broad'` is not registered in campaign `'Summer'`. Add it on that campaign's page first." |
 | W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |
 | W002  | WARNING  | Unknown column ignored: `{column}`.                                                                       | "Unknown column ignored: `Custom note`."                                                                      |
 | W004  | WARNING  | {n} fractional values in `'{field}'` were rounded to the nearest whole number — {Label} is stored as a whole count.                                        | "2 fractional values in `'conversions'` were rounded to the nearest whole number — Conversions is stored as a whole count. Google's data-driven attribution reports conversions fractionally." |

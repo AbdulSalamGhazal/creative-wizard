@@ -70,7 +70,7 @@ export function TypeMixBars({
         <CardTitle className="text-sm">Type mix</CardTitle>
         {dimension === "campaign" && (
           <span className="text-[11px] text-ink-3 font-normal">
-            by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+            by ad set{dimensionLabel ? ` · ${dimensionLabel}` : ""}
           </span>
         )}
       </CardHeader>

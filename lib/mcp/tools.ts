@@ -20,14 +20,15 @@ import {
 } from "@/db/queries/creatives";
 import {
   portfolioCampaigns,
+  portfolioParentCampaigns,
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
 import {
   campaignMeta,
   campaignAnalytics,
   campaignDailyByCreative,
-  campaignRegistry,
 } from "@/db/queries/campaign";
+import { parseCampaignName } from "@/lib/campaign";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import { campaignStatusMap, campaignStatusFor } from "@/db/queries/campaign-status";
 import { listCreativeSummary } from "@/db/queries/summary";
@@ -104,6 +105,24 @@ import {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const CONVENTIONS =
   "Money is USD. Dates are YYYY-MM-DD. Blended metrics (CTR, ROAS, CPA, CvR, VOC, CPM) are weighted from component sums, never averaged. Records marked excluded-from-aggregates are HIDDEN by default (the app's default view); pass include_excluded: true to count them. Every result echoes `excluded_records` so you never have to guess which convention produced a number. Google reports a REDUCED metric set (no landing-page views, cart/payment events or video views), so it is left out of per-platform creative breakdowns and of every funnel surface; brand- and campaign-level tools include it.";
+
+/**
+ * TWO LEVELS (2026-11). The app now has a CAMPAIGN above the AD SET, and the
+ * object these tools have always called a "campaign" is the ad set. The tool
+ * NAMES and their default grain are unchanged (callers and saved prompts rely
+ * on them), so every campaign-shaped description says which level it means.
+ */
+const TWO_LEVELS =
+  'A CAMPAIGN holds AD SETS; an ad set is stored under the name "Campaign ➤ Ad set" (plus " (IG)" / " (FB)" on Instagram / Facebook), and what the app called a "campaign" before 2026-11 is an ad set.';
+
+/** The two parts of an ad set's stored name, for a row that carries only it. */
+function adSetParts(
+  storedName: string,
+  platform: string | undefined,
+): { parent_campaign: string; ad_set: string } {
+  const { campaign, adset } = parseCampaignName(storedName, platform ?? "");
+  return { parent_campaign: campaign, ad_set: adset };
+}
 
 /**
  * BREAKING CHANGE (2026-09): the creative-labeling concept "tag" was renamed
@@ -377,12 +396,18 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "list_campaigns",
     {
-      description: `The campaign portfolio: per campaign — status (active/inactive), objective, platform(s), and KPIs (spend, orders, revenue, ROAS, CPA, CTR) for a range (defaults to last 30 days). Capped at 500 rows. ${CONVENTIONS}`,
+      description: `The campaign portfolio. ${TWO_LEVELS} Default \`level: "ad_set"\`: one row per AD SET — status (active/inactive), objective, platform(s), and KPIs (spend, orders, revenue, ROAS, CPA, CTR) for a range (defaults to last 30 days); \`campaign\` is its full stored name, \`parent_campaign\` + \`ad_set\` the two parts. \`level: "campaign"\`: one row per CAMPAIGN, its ad sets rolled up (weighted from the summed records, never averaged) — \`ad_sets\` count, every \`objective\` its ad sets carry, active when any ad set is; a campaign that has never run is listed with \`has_data: false\`. Capped at 500 rows. ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
         to: toField,
         platforms: platformsField,
+        level: z
+          .enum(["ad_set", "campaign"])
+          .default("ad_set")
+          .describe(
+            'Row grain: "ad_set" (default — one row per ad set) or "campaign" (one row per campaign, its ad sets rolled up).',
+          ),
         include_excluded: includeExcludedField,
       },
     },
@@ -395,14 +420,45 @@ export function registerMcpTools(server: McpServer): void {
           platforms: args.platforms,
           includeExcluded: args.include_excluded,
         };
+        if (args.level === "campaign") {
+          const allParents = await portfolioParentCampaigns(filters);
+          const { rows, truncated } = capRows(allParents);
+          return ok(brand, rangeEcho(range.from, range.to), {
+            level: "campaign",
+            count: allParents.length,
+            truncated,
+            campaigns: rows.map((c) => ({
+              id: c.campaignId,
+              campaign: c.campaign,
+              network: c.network,
+              ad_sets: c.adSets,
+              status: c.status,
+              objectives: c.objectives,
+              platforms: c.platforms,
+              has_data: c.hasData,
+              creatives: c.hasData ? c.creatives : null,
+              spend: c.hasData ? r2(c.spend) : null,
+              orders: c.hasData ? c.orders : null,
+              revenue: c.hasData ? r2(c.revenue) : null,
+              roas: r2(c.roas),
+              cpa: r2(c.cpa),
+              ctr: c.ctr,
+              lastDate: c.lastDate,
+            })),
+          }, excludedEcho(args.include_excluded));
+        }
         const all = await portfolioCampaigns(filters);
         const { rows, truncated } = capRows(all);
         return ok(brand, rangeEcho(range.from, range.to), {
+          level: "ad_set",
           count: all.length,
           truncated,
           campaigns: rows.map((c) => ({
             id: c.campaignId,
             campaign: c.campaign,
+            // The two parts of the stored name: the campaign it sits under,
+            // and the ad set's own name (platform tag dropped).
+            ...adSetParts(c.campaign, c.platforms[0]),
             status: c.status,
             objective: c.objective,
             platforms: c.platforms,
@@ -423,10 +479,14 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_campaign",
     {
-      description: `One campaign: totals + KPIs for a range, its liveness status, and the gap-filled daily per-creative series (the exact points the campaign chart draws). ${CONVENTIONS}`,
+      description: `One AD SET (a row of list_campaigns at its default level — ${TWO_LEVELS}): totals + KPIs for a range, its liveness status, the campaign it sits under, and the gap-filled daily per-creative series (the exact points its chart draws). ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
-        name: z.string().describe("Exact campaign name (as in list_campaigns)."),
+        name: z
+          .string()
+          .describe(
+            'Exact stored name of the ad set — the `campaign` field of list_campaigns, e.g. "Holiday ➤ Broad (IG)".',
+          ),
         from: fromField,
         to: toField,
         include_excluded: includeExcludedField,
@@ -435,21 +495,21 @@ export function registerMcpTools(server: McpServer): void {
     async (args) =>
       withBrand(args.brand, async (brand) => {
         const meta = await campaignMeta(args.name);
-        if (!meta) throw new McpToolError(`No campaign named "${args.name}".`);
+        if (!meta) throw new McpToolError(`No ad set named "${args.name}".`);
         const range = { from: args.from, to: args.to };
-        const [analytics, daily, registry] = await Promise.all([
+        const [analytics, daily, statusMap] = await Promise.all([
           campaignAnalytics(args.name, range, args.include_excluded),
           campaignDailyByCreative(args.name, range, args.include_excluded),
-          campaignRegistry(args.name),
+          campaignStatusMap([meta.id]),
         ]);
-        let status: string | null = null;
-        if (registry) {
-          const m = await campaignStatusMap([registry.id]);
-          status = campaignStatusFor(m, registry.id);
-        }
+        const status: string = campaignStatusFor(statusMap, meta.id);
         return ok(brand, rangeEcho(args.from, args.to), {
           campaign: {
             name: meta.campaign,
+            // The CAMPAIGN this ad set sits under, and the ad set's own name.
+            parent_campaign: meta.parent?.name ?? null,
+            network: meta.parent?.network ?? null,
+            ad_set: meta.adsetName,
             objective: meta.objective,
             platforms: meta.platforms,
             products: meta.productNames,
@@ -649,12 +709,14 @@ export function registerMcpTools(server: McpServer): void {
     "diagnose_campaign",
     {
       description:
-        "Returns a full diagnostic bundle for ONE campaign PLUS embedded instructions — the campaign's daily series and weekly history, every creative in it with cross-campaign context, this brand's same-platform benchmarks, the budget position, and the house conventions. FOLLOW THE EMBEDDED INSTRUCTIONS EXACTLY: interview the user for the data this system does not have (reach and frequency, explicitly) BEFORE concluding anything, then render the report as an artifact. This system does not diagnose — you do, from this bundle.",
+        `Returns a full diagnostic bundle for ONE AD SET (${TWO_LEVELS} The bundle's own wording still says "campaign" for it) PLUS embedded instructions — its daily series and weekly history, every creative in it with cross-ad-set context, this brand's same-platform benchmarks, the budget position, and the house conventions. FOLLOW THE EMBEDDED INSTRUCTIONS EXACTLY: interview the user for the data this system does not have (reach and frequency, explicitly) BEFORE concluding anything, then render the report as an artifact. This system does not diagnose — you do, from this bundle.`,
       inputSchema: {
         brand: brandField,
         campaign: z
           .string()
-          .describe("Exact campaign name, as returned by list_campaigns."),
+          .describe(
+            "Exact stored name of the ad set — the `campaign` field of list_campaigns (default level).",
+          ),
         window_days: z
           .number()
           .int()

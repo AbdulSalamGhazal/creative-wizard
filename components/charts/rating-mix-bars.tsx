@@ -136,7 +136,7 @@ export function RatingMixBars({
           <CardTitle className="text-sm whitespace-nowrap">Spend by rating</CardTitle>
           {dimension === "campaign" && (
             <span className="text-[11px] text-ink-3 font-normal truncate">
-              by campaign{dimensionLabel ? ` · ${dimensionLabel}` : ""}
+              by ad set{dimensionLabel ? ` · ${dimensionLabel}` : ""}
             </span>
           )}
         </div>

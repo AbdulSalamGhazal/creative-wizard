@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   SlidersHorizontal,
   Filter,
+  Layers,
   Megaphone,
   Scale,
   Wallet,
@@ -126,6 +127,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/library", label: "Library", icon: Images, group: "ads", keys: "gl" },
   { href: "/summary", label: "Ads", icon: Table2, group: "ads", keys: "ga" },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone, group: "ads", keys: "gc" },
+  // The level under a campaign (2026-11, user decision: its own sidebar item).
+  // "s" for sets — "a" is Ads.
+  { href: "/ad-sets", label: "Ad sets", icon: Layers, group: "ads", keys: "gs" },
   // The campaign↔creative graph — read-only, sits with the two things it joins.
   { href: "/canvas", label: "Canvas", icon: Workflow, group: "ads", keys: "gn" },
   { href: "/funnel", label: "Funnel", icon: Filter, group: "ads", keys: "gf" },

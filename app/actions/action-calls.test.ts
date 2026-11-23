@@ -277,7 +277,11 @@ describe("a caller that navigates away gets ONE render — the navigation", () =
   it.each([
     ["creative", "deleteCreative"],
     ["creative-bulk", "commitBulkCreatives"],
-    ["campaign", "createCampaign"],
+    // Campaigns and ad sets (2026-11): create → the new campaign's page,
+    // rename → its new address, delete → a list.
+    ["campaign", "createParentCampaign"],
+    ["campaign", "updateParentCampaign"],
+    ["campaign", "deleteParentCampaign"],
     ["campaign", "deleteCampaign"],
     ["store-upload", "commitStoreUpload"],
   ])("%s.%s does not revalidate", (module, name) => {

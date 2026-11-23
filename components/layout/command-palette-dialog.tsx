@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { ALL_COMMENTS_TITLE } from "@/lib/activity";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { AD_NETWORK_LABEL, adSetPath, campaignPath } from "@/lib/campaign";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { SAVED_VIEW_PAGE_LABEL, SAVED_VIEW_PATH, savedViewHref } from "@/lib/saved-view-href";
 import type { PaletteLists } from "@/components/layout/command-palette";
@@ -165,6 +166,7 @@ export function CommandPaletteDialog({
 }) {
   const creatives = lists?.creatives ?? null;
   const campaigns = lists?.campaigns ?? [];
+  const parentCampaigns = lists?.parentCampaigns ?? [];
   // A view whose page this build doesn't know is skipped, never mis-linked.
   const views = (lists?.views ?? []).filter((v) => v.page in SAVED_VIEW_PATH);
   const router = useRouter();
@@ -180,7 +182,7 @@ export function CommandPaletteDialog({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Jump to a page, creative or campaign…" />
+      <CommandInput placeholder="Jump to a page, creative, campaign or ad set…" />
       <CommandList>
         <CommandEmpty>No matches.</CommandEmpty>
         <CommandGroup heading="Pages">
@@ -237,16 +239,37 @@ export function CommandPaletteDialog({
           </>
         )}
         {/* Campaigns and saved views (R-027) ride the same first-open fetch. */}
-        {campaigns.length > 0 && (
+        {/* Two levels (2026-11): a CAMPAIGN, then the AD SETS under campaigns. */}
+        {parentCampaigns.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Campaigns">
+              {parentCampaigns.map((c) => (
+                <CommandItem
+                  key={`${c.network}:${c.name}`}
+                  // "campaign" in the value so typing the noun narrows to them.
+                  value={`campaign ${c.name} ${AD_NETWORK_LABEL[c.network]}`}
+                  onSelect={() => go(campaignPath(c.network, c.name))}
+                >
+                  <span className="min-w-0 truncate text-xs">{c.name}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">
+                    {AD_NETWORK_LABEL[c.network]}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {campaigns.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Ad sets">
               {campaigns.map((c) => (
                 <CommandItem
                   key={c.name}
-                  // "campaign" in the value so typing the noun narrows to them.
-                  value={`campaign ${c.name} ${PLATFORM_LABEL[c.platform]}`}
-                  onSelect={() => go(`/campaigns/${encodeURIComponent(c.name)}`)}
+                  // "ad set" in the value so typing the noun narrows to them.
+                  value={`ad set ${c.name} ${PLATFORM_LABEL[c.platform]}`}
+                  onSelect={() => go(adSetPath(c.name))}
                 >
                   <PlatformDot platform={c.platform} size="sm" />
                   <span className="min-w-0 truncate text-xs">{c.name}</span>

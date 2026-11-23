@@ -20,6 +20,7 @@ import {
   ratingRules,
   platformFieldMappings,
   campaigns,
+  parentCampaigns,
   landingPages,
   uploadBatches,
   performanceRecords,
@@ -33,8 +34,8 @@ import { writeStoreBatch, type StoreWriteRow } from "@/db/queries/store";
 import { hashPassword } from "@/lib/auth-password";
 import { ADAPTERS } from "@/csv/platforms";
 import type { InternalField } from "@/csv/platforms/types";
-import { eq, sql } from "drizzle-orm";
-import { buildCampaignName } from "@/lib/campaign";
+import { and, eq, sql } from "drizzle-orm";
+import { adNetwork, buildCampaignName } from "@/lib/campaign";
 
 type Platform = (typeof platformEnum)[number];
 
@@ -303,12 +304,33 @@ async function main() {
 
   // Register the seed campaigns (one per platform) so performance rows carry a
   // campaign_id FK, mirroring the real upload path. Default account (Urjwan).
+  // Each ad set sits under its CAMPAIGN (one per ad network — Instagram and
+  // Facebook share the Meta one).
   const campaignIdByName = new Map<string, string>();
   for (const platform of platforms) {
     const name = buildCampaignName("Always-On", "Broad", platform);
+    const network = adNetwork(platform)!;
+    await db
+      .insert(parentCampaigns)
+      .values({ name: "Always-On", network, createdByUserId: adminId })
+      .onConflictDoNothing({
+        target: [parentCampaigns.accountId, parentCampaigns.network, parentCampaigns.name],
+      });
+    const [parent] = await db
+      .select({ id: parentCampaigns.id })
+      .from(parentCampaigns)
+      .where(and(eq(parentCampaigns.network, network), eq(parentCampaigns.name, "Always-On")))
+      .limit(1);
     const [campRow] = await db
       .insert(campaigns)
-      .values({ name, platform, objective: "Sales", createdByUserId: adminId })
+      .values({
+        name,
+        platform,
+        objective: "Sales",
+        parentId: parent!.id,
+        adsetName: "Broad",
+        createdByUserId: adminId,
+      })
       .onConflictDoNothing({ target: [campaigns.accountId, campaigns.name] })
       .returning({ id: campaigns.id });
     let campId = campRow?.id;

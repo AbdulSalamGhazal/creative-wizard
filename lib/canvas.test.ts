@@ -346,7 +346,7 @@ describe("canvasInsights", () => {
     });
     const hit = insights.find((i) => i.key === "no-live-creatives")!;
     expect(hit.focusIds.sort()).toEqual(["allPaused", "pausedHere"]);
-    expect(hit.label).toBe("2 campaigns with no live creatives");
+    expect(hit.label).toBe("2 ad sets with no live creatives");
   });
 
   it("flags ACTIVE creatives with no edge in the range", () => {
@@ -371,7 +371,7 @@ describe("canvasInsights", () => {
       ],
     }).find((i) => i.key === "most-shared")!;
     expect(shared.focusIds).toEqual(["hub"]);
-    expect(shared.label).toBe("Most shared: «hub» feeds 3 campaigns");
+    expect(shared.label).toBe("Most shared: «hub» feeds 3 ad sets");
 
     // Every creative in exactly one campaign → nothing is shared → no chip.
     const none = canvasInsights({
@@ -829,7 +829,7 @@ describe("pattern alerts — the Rate patterns", () => {
     };
     const hit = keyOf(g, "unscaled-winner")!;
     expect(hit.focusIds).toEqual(["k:win"]);
-    expect(hit.label).toBe("1 winner in one campaign only");
+    expect(hit.label).toBe("1 winner in one ad set only");
   });
 
   it("LEANS ON ONE: ≥70% of the campaign's TRUE spend, 2+ creatives", () => {
@@ -852,7 +852,7 @@ describe("pattern alerts — the Rate patterns", () => {
     };
     const hit = keyOf(g, "leans-on-one")!;
     expect(hit.focusIds).toEqual(["c:lean", "c:hidden"]);
-    expect(hit.label).toBe("2 campaigns lean on one creative");
+    expect(hit.label).toBe("2 ad sets lean on one creative");
   });
 
   it("LOSING EVERYWHERE: Bad in ≥2 campaigns, never Good or Decent, N/A ignored", () => {

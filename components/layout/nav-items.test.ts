@@ -71,6 +71,8 @@ describe("the nav's order and the accordion's default section (2026-11-08)", () 
       "Library",
       "Ads",
       "Campaigns",
+      // The level under a campaign — its own item (user decision, 2026-11).
+      "Ad sets",
       "Canvas",
       "Funnel",
       "Analyzers",

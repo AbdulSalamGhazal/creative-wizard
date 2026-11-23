@@ -670,7 +670,7 @@ function Flow({
                 <p className="mt-0.5 text-[11px] text-ink-2">
                   <span className="text-ink">{chip.live ? "spending now" : "stopped"}</span>
                   {" · "}
-                  <span className="tabular-nums text-ink">{usd(chip.spend)}</span> in all campaigns
+                  <span className="tabular-nums text-ink">{usd(chip.spend)}</span> in all ad sets
                 </p>
                 <RateLine value={chip.roas} rate={chip.rate} />
                 <p className="mt-1 text-[10px] text-ink-2">Double-click to open</p>
@@ -703,7 +703,7 @@ function Flow({
                   </p>
                   <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
                     {share === null ? "—" : pct1(share)} of{" "}
-                    <span className="text-ink-2">{camp?.name ?? "the campaign"}</span>
+                    <span className="text-ink-2">{camp?.name ?? "the ad set"}</span>
                     &rsquo;s spend
                   </p>
                   <RateLine value={edge.roas} rate={edge.rate} />
@@ -768,7 +768,7 @@ function Flow({
             </p>
             <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
               {share === null ? "—" : pct1(share)} of{" "}
-              <span className="text-ink-2">{camp?.name ?? "the campaign"}</span>
+              <span className="text-ink-2">{camp?.name ?? "the ad set"}</span>
               &rsquo;s spend
             </p>
             <RateLine value={edge.roas} rate={edge.rate} />
@@ -869,7 +869,7 @@ function Flow({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && matches[0]) jumpTo(matches[0]);
               }}
-              placeholder="Find a campaign or creative…"
+              placeholder="Find an ad set or creative…"
               aria-label="Find a node"
               className="h-8 w-full rounded-md border border-line bg-surface pl-7 pr-2 text-xs text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
             />
@@ -883,7 +883,7 @@ function Flow({
                       className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-surface-2 hover:text-ink"
                     >
                       <span className="text-eyebrow shrink-0 text-ink-3">
-                        {n.kind === "campaign" ? "Camp" : "Crtv"}
+                        {n.kind === "campaign" ? "Ad set" : "Crtv"}
                       </span>
                       <span className="truncate">{n.name}</span>
                     </button>
@@ -992,7 +992,7 @@ function Legend({
         ))}
       </ul>
       <p className="mt-1 text-[10px] text-ink-2">
-        Campaigns: {CAMPAIGN_STATUS_LABEL.active} / {CAMPAIGN_STATUS_LABEL.inactive}, same
+        Ad sets: {CAMPAIGN_STATUS_LABEL.active} / {CAMPAIGN_STATUS_LABEL.inactive}, same
         colors. “3/5” = creatives currently spending there.
       </p>
 
@@ -1002,8 +1002,8 @@ function Legend({
         <>
           <p className="mb-1 mt-2.5 text-ink-3">
             {view === "angle"
-              ? "Chip — the whole creative, across its campaigns"
-              : `Chip — a pairing, not the whole ${view === "campaign" ? "creative" : "campaign"}`}
+              ? "Chip — the whole creative, across its ad sets"
+              : `Chip — a pairing, not the whole ${view === "campaign" ? "creative" : "ad set"}`}
           </p>
           <ul className="space-y-1">
             <li className="flex items-center gap-1.5">

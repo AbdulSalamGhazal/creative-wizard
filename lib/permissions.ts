@@ -31,9 +31,9 @@ export const PERMISSION_GROUPS = [
     key: "campaigns",
     label: "Campaigns",
     perms: [
-      { key: "campaign.create", label: "Register campaigns" },
-      { key: "campaign.edit", label: "Edit campaigns" },
-      { key: "campaign.delete", label: "Delete campaigns (removes their records)" },
+      { key: "campaign.create", label: "Register campaigns and ad sets" },
+      { key: "campaign.edit", label: "Edit campaigns and ad sets" },
+      { key: "campaign.delete", label: "Delete campaigns and ad sets (removes their records)" },
       { key: "budget.manage", label: "Manage budget plans" },
     ],
   },

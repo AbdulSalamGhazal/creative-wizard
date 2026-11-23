@@ -24,7 +24,7 @@ import { Chip } from "@/components/ui/chip";
 const CSV_COLUMNS: CsvColumn<CreativeRecordRow>[] = [
   { key: "date", label: "Date", value: (r) => r.date },
   { key: "platform", label: "Platform", value: (r) => r.platform },
-  { key: "campaignName", label: "Campaign Name", value: (r) => r.campaignName },
+  { key: "campaignName", label: "Ad Set Name", value: (r) => r.campaignName },
   { key: "campaignObjective", label: "Objective", value: (r) => r.campaignObjective },
   { key: "landingPage", label: "Landing page", value: (r) => (r.landingPageCode ? `@${r.landingPageCode}` : "") },
   { key: "landingPageName", label: "Landing page name", value: (r) => r.landingPageName },
@@ -242,7 +242,7 @@ export function CreativeRecordsTable({ rows, title = "All records" }: Props) {
       },
       {
         key: "campaign",
-        label: "Campaign",
+        label: "Ad set",
         align: "left",
         sortable: true,
         defaultSortDir: "asc",

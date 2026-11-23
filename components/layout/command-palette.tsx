@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import type { CreativeOption } from "@/db/queries/creatives";
 import type { PaletteCampaign } from "@/db/queries/campaign";
+import type { PaletteParentCampaign } from "@/db/queries/parent-campaign";
 import type { SavedViewOption } from "@/db/queries/summary-views";
 
 /** The palette's dialog module — the import is the preload. */
@@ -22,8 +23,11 @@ const CommandPaletteDialog = dynamic(() => loadDialog().then((m) => m.CommandPal
 /** Everything the palette lists besides pages, for one brand. */
 export interface PaletteLists {
   creatives: CreativeOption[];
-  /** R-027 (2026-11-07): campaigns have their own pages too. */
+  /** R-027 (2026-11-07): AD SETS have their own pages too (`campaigns` rows —
+   *  the key predates the two levels). */
   campaigns: PaletteCampaign[];
+  /** The CAMPAIGNS above them (2026-11). */
+  parentCampaigns: PaletteParentCampaign[];
   /** The viewer's own saved views, every page (views are private). */
   views: SavedViewOption[];
 }
@@ -55,6 +59,7 @@ function fetchLists(accountId: string): Promise<PaletteLists | null> {
       const lists: PaletteLists = {
         creatives: data.creatives ?? [],
         campaigns: data.campaigns ?? [],
+        parentCampaigns: data.parentCampaigns ?? [],
         views: data.views ?? [],
       };
       cache.set(accountId, lists);

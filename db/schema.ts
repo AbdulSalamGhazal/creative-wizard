@@ -21,6 +21,7 @@ import {
 import { sql } from "drizzle-orm";
 import { BUDGET_OBJECTIVES, PLAN_MODES } from "@/lib/budget";
 import {
+  adNetworkEnum,
   auditTouchEntityEnum,
   brandColorEnum,
   campaignObjectiveEnum,
@@ -37,6 +38,7 @@ import {
 // imports them from lib/enums: importing ANYTHING from this module ships the
 // whole schema to the browser.
 export {
+  adNetworkEnum,
   auditTouchEntityEnum,
   brandColorEnum,
   campaignObjectiveEnum,
@@ -476,9 +478,40 @@ export const creatives = pgTable(
 );
 
 /**
- * Registered campaigns. Like creatives, a campaign must exist here before any
- * upload can reference it — otherwise renaming a campaign at the source would
- * silently spawn a new one. `name` is the FULL stored campaign_name produced by
+ * CAMPAIGNS (2026-11) — the level the UI calls "Campaign": a name on one ad
+ * NETWORK (meta = Instagram + Facebook together · tiktok · snapchat ·
+ * google). Its ad sets are the `campaigns` rows below. Registered by hand,
+ * like its ad sets; unique per (account, network, name), so the same name may
+ * be a Meta campaign and a TikTok one. The name never contains " ➤ ".
+ * Named `parent_campaigns` because `campaigns` was already the ad-set table —
+ * see "TWO LEVELS" in lib/campaign.ts.
+ */
+export const parentCampaigns = pgTable(
+  "parent_campaigns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    name: text("name").notNull(),
+    network: varchar("network", { length: 16, enum: adNetworkEnum }).notNull(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountNetworkNameIdx: uniqueIndex("parent_campaigns_account_network_name_idx").on(
+      t.accountId,
+      t.network,
+      t.name,
+    ),
+  }),
+);
+
+/**
+ * AD SETS — the table is still named `campaigns` (see "TWO LEVELS" in
+ * lib/campaign.ts). Like creatives, an ad set must exist here before any
+ * upload can reference it — otherwise renaming it at the source would
+ * silently spawn a new one. `name` is the FULL stored name produced by
  * lib/campaign.buildCampaignName ("Campaign ➤ Ad Set" + " (IG)"/" (FB)" for
  * Instagram/Facebook), so upload validation matches it byte-for-byte. Unique
  * per account; one name lives on exactly one platform (see the E060 guard).
@@ -489,6 +522,17 @@ export const campaigns = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     accountId: accountId(),
     name: text("name").notNull(),
+    /**
+     * The campaign this ad set belongs to, and the ad set's own name (the part
+     * of `name` after the first " ➤ ", without the platform tag). Both are
+     * always written by the app and backfilled by the
+     * `parent_campaigns_reconcile` migration; they are NULLABLE in the column
+     * only until a later contract migration (`SET NOT NULL`) lands, so the
+     * code deployed before it could keep inserting. NO cascade — a
+     * campaign is deleted through `deleteParentCampaign`, records first.
+     */
+    parentId: uuid("parent_id").references(() => parentCampaigns.id),
+    adsetName: text("adset_name"),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum })
       .notNull()
@@ -509,6 +553,8 @@ export const campaigns = pgTable(
       t.accountId,
       t.objective,
     ),
+    // A campaign's ad sets: its page, its roll-ups, its delete.
+    accountParentIdx: index("campaigns_account_parent_idx").on(t.accountId, t.parentId),
   }),
 );
 

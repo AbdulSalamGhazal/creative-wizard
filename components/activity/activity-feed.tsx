@@ -121,7 +121,7 @@ export function ActivityFeed({
         }
       : {
           title: "No comments yet",
-          hint: "Open a creative, a campaign or a budget month and start a thread.",
+          hint: "Open a creative, a campaign, an ad set or a budget month and start a thread.",
         };
 
   return (

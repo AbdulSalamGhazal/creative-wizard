@@ -146,7 +146,9 @@ describe("an entity gets comments only on its own page (2026-11-07)", () => {
   it("knows the entity routes by their path", () => {
     expect(isEntityRoute("/library/Ad-One")).toBe(true);
     expect(isEntityRoute(`/library/${encodeURIComponent("Hero v2 / UGC")}`)).toBe(true);
-    expect(isEntityRoute("/campaigns/Camp-One")).toBe(true);
+    // Two levels (2026-11): an ad set's page, and a campaign's (network + name).
+    expect(isEntityRoute("/ad-sets/Camp-One")).toBe(true);
+    expect(isEntityRoute("/campaigns/meta/Camp-One")).toBe(true);
     expect(isEntityRoute("/budget")).toBe(true);
     expect(isEntityRoute("/landing-pages/ramadan")).toBe(true);
     // A Price Structure version, on every page of the module (2026-11-07).
@@ -162,6 +164,9 @@ describe("an entity gets comments only on its own page (2026-11-07)", () => {
       "/library/bulk",
       "/campaigns",
       "/campaigns/new",
+      // An old ad-set link (one segment) is a redirect, never an entity page.
+      "/campaigns/Camp-One",
+      "/ad-sets",
       "/budget/plan",
       "/summary",
       "/trends/by-angle",
@@ -204,9 +209,16 @@ describe("which anchor the panel points at", () => {
 describe("anchorPathFor — the one place an anchor becomes a path", () => {
   it("names address creatives and campaigns; a month is its own path", () => {
     expect(anchorPathFor("creative", "id", "Hero v2 / UGC")).toBe("/library/Hero%20v2%20%2F%20UGC");
+    // `campaign` is the AD SET (the stored key predates the two levels)…
     expect(anchorPathFor("campaign", "id", "Camp One ➤ Broad (IG)")).toBe(
-      `/campaigns/${encodeURIComponent("Camp One ➤ Broad (IG)")}`,
+      `/ad-sets/${encodeURIComponent("Camp One ➤ Broad (IG)")}`,
     );
+    // …and `parent_campaign` the CAMPAIGN: network + name, never a guess.
+    expect(anchorPathFor("parent_campaign", "id", "Camp One", "meta")).toBe(
+      "/campaigns/meta/Camp%20One",
+    );
+    expect(anchorPathFor("parent_campaign", "id", "Camp One")).toBeNull();
+    expect(anchorPathFor("parent_campaign", "id", null, "meta")).toBeNull();
     expect(anchorPathFor("budget_month", "2026-10", null)).toBe("/budget?month=2026-10");
     // A landing page is addressed by its CODE, passed as the name.
     expect(anchorPathFor("landing_page", "id", "lp-2")).toBe("/landing-pages/lp-2");
@@ -447,7 +459,8 @@ describe("who may delete someone else's comment (F3)", () => {
 describe("entityShareHref — the rail's Copy link (2026-11-21)", () => {
   it("is the entity's own path, never the reader's filters", () => {
     expect(entityShareHref("/library/Ad-One", { type: "creative", id: "c1" })).toBe("/library/Ad-One");
-    expect(entityShareHref("/campaigns/Spring", null)).toBe("/campaigns/Spring");
+    expect(entityShareHref("/ad-sets/Spring", null)).toBe("/ad-sets/Spring");
+    expect(entityShareHref("/campaigns/meta/Spring", null)).toBe("/campaigns/meta/Spring");
     expect(entityShareHref("/landing-pages/LP1", null)).toBe("/landing-pages/LP1");
   });
   it("pins the month or version the page shows", () => {

@@ -1,5 +1,6 @@
 import { safeHref } from "@/lib/notifications";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { adSetPath, campaignPath } from "@/lib/campaign";
 
 /**
  * Comments — the pure layer (phase 2 of notifications).
@@ -17,9 +18,12 @@ import { NAV_ITEMS } from "@/components/layout/nav-items";
  *     commenting is never a way to page the whole team.
  */
 
+// `campaign` = an AD SET, `parent_campaign` = a CAMPAIGN (lib/campaign.ts,
+// "TWO LEVELS") — stored keys, so the old one keeps its name.
 export const COMMENT_ANCHOR_TYPES = [
   "creative",
   "campaign",
+  "parent_campaign",
   "budget_month",
   "ps_version",
   "landing_page",
@@ -38,6 +42,7 @@ export type CommentAnchorType = (typeof COMMENT_ANCHOR_TYPES)[number];
 export const LIVE_ANCHOR_TYPES = [
   "creative",
   "campaign",
+  "parent_campaign",
   "budget_month",
   "ps_version",
   "landing_page",
@@ -102,6 +107,8 @@ export function anchorPathFor(
   type: CommentAnchorType,
   id: string,
   name: string | null,
+  /** A campaign's ad network — its page is `/campaigns/<network>/<name>`. */
+  network: string | null = null,
 ): string | null {
   // An old page comment leads nowhere: pages don't take comments any more,
   // and it is read in "All comments" itself (2026-11-07).
@@ -112,9 +119,10 @@ export function anchorPathFor(
   // records use it) — the caller passes the code as `name`.
   if (type === "landing_page") return name === null ? null : `/landing-pages/${encodeURIComponent(name)}`;
   if (name === null) return null;
-  return type === "creative"
-    ? `/library/${encodeURIComponent(name)}`
-    : `/campaigns/${encodeURIComponent(name)}`;
+  // A campaign is addressed by network + name; without its network the row
+  // is unresolvable, never a guess at another page.
+  if (type === "parent_campaign") return network === null ? null : campaignPath(network, name);
+  return type === "creative" ? `/library/${encodeURIComponent(name)}` : adSetPath(name);
 }
 
 /** "September 2026" — a budget-month anchor's human label. */
@@ -351,7 +359,11 @@ export function collapseReplies<T extends { id: string }>(
  */
 const ENTITY_ROUTE_PATTERNS: ReadonlyArray<RegExp> = [
   /^\/library\/(?!new$|bulk$)[^/]+$/,
-  /^\/campaigns\/(?!new$)[^/]+$/,
+  // An AD SET's page, and a CAMPAIGN's (`/campaigns/<network>/<name>`). A
+  // single segment under /campaigns is the list's own routes or an old ad-set
+  // link being redirected — never an entity.
+  /^\/ad-sets\/[^/]+$/,
+  /^\/campaigns\/[^/]+\/[^/]+$/,
   /^\/landing-pages\/[^/]+$/,
   /^\/budget$/,
   // A Price Structure VERSION (the open one is `?v=`) — every page of the

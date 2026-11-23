@@ -281,7 +281,7 @@ function SideCard({
         onToggle={(v) => setParam(`${prefix}Platforms`, toggle(side.platforms, v))}
       />
       <MultiSelect
-        label="Campaign"
+        label="Ad set"
         options={campaignOpts.map((c) => {
           const p = platformByCampaign.get(c);
           return {

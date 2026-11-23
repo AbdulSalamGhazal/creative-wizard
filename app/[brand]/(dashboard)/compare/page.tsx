@@ -46,7 +46,7 @@ function sideFilter(
 function sideSummary(side: CompareSide): string {
   const parts: string[] = [];
   if (side.platforms.length) parts.push(`${side.platforms.length} platform(s)`);
-  if (side.campaigns.length) parts.push(`${side.campaigns.length} campaign(s)`);
+  if (side.campaigns.length) parts.push(`${side.campaigns.length} ad set(s)`);
   if (side.creatives.length) parts.push(`${side.creatives.length} creative(s)`);
   if (side.landingPages.length)
     parts.push(`${side.landingPages.length} landing page(s)`);

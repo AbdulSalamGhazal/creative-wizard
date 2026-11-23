@@ -165,6 +165,22 @@ as it stood before the restructure.*
   `lib/mcp/coverage.ts` lists both tools under `budget`. Daily's per-day
   cells and Analysis's product cut have no tool of their own.
 
+### Two levels: campaigns above ad sets (2026-11-23)
+
+The app gained a Campaign level above what it had always called a campaign
+(an ad set — `docs/decisions/campaigns.md`). The MCP's tool NAMES and default
+grain did not change, on purpose: the user's daily-check and audit prompts
+call `list_campaigns` / `get_campaign` / `diagnose_campaign` and read one row
+per ad set. So `list_campaigns` takes `level: "ad_set"` (default — each row
+now also carries `parent_campaign` and `ad_set`, the two parts of its stored
+name) or `level: "campaign"` (one row per campaign, rolled up by
+`portfolioParentCampaigns` from the summed records, with `ad_sets`,
+`objectives`, `network` and `has_data`); `get_campaign` is one AD SET and
+names its `parent_campaign` / `network` / `ad_set`. Every campaign-shaped
+description carries one shared sentence (`TWO_LEVELS`) saying which level it
+means. `lib/mcp/coverage.ts` lists `parent-campaign` under both tools. No
+campaign-level `get_*` tool yet — it follows with delivery 2.
+
 ### Campaign objective on every campaign row (2026-11-20)
 
 The tables sweep gave the creative page's campaigns table an Objective

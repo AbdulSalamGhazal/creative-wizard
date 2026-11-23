@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "@/components/nav/link";
 import { auth, can } from "@/lib/auth";
 import {
   campaignAnalytics,
@@ -9,7 +10,6 @@ import {
   campaignMeta,
   campaignRecords,
   campaignRecordsByDay,
-  campaignRegistry,
 } from "@/db/queries/campaign";
 import { dataHorizon, resolveEntityBounds } from "@/db/queries/series-bounds";
 import { AnalyticsDateFilter } from "@/components/creative/analytics-date-filter";
@@ -22,13 +22,13 @@ import { CampaignRecordsTable } from "@/components/campaign/campaign-records-tab
 import { resolveTablePrefs } from "@/db/queries/user-prefs";
 import { TABLE_KEYS } from "@/lib/table-columns";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
-import { parseCampaignName } from "@/lib/campaign";
+import { campaignPath, parseCampaignName } from "@/lib/campaign";
 import { campaignStatusFor, campaignStatusMap } from "@/db/queries/campaign-status";
 import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { parseCampaignDetailParams } from "@/validators/campaign";
 import { PLATFORM_LABEL } from "@/lib/palette";
-import { safeDecodeURIComponent } from "@/lib/url";
+import { safeDecodeURIComponent, withDateRange } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { CommentAnchor } from "@/components/comments/comment-anchor-context";
@@ -41,36 +41,43 @@ import { CompareLink, compareHref } from "@/components/compare/compare-link";
 import { RailLinks } from "@/components/layout/rail-links";
 import { CanvasLink } from "@/components/canvas/canvas-link";
 import { canvasFocusHref } from "@/lib/canvas";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Campaign detail. Three lenses, top to bottom:
+ * AD SET detail — a `campaigns` row, the level under a Campaign (2026-11;
+ * lib/campaign.ts, "TWO LEVELS"). Until then this page was `/campaigns/<name>`.
+ * Three lenses, top to bottom:
  *  1. headline KPIs, each broken down by creative,
  *  2. one line per creative over time (any metric, smooth, expand),
  *  3. the raw uploaded rows (per record or grouped by day, sortable, all fields).
+ *
+ * REGISTRY-FIRST: an ad set with no records yet still opens (its sections are
+ * empty) — it must be reachable to fix a name before its first upload.
  */
 /**
- * Tab title: "Campaign · <name> · Wizard". `campaignMeta` is cache()-wrapped, so
+ * Tab title: "Ad set · <name> · Wizard". `campaignMeta` is cache()-wrapped, so
  * this shares the page's fetch rather than querying twice. The stored name keeps
  * its `➤` / `(IG)` decoration — decode the URL param so the tab shows it as
- * written, not percent-encoded. Unknown campaign → the section name.
+ * written, not percent-encoded. Unknown ad set → the section name.
  */
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ campaign: string }>;
+  params: Promise<{ adset: string }>;
 }): Promise<Metadata> {
-  const { campaign } = await params;
-  const meta = await campaignMeta(safeDecodeURIComponent(campaign));
-  return { title: meta ? `Campaign · ${meta.campaign}` : "Campaigns" };
+  const { adset } = await params;
+  const meta = await campaignMeta(safeDecodeURIComponent(adset));
+  return { title: meta ? `Ad set · ${meta.campaign}` : "Ad sets" };
 }
 
-export default async function CampaignDetailPage({
+export default async function AdSetDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ campaign: string }>;
+  params: Promise<{ adset: string }>;
   searchParams: Promise<{
     from?: string;
     to?: string;
@@ -78,9 +85,9 @@ export default async function CampaignDetailPage({
     includeExcluded?: string;
   }>;
 }) {
-  const { campaign } = await params;
+  const { adset } = await params;
   const sp = await searchParams;
-  const decoded = safeDecodeURIComponent(campaign);
+  const decoded = safeDecodeURIComponent(adset);
   const parsed = parseCampaignDetailParams(sp);
 
   const eff = await resolvePreferredRange(parsed.from, parsed.to, defaultDateRange());
@@ -91,23 +98,22 @@ export default async function CampaignDetailPage({
 
   const user = await auth();
   const canDelete = user ? can(user, "campaign.delete") : false;
+  const canUpload = user ? can(user, "upload.import") : false;
 
-  // Registry row (id/platform/objective) backs the edit dialog; parse the stored
-  // name back into Campaign + Ad Set so the form pre-fills cleanly.
-  const registry = await campaignRegistry(decoded);
-  const nameParts = registry ? parseCampaignName(decoded, registry.platform) : null;
+  // The campaign part of the stored name: its campaign's own name — or, for a
+  // row the reconcile hasn't reached, the part the stored name carries.
+  const nameParts = parseCampaignName(decoded, meta.platform);
+  const campaignName = meta.parent?.name ?? nameParts.campaign;
+  const campaignHref = meta.parent ? campaignPath(meta.parent.network, meta.parent.name) : null;
+
   // Status (current liveness) + deletion summary (what the danger zone removes),
   // fetched in parallel — both keyed on the registry id. The deletion summary
   // is ONLY rendered inside the `canDelete` danger zone, so a viewer who can
   // never see it no longer pays for the count.
-  const [campaignStatus, deletionSummary] = registry
-    ? await Promise.all([
-        campaignStatusMap([registry.id]).then((m) =>
-          campaignStatusFor(m, registry.id),
-        ),
-        canDelete ? campaignDeletionSummary(registry.id) : Promise.resolve(null),
-      ])
-    : [null, null];
+  const [campaignStatus, deletionSummary] = await Promise.all([
+    campaignStatusMap([meta.id]).then((m) => campaignStatusFor(m, meta.id)),
+    canDelete ? campaignDeletionSummary(meta.id) : Promise.resolve(null),
+  ]);
 
   // Effective Excluded state: URL param wins, else the user's saved default.
   const inc = await resolveIncludeExcluded(sp.includeExcluded);
@@ -131,14 +137,14 @@ export default async function CampaignDetailPage({
     resolveTablePrefs([TABLE_KEYS.CAMPAIGN_RECORDS]),
   ]);
 
-  // The campaign's first-ever day is `meta.firstDate`: the same rows (the
+  // The ad set's first-ever day is `meta.firstDate`: the same rows (the
   // name is unique per brand, and every record joins a creative and product),
   // so it needs no query of its own.
   const campaignFirst = meta.firstDate;
 
-  // Edge-fill bounds for the campaign's GROUP line: trailing zeros to the data
-  // horizon (a paused campaign shows the pause), leading zeros from the window
-  // start only if the campaign existed before it.
+  // Edge-fill bounds for the GROUP line: trailing zeros to the data horizon
+  // (a paused ad set shows the pause), leading zeros from the window start
+  // only if the ad set existed before it.
   const chartBounds = resolveEntityBounds({
     from: range.from,
     to: range.to,
@@ -153,39 +159,36 @@ export default async function CampaignDetailPage({
 
   return (
     <PageShell>
-      {/* The drawer anchors to the campaign itself (registry row), so a
+      {/* The drawer anchors to the ad set itself (registry row), so a
           rename never moves its thread. */}
-      {registry && <CommentAnchor type="campaign" id={registry.id} />}
+      <CommentAnchor type="campaign" id={meta.id} />
       {/* ─────────── Header — the shared PageHeader (D26): one back link,
           one title size; the controls wrap under it on a phone. ─────────── */}
       <PageHeader
-        backLink={{ href: "/campaigns", label: "Back to Campaigns" }}
-        eyebrow={meta.productNames.join(" · ") || "Campaign"}
+        backLink={{ href: "/ad-sets", label: "Back to Ad sets" }}
+        eyebrow={meta.productNames.join(" · ") || "Ad set"}
         title={meta.campaign}
         clampTitle
         rightSlot={
           <div className="flex flex-wrap items-center gap-2">
-            {registry && nameParts && (
-              <CampaignEditDialog
-                id={registry.id}
-                currentName={meta.campaign}
-                campaign={nameParts.campaign}
-                adset={nameParts.adset}
-                platform={registry.platform}
-                objective={registry.objective}
-                hasRecords={campaignFirst !== null}
-              />
-            )}
-            {/* Into Compare with this campaign as side A (R-045), and onto
+            <CampaignEditDialog
+              id={meta.id}
+              currentName={meta.campaign}
+              campaign={campaignName}
+              network={meta.parent?.network ?? null}
+              adset={meta.adsetName ?? nameParts.adset}
+              platform={meta.platform}
+              objective={meta.objective}
+              hasRecords={meta.hasRecords}
+            />
+            {/* Into Compare with this ad set as side A (R-045), and onto
                 the Canvas. From lg they live in the rail (2026-11-21). */}
             <RailLinks
               compare={compareHref({ campaigns: meta.campaign }, eff)}
-              canvas={registry ? canvasFocusHref({ campaignId: registry.id }, eff) : undefined}
+              canvas={canvasFocusHref({ campaignId: meta.id }, eff)}
             />
             <CompareLink side={{ campaigns: meta.campaign }} from={eff.from} to={eff.to} className="lg:hidden" />
-            {registry && (
-              <CanvasLink entity={{ campaignId: registry.id }} from={eff.from} to={eff.to} className="lg:hidden" />
-            )}
+            <CanvasLink entity={{ campaignId: meta.id }} from={eff.from} to={eff.to} className="lg:hidden" />
             <ExcludedParamToggle on={inc} />
             <AnalyticsDateFilter
               from={parsed.from ?? null}
@@ -197,14 +200,24 @@ export default async function CampaignDetailPage({
         }
       >
         {/* One muted meta line, not a wall of equal-weight pills (R-065): the
-            status is the bare StatusDot it is everywhere else. */}
+            status is the bare StatusDot it is everywhere else. The campaign
+            it belongs to leads — the way up. */}
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
-          {campaignStatus && (
+          {campaignHref && (
             <>
-              <CampaignStatusBadge status={campaignStatus} />
+              <Link
+                href={withDateRange(campaignHref, eff.from, eff.to)}
+                className="text-ink underline-offset-2 hover:underline"
+                dir="auto"
+              >
+                <span className="sr-only">Campaign: </span>
+                {campaignName}
+              </Link>
               <span aria-hidden className="text-ink-3">·</span>
             </>
           )}
+          <CampaignStatusBadge status={campaignStatus} />
+          <span aria-hidden className="text-ink-3">·</span>
           <span>{meta.objective}</span>
           {meta.platforms.map((p) => (
             <span key={p} className="inline-flex items-center gap-1.5">
@@ -228,58 +241,87 @@ export default async function CampaignDetailPage({
         </div>
       </PageHeader>
 
-      {/* 1 ─── Headline KPIs, broken down by creative ─── */}
-      <CampaignCreativeKpis analytics={analytics} creatives={creativeRows} />
+      {meta.hasRecords ? (
+        <>
+          {/* 1 ─── Headline KPIs, broken down by creative ─── */}
+          <CampaignCreativeKpis analytics={analytics} creatives={creativeRows} />
 
-      {/* 2 ─── One line per creative over time ─── */}
-      <CampaignCreativeChart
-        points={daily}
-        creatives={legendCreatives}
-        fillFrom={chartBounds.fillFrom}
-        fillTo={chartBounds.fillTo}
-      />
+          {/* 2 ─── One line per creative over time ─── */}
+          <CampaignCreativeChart
+            points={daily}
+            creatives={legendCreatives}
+            fillFrom={chartBounds.fillFrom}
+            fillTo={chartBounds.fillTo}
+          />
 
-      {/* 2½ ─── The chart's creatives, tabulated ─── */}
-      <div className="space-y-2">
-        <h2 className="text-label text-ink-3">
-          Creatives
-        </h2>
-        <CampaignCreativesTable creatives={creativeRows} />
-      </div>
+          {/* 2½ ─── The chart's creatives, tabulated ─── */}
+          <div className="space-y-2">
+            <h2 className="text-label text-ink-3">
+              Creatives
+            </h2>
+            <CampaignCreativesTable creatives={creativeRows} />
+          </div>
 
-      {/* 3 ─── Raw uploaded rows — collapsed by default ─── */}
-      <CollapsibleSection
-        title="Row data"
-        subtitle={`${records.length}${records.length >= 2000 ? "+" : ""} records`}
-      >
-        <CampaignRecordsTable
-          records={records}
-          byDay={byDay}
-          campaign={decoded}
-          columnPref={tablePrefs[TABLE_KEYS.CAMPAIGN_RECORDS]}
+          {/* 3 ─── Raw uploaded rows — collapsed by default ─── */}
+          <CollapsibleSection
+            title="Row data"
+            subtitle={`${records.length}${records.length >= 2000 ? "+" : ""} records`}
+          >
+            <CampaignRecordsTable
+              records={records}
+              byDay={byDay}
+              campaign={decoded}
+              columnPref={tablePrefs[TABLE_KEYS.CAMPAIGN_RECORDS]}
+            />
+          </CollapsibleSection>
+        </>
+      ) : (
+        // Registered, never uploaded (2026-11): ONE state — the name above is
+        // what an upload must match, and it can still be edited here.
+        <EmptyState
+          title="No data yet"
+          hint="Numbers appear after the first upload that names this ad set exactly as above."
+          action={
+            canUpload ? (
+              <Button asChild size="sm">
+                <Link href="/uploads/new">Upload ads</Link>
+              </Button>
+            ) : undefined
+          }
         />
-      </CollapsibleSection>
+      )}
 
       {/* ─────────── Danger zone (delete permission only) ─────────── */}
-      {canDelete && registry && deletionSummary && (
+      {canDelete && deletionSummary && (
         <DangerZone>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-sm font-medium text-ink">
-                Delete this campaign
+                Delete this ad set
               </h2>
               <p className="text-xs text-ink-3 mt-0.5 max-w-xl">
-                Permanently removes the campaign and all{" "}
-                {int(deletionSummary.records)} of its performance
-                records. The {int(deletionSummary.creatives)} creative
-                {deletionSummary.creatives === 1 ? "" : "s"} that ran here are
-                kept. This can&apos;t be undone.
+                {deletionSummary.records > 0 ? (
+                  <>
+                    Permanently removes the ad set and all{" "}
+                    {int(deletionSummary.records)} of its performance
+                    records. The {int(deletionSummary.creatives)} creative
+                    {deletionSummary.creatives === 1 ? "" : "s"} that ran here are
+                    kept, and so is its campaign.
+                  </>
+                ) : (
+                  <>
+                    Permanently removes the ad set. It has no performance records;
+                    its campaign is kept.
+                  </>
+                )}{" "}
+                This can&apos;t be undone.
               </p>
             </div>
             <DeleteCampaignDialog
-              campaignId={registry.id}
+              campaignId={meta.id}
               campaignName={meta.campaign}
               summary={deletionSummary}
+              afterHref={campaignHref ?? "/ad-sets"}
             />
           </div>
         </DangerZone>

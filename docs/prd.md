@@ -18,8 +18,10 @@
 > - **Multi-tenant:** 2–5 brands in one DB via row-level `account_id`
 >   (`accounts` table + `ccms_account` cookie switcher) — not single-tenant.
 > - **Campaign identity:** `performance_records.campaign_id` (uuid FK → the
->   `campaigns` registry). Campaign names are built ONLY through
->   `buildCampaignName()` — `Campaign ➤ Adset` + ` (IG)`/` (FB)` platform tags.
+>   `campaigns` registry — the AD SETS; since 2026-11 a `parent_campaigns` row
+>   is the Campaign above them, see `docs/decisions/campaigns.md`). An ad
+>   set's stored name is built ONLY through `buildCampaignName()` —
+>   `Campaign ➤ Adset` + ` (IG)`/` (FB)` platform tags.
 > - **Video metrics:** 2s views + 25/50/75/100% quartiles — not 3s/15s.
 > - **Upload sessions:** stored in Postgres (`upload_validation_sessions`) —
 >   Vercel KV was never used.

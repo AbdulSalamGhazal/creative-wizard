@@ -25,8 +25,15 @@
 export const TABLE_KEYS = {
   /** Campaign detail → the records/by-day table. */
   CAMPAIGN_RECORDS: "campaign-records",
-  /** /campaigns → the portfolio table (URL-backed, saved views own columns). */
+  /** /ad-sets → the AD SETS table (URL-backed, saved views own columns). The
+   *  stored key predates the two levels, so it keeps its name. */
   CAMPAIGNS: "campaigns",
+  /** /campaigns → the CAMPAIGNS table (one row per campaign; URL-backed). */
+  PARENT_CAMPAIGNS: "parent-campaigns",
+  /** Campaign page → its ad sets, side by side. */
+  PARENT_CAMPAIGN_AD_SETS: "parent-campaign-ad-sets",
+  /** Campaign page → the creatives that ran anywhere in it. */
+  PARENT_CAMPAIGN_CREATIVES: "parent-campaign-creatives",
   /** /store/orders → the orders table. */
   STORE_ORDERS: "store-orders",
   /** /store/costs → the product costs table. */

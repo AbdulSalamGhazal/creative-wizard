@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "@/lib/brand-nav";
 import { useNavTransition } from "@/lib/nav-progress";
 import { withDateRange } from "@/lib/url";
+import { adSetPath } from "@/lib/campaign";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
@@ -211,7 +212,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
   const to = searchParams.get("to");
   const campaignHref = useMemo(
     () => (campaign: string) =>
-      withDateRange(`/campaigns/${encodeURIComponent(campaign)}`, from, to),
+      withDateRange(adSetPath(campaign), from, to),
     [from, to],
   );
 
@@ -219,7 +220,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
     () => [
       {
         key: "campaign",
-        label: "Campaign",
+        label: "Ad set",
         align: "left",
         pinned: true,
         sortable: true,
@@ -325,7 +326,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
   });
 
   const empty = (
-    <EmptyState title={`No campaign activity for this ${subject}.`} kind="range" />
+    <EmptyState title={`No ad set activity for this ${subject}.`} kind="range" />
   );
 
   if (platforms.length === 0) return empty;
@@ -336,7 +337,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
         <div className="inline-flex items-center rounded-md border border-line bg-surface-2 p-0.5 text-[11px]">
           {(
             [
-              ["campaign", "By campaign"],
+              ["campaign", "By ad set"],
               ["platform", "By platform"],
             ] as const
           ).map(([k, l]) => (
@@ -355,7 +356,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
         </div>
         <span className="text-[11px] text-ink-3 tabular-nums">
           {mode === "campaign"
-            ? `${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"}`
+            ? `${campaigns.length} ad set${campaigns.length === 1 ? "" : "s"}`
             : `${platforms.length} platform${platforms.length === 1 ? "" : "s"}`}
         </span>
       </div>
@@ -371,7 +372,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
           {...cols.tableProps}
           onRowClick={(r) => startNav(() => router.push(campaignHref(r.campaign)))}
           showTotals
-          csvFileName="creative-campaigns"
+          csvFileName="creative-ad-sets"
           empty={empty}
         />
       ) : (

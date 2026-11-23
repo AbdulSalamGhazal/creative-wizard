@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { buildCampaignName, parseCampaignName, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
+import {
+  AD_NETWORKS,
+  adNetwork,
+  adSetLabel,
+  adSetPath,
+  buildCampaignName,
+  campaignNameHasSeparator,
+  campaignPath,
+  CAMPAIGN_OBJECTIVES,
+  isAdNetwork,
+  networkPlatforms,
+  parentKey,
+  parentOfBuiltName,
+  parseCampaignName,
+} from "@/lib/campaign";
+import { ALL_PLATFORMS } from "@/lib/palette";
 
 /**
  * buildCampaignName is the single source of truth for the stored campaign-name
@@ -93,5 +108,93 @@ describe("CAMPAIGN_OBJECTIVES", () => {
       "Activation",
       "Special Case",
     ]);
+  });
+});
+
+/**
+ * TWO LEVELS (2026-11): a CAMPAIGN lives on one ad NETWORK, and its ad sets'
+ * stored names carry its name. These helpers are what keep the registry, the
+ * upload pipeline and the backfill reading a stored name the same way.
+ */
+describe("ad networks — the level a campaign lives on", () => {
+  it("folds Instagram and Facebook into Meta; every other platform is its own network", () => {
+    expect(adNetwork("instagram")).toBe("meta");
+    expect(adNetwork("facebook")).toBe("meta");
+    expect(adNetwork("tiktok")).toBe("tiktok");
+    expect(adNetwork("snapchat")).toBe("snapchat");
+    expect(adNetwork("google")).toBe("google");
+    expect(adNetwork("not-a-platform")).toBeNull();
+  });
+
+  it("derives the network list from the platforms — every platform has one", () => {
+    expect([...AD_NETWORKS]).toEqual(["meta", "tiktok", "snapchat", "google"]);
+    for (const p of ALL_PLATFORMS) {
+      const network = adNetwork(p)!;
+      expect(networkPlatforms(network)).toContain(p);
+      expect(isAdNetwork(network)).toBe(true);
+    }
+    expect(networkPlatforms("meta")).toEqual(["instagram", "facebook"]);
+    expect(isAdNetwork("instagram")).toBe(false);
+  });
+});
+
+describe("the campaign of a built ad-set name", () => {
+  it("is the network of the platform and the part before the first separator", () => {
+    expect(parentOfBuiltName("Holiday ➤ Broad (IG)", "instagram")).toEqual({
+      network: "meta",
+      campaign: "Holiday",
+      adset: "Broad",
+    });
+    // A later separator belongs to the ad set.
+    expect(parentOfBuiltName("Deep ➤ One ➤ Two", "tiktok")).toEqual({
+      network: "tiktok",
+      campaign: "Deep",
+      adset: "One ➤ Two",
+    });
+    expect(parentOfBuiltName("Solo", "not-a-platform")).toBeNull();
+  });
+
+  it("round-trips for every platform: parent + ad set rebuild the stored name", () => {
+    const campaigns = ["Holiday", "Sal_U3_11-Feb", "مسباح | Sales | 15 Feb", "A (IG)"];
+    const adsets = ["Broad", "Age 18-45 (copy)", "One ➤ Two", "30 June | Soft Exc.", ""];
+    for (const platform of ALL_PLATFORMS) {
+      for (const campaign of campaigns) {
+        for (const adset of adsets) {
+          const built = buildCampaignName(campaign, adset, platform);
+          expect(parentOfBuiltName(built, platform)).toEqual({
+            network: adNetwork(platform),
+            campaign,
+            adset,
+          });
+        }
+      }
+    }
+  });
+
+  it("a campaign name may not contain the separator", () => {
+    expect(campaignNameHasSeparator("A ➤ B")).toBe(true);
+    expect(campaignNameHasSeparator("A➤B")).toBe(true);
+    expect(campaignNameHasSeparator("A | B > C")).toBe(false);
+  });
+
+  it("keys a campaign by network + name", () => {
+    expect(parentKey("meta", "Holiday")).not.toBe(parentKey("tiktok", "Holiday"));
+    expect(parentKey("meta", "Holiday")).toBe(parentKey("meta", "Holiday"));
+  });
+});
+
+describe("addresses and labels", () => {
+  it("an ad set is addressed by its stored name, a campaign by network + name", () => {
+    expect(adSetPath("Holiday ➤ Broad (IG)")).toBe(
+      `/ad-sets/${encodeURIComponent("Holiday ➤ Broad (IG)")}`,
+    );
+    expect(campaignPath("meta", "Holiday Sale")).toBe("/campaigns/meta/Holiday%20Sale");
+  });
+
+  it("labels an ad set inside its campaign with the platform tag kept", () => {
+    expect(adSetLabel("Holiday ➤ Broad (IG)")).toBe("Broad (IG)");
+    expect(adSetLabel("Deep ➤ One ➤ Two")).toBe("One ➤ Two");
+    // No ad-set part: the stored name is all there is.
+    expect(adSetLabel("Solo (FB)")).toBe("Solo (FB)");
   });
 });

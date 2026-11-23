@@ -604,7 +604,9 @@ as it stood before the restructure.*
   `comment-latency.test.ts`); this generalised it. The fix is the invariant
   above: stay → keep the revalidation, drop the refresh; navigate → the action
   doesn't revalidate (`createCreative`, `deleteCreative`,
-  `commitBulkCreatives`, `createCampaign`, `deleteCampaign`,
+  `commitBulkCreatives`, `createCampaign` (since 2026-11:
+  `createParentCampaign`, with `updateParentCampaign` and
+  `deleteParentCampaign`), `deleteCampaign`,
   `commitStoreUpload`), and `patchCreative` / `updateCampaign` revalidate only
   when the name did NOT change.
 - **The queue trap.** The date picker, once its refresh was gone, still cost

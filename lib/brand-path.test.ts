@@ -93,9 +93,19 @@ describe("where switching brand lands", () => {
       href: "/mesbah/library",
       moved: { what: "creative", section: "Library" },
     });
-    expect(switchTarget("mesbah", "/campaigns/Spring", "")).toMatchObject({
+    // Two levels (2026-11): a campaign's page is network + name; an ad set's
+    // is /ad-sets; a single segment under /campaigns is an OLD ad-set link.
+    expect(switchTarget("mesbah", "/campaigns/meta/Spring", "")).toMatchObject({
       href: "/mesbah/campaigns",
       moved: { what: "campaign" },
+    });
+    expect(switchTarget("mesbah", "/ad-sets/Spring%20%E2%9E%A4%20Broad", "")).toEqual({
+      href: "/mesbah/ad-sets",
+      moved: { what: "ad set", section: "Ad sets" },
+    });
+    expect(switchTarget("mesbah", "/campaigns/Spring", "")).toMatchObject({
+      href: "/mesbah/ad-sets",
+      moved: { what: "ad set" },
     });
     expect(switchTarget("mesbah", "/landing-pages/ramadan", "?from=2026-01-01")).toEqual({
       href: "/mesbah/library?tab=landing-pages",

@@ -169,7 +169,7 @@ export async function DashboardMetrics({
       </div>
       {isCampaign && moreCount > 0 && (
         <p className="text-[11px] text-ink-3">
-          Showing the top {CAMPAIGN_LIMIT} campaigns by spend · {moreCount} more
+          Showing the top {CAMPAIGN_LIMIT} ad sets by spend · {moreCount} more
           not shown.
         </p>
       )}

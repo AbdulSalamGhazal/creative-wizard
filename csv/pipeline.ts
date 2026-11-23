@@ -25,7 +25,7 @@ import {
   type PlatformAdapter,
 } from "@/csv/platforms/types";
 import type { ValidationError } from "@/csv/errors";
-import { buildCampaignName } from "@/lib/campaign";
+import { buildCampaignName, parentKey, parentOfBuiltName } from "@/lib/campaign";
 import { splitLandingCode, withLandingCode } from "@/lib/landing-code";
 
 type Platform = PlatformAdapter["platform"];
@@ -83,6 +83,10 @@ export interface PipelineInput extends ParseInput {
   /** Registered campaign names (the built campaign_name). When provided, a row
    *  whose campaign isn't registered is rejected (E061). Omit to skip the check. */
   registeredCampaigns?: Set<string>;
+  /** Registered CAMPAIGNS (the level above an ad set), keyed `parentKey(network,
+   *  name)`. When provided, an unregistered ad set whose campaign IS registered
+   *  is E062 (and E061 names the campaign alone). Omit for the old single error. */
+  registeredParents?: Set<string>;
   /** Registered landing-page codes (no `@`). When provided, a row whose
    *  ` @code` isn't registered is rejected (E023). Omit to skip the check. */
   registeredLandingCodes?: Set<string>;
@@ -509,14 +513,39 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     // E061 — the campaign must be registered (like creatives, E020). Stops a
     // source-side rename from silently creating a new campaign.
+    //
+    // TWO LEVELS (2026-11): the built name is an AD SET under a CAMPAIGN, and
+    // both are registered by hand. When `registeredParents` is provided the
+    // error says WHICH is missing: the campaign itself (E061), or only this ad
+    // set under a campaign that exists (E062 — fixed on that campaign's page).
+    // The campaign is read off the BUILT name (`parentOfBuiltName`), never the
+    // raw cell, so it agrees with the registry and the backfill.
     if (input.registeredCampaigns && !input.registeredCampaigns.has(campaignName)) {
+      const parent = parentOfBuiltName(campaignName, platform);
+      const parentRegistered =
+        parent !== null &&
+        input.registeredParents !== undefined &&
+        input.registeredParents.has(parentKey(parent.network, parent.campaign));
+      if (parent !== null && parentRegistered) {
+        collected.push({
+          code: "E062",
+          severity: "ERROR",
+          message: `Row ${rowNumber}: ad set \`'${parent.adset}'\` is not registered in campaign \`'${parent.campaign}'\`. Add it on that campaign's page first.`,
+          row: rowNumber,
+          field: "adset_name",
+          value: campaignName,
+          campaign: { network: parent.network, name: parent.campaign, adSet: parent.adset },
+        });
+        continue;
+      }
+      const missing = input.registeredParents !== undefined && parent !== null ? parent.campaign : campaignName;
       collected.push({
         code: "E061",
         severity: "ERROR",
-        message: `Row ${rowNumber}: campaign \`'${campaignName}'\` is not registered. Create it on the Campaigns page first.`,
+        message: `Row ${rowNumber}: campaign \`'${missing}'\` is not registered. Create it on the Campaigns page first.`,
         row: rowNumber,
         field: "campaign_name",
-        value: campaignName,
+        value: missing,
       });
       continue;
     }
@@ -562,7 +591,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       collected.push({
         code: "E050",
         severity: "ERROR",
-        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${shown}'\`, campaign \`'${parts[1]}'\`, platform \`${platform}\`, date \`${parts[2]}\`.`,
+        message: `Rows ${rowNums.join(", ")}: duplicate within file — same creative \`'${shown}'\`, ad set \`'${parts[1]}'\`, platform \`${platform}\`, date \`${parts[2]}\`.`,
         rows: rowNums,
         value: shown,
       });
@@ -634,7 +663,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           collected.push({
             code: "E051",
             severity: "ERROR",
-            message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / campaign \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported (batch ${same.batchId}). Roll back that batch to re-import.`,
+            message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / ad set \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported (batch ${same.batchId}). Roll back that batch to re-import.`,
             rows: rowNums,
             value: shown,
           });
@@ -647,7 +676,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         collected.push({
           code: "E052",
           severity: "ERROR",
-          message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / campaign \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported under a different landing page (\`'${withLandingCode(name, renamed.landingCode)}'\`, batch ${renamed.batchId}). The ad was renamed on the platform after that day was imported — upload only the days after the rename.`,
+          message: `Row(s) ${rowNums.join(", ")}: \`'${shown}'\` / ad set \`'${campaign}'\` on \`${platform}\` for \`${day}\` was already imported under a different landing page (\`'${withLandingCode(name, renamed.landingCode)}'\`, batch ${renamed.batchId}). The ad was renamed on the platform after that day was imported — upload only the days after the rename.`,
           rows: rowNums,
           value: shown,
         });

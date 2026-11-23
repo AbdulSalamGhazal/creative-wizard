@@ -35,7 +35,10 @@ export interface CampaignColumnMeta {
 }
 
 export const CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = [
-  { key: "campaign", label: "Campaign", align: "left", sortable: true, pinned: true, defaultSortDir: "asc" },
+  // The identity column of the AD SETS list — the row this table calls a
+  // "campaign" is the UI's ad set (lib/campaign.ts, "TWO LEVELS"). The KEY is
+  // stored in saved views and preferences, so it keeps its name.
+  { key: "campaign", label: "Ad set", align: "left", sortable: true, pinned: true, defaultSortDir: "asc" },
   { key: "objective", label: "Objective", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "status", label: "Status", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "platforms", label: "Platform", align: "left", sortable: false },
@@ -76,3 +79,58 @@ export const CAMPAIGN_COLUMN_KEYS: readonly string[] = CAMPAIGN_TABLE_COLUMNS.ma
 export const CAMPAIGN_DEFAULT_HIDDEN: readonly string[] = CAMPAIGN_COLS_META.filter(
   (c) => c.defaultHidden,
 ).map((c) => c.key);
+
+/**
+ * THE TWO LEVELS OF THE ONE TABLE (2026-11). `adset` is the list above (its
+ * stored table key is still `campaigns`); `campaign` is one row per CAMPAIGN —
+ * the same columns with its own identity label and an "Ad sets" count, DERIVED
+ * from the ad-set list so the two can't drift.
+ */
+export type PortfolioLevel = "adset" | "campaign";
+
+export const PARENT_CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = CAMPAIGN_COLS_META.flatMap(
+  (c): CampaignColumnMeta[] => {
+    if (c.key === "campaign") return [{ ...c, label: "Campaign" }];
+    // The ad sets it holds, right after where it runs.
+    if (c.key === "platforms") {
+      return [c, { key: "adSets", label: "Ad sets", align: "right", sortable: true }];
+    }
+    return [c];
+  },
+);
+
+/** Columns that are NOT a number — everything else reads "—" on a never-run campaign. */
+const NON_NUMERIC = new Set(["campaign", "objective", "status", "platforms", "adSets", "createdAt"]);
+
+export interface PortfolioLevelMeta {
+  cols: readonly CampaignColumnMeta[];
+  /** Hideable columns (all but the identity column), for the columns control. */
+  tableColumns: ReadonlyArray<{ key: string; label: string }>;
+  columnKeys: readonly string[];
+  defaultHidden: readonly string[];
+  numericKeys: ReadonlySet<string>;
+  csvFileName: string;
+  emptyTitle: string;
+}
+
+function levelMeta(
+  cols: readonly CampaignColumnMeta[],
+  csvFileName: string,
+  emptyTitle: string,
+): PortfolioLevelMeta {
+  const tableColumns = cols.filter((c) => !c.pinned).map((c) => ({ key: c.key, label: c.label }));
+  return {
+    cols,
+    tableColumns,
+    columnKeys: tableColumns.map((c) => c.key),
+    defaultHidden: cols.filter((c) => c.defaultHidden).map((c) => c.key),
+    numericKeys: new Set(cols.map((c) => c.key).filter((k) => !NON_NUMERIC.has(k))),
+    csvFileName,
+    emptyTitle,
+  };
+}
+
+export const PORTFOLIO_LEVELS: Record<PortfolioLevel, PortfolioLevelMeta> = {
+  adset: levelMeta(CAMPAIGN_COLS_META, "ad-sets", "No ad sets match these filters."),
+  campaign: levelMeta(PARENT_CAMPAIGN_COLS_META, "campaigns", "No campaigns match these filters."),
+};

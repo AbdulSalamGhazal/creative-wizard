@@ -10,7 +10,12 @@
 
 - **Comments live on ENTITIES, never on pages (2026-11-07, user decision).**
   Only an entity with its OWN page takes comments — today a creative
-  (`/library/<name>`), a campaign (`/campaigns/<name>`), a budget month
+  (`/library/<name>`), an ad set (anchor `campaign`, `/ad-sets/<name>` — the
+  stored key predates the two levels) and the campaign above it (anchor
+  `parent_campaign`, `/campaigns/<network>/<name>`, 2026-11 — `anchorPathFor`
+  takes its network as a fourth argument, and its Activity is its own
+  register / rename / delete plus the ad sets added to it or removed), a
+  budget month
   (`/budget`) and a landing page (`landing_page`, `/landing-pages/<code>`,
   2026-11-12 — addressed by its CODE, which `anchorPathFor` receives as the
   `name`; its Activity is its own create / edit / delete plus went-live /

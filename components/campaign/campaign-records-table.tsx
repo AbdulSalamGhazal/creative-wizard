@@ -255,7 +255,7 @@ export function CampaignRecordsTable({
   }, [mode, sortedRecords, sortedDays]);
 
   const csvFilename = `${
-    campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "campaign"
+    campaign.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "ad-set"
   }-${mode === "day" ? "by-day" : "records"}.csv`;
 
   const metricColumns = <T,>(): DataColumn<T>[] =>

@@ -1,5 +1,6 @@
 import { roas, usd0 } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
+import { AD_NETWORK_LABEL, isAdNetwork } from "@/lib/campaign";
 
 /**
  * One muted line per audit event — what the `meta` jsonb says, in words.
@@ -120,6 +121,30 @@ export function metaSummary(row: AuditSummaryInput): string | null {
     case "campaign.delete": {
       const n = m.recordsDeleted as number | undefined;
       return n !== undefined ? `removed with ${plural(n, "record")}` : null;
+    }
+    case "parent_campaign.create": {
+      const network = m.network as string | undefined;
+      const n = m.adSets as number | undefined;
+      return join([
+        network && isAdNetwork(network) ? AD_NETWORK_LABEL[network] : null,
+        n !== undefined ? plural(n, "ad set") : null,
+      ]);
+    }
+    case "parent_campaign.update": {
+      const renamed = m.renamedFrom as string | undefined;
+      const n = m.adSetsRenamed as number | undefined;
+      return join([
+        renamed ? `renamed from ${renamed}` : null,
+        n ? `${plural(n, "ad set")} renamed with it` : null,
+      ]);
+    }
+    case "parent_campaign.delete": {
+      const sets = m.adSetsDeleted as number | undefined;
+      const n = m.recordsDeleted as number | undefined;
+      return join([
+        sets !== undefined ? `removed with ${plural(sets, "ad set")}` : null,
+        n !== undefined ? plural(n, "record") : null,
+      ]);
     }
     case "exclusion.rule_create": {
       const n = m.excluded as number | undefined;

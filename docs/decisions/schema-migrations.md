@@ -20,6 +20,18 @@
   and `prevId` = the previous `id`, so `drizzle-kit generate` keeps its chain.
   Like every migration it does not run on deploy — run it by hand against the
   direct URL (CLAUDE.md, Deployment).
+- **A column the OLD code doesn't write goes in as EXPAND → CONTRACT**
+  (0023 / 0024; `parent_campaigns` + `parent_campaigns_reconcile`, then a
+  later contract, 2026-11). `drizzle-kit migrate` applies
+  EVERY pending migration, and the code deployed before a migration keeps
+  running until the deploy lands — so the expand step (nullable column + a
+  backfill) ships with the code, and `SET NOT NULL` is its OWN later series,
+  once a rollback is off the table. Until then the Drizzle column stays
+  nullable and reads tolerate NULL. A backfill that derives a value from
+  another column RECONCILES (rewrites a row whenever derived ≠ stored, not
+  only when NULL — the old code may change the source column in the gap), is
+  idempotent, and is pinned against the TS function it mirrors by a DB test
+  that runs the migration file's own SQL.
 
 ## History and rationale
 

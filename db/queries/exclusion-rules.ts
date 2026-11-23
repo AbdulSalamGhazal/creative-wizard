@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   campaigns,
@@ -370,6 +370,29 @@ export async function deleteRulesTargeting(
   const deleted = await exec
     .delete(exclusionRules)
     .where(and(eq(exclusionRules.accountId, acct), cond))
+    .returning({ id: exclusionRules.id });
+  return deleted.length;
+}
+
+/**
+ * Delete every rule targeting ANY of these ad sets (`campaigns` rows) — for
+ * deleting a whole campaign, inside its transaction, AFTER the records of
+ * those ad sets are gone. One statement, however many ad sets.
+ */
+export async function deleteRulesTargetingCampaigns(
+  exec: Exec,
+  acct: string,
+  campaignIds: readonly string[],
+): Promise<number> {
+  if (campaignIds.length === 0) return 0;
+  const deleted = await exec
+    .delete(exclusionRules)
+    .where(
+      and(
+        eq(exclusionRules.accountId, acct),
+        inArray(exclusionRules.campaignId, [...campaignIds]),
+      ),
+    )
     .returning({ id: exclusionRules.id });
   return deleted.length;
 }

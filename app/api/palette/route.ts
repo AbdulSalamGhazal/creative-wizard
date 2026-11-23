@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { listCreativeOptions } from "@/db/queries/creatives";
 import { listPaletteCampaigns } from "@/db/queries/campaign";
+import { listPaletteParentCampaigns } from "@/db/queries/parent-campaign";
 import { listSavedViewOptions } from "@/db/queries/summary-views";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +22,16 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await auth();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const [creatives, campaigns, views] = await Promise.all([
+  // `campaigns` are the AD SETS (the key predates the two levels);
+  // `parentCampaigns` the CAMPAIGNS above them (2026-11).
+  const [creatives, campaigns, parentCampaigns, views] = await Promise.all([
     listCreativeOptions({ limit: 500 }),
     listPaletteCampaigns(500),
+    listPaletteParentCampaigns(500),
     listSavedViewOptions(user.id),
   ]);
   return NextResponse.json(
-    { creatives, campaigns, views },
+    { creatives, campaigns, parentCampaigns, views },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

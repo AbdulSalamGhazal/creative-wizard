@@ -56,9 +56,9 @@ export function campaignPlatformCollisions(
       field: "campaign_name",
       value: name,
       message:
-        `Campaign “${name}” already exists on ${others}, but this file is for ${here}. ` +
-        `A campaign name must belong to a single platform — the app treats the same name as ` +
-        `one campaign and would merge the two. Rename this campaign for ${here} ` +
+        `Ad set “${name}” already exists on ${others}, but this file is for ${here}. ` +
+        `An ad set name must belong to a single platform — the app treats the same name as ` +
+        `one ad set and would merge the two. Rename this ad set for ${here} ` +
         `(e.g. add the platform to the name) and upload again.`,
     });
   }

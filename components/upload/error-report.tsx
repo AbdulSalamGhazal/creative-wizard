@@ -9,6 +9,7 @@ import { useCan } from "@/components/auth/permissions-context";
 import { downloadCsv, rowsToCsv } from "@/lib/csv-export";
 import type { ReportGroup } from "@/lib/validation-report";
 import type { ValidationError } from "@/csv/errors";
+import { campaignPath } from "@/lib/campaign";
 
 interface Props {
   errors: ValidationError[];
@@ -56,6 +57,18 @@ export function ErrorReport({ errors, warnings }: Props) {
     }
     if (g.code === "E061" && canCreateCampaign) {
       return <FixLink href="/campaigns/new">Create campaign</FixLink>;
+    }
+    // The campaign exists, this ad set doesn't: straight to that campaign,
+    // with "Add ad set" open on the missing name (2026-11).
+    const missing = g.entries[0]?.campaign;
+    if (g.code === "E062" && canCreateCampaign && missing) {
+      return (
+        <FixLink
+          href={`${campaignPath(missing.network, missing.name)}?addAdSet=${encodeURIComponent(missing.adSet)}`}
+        >
+          Add ad set
+        </FixLink>
+      );
     }
     if (g.code === "E023" && canLandingPages) {
       return <FixLink href="/library?tab=landing-pages">Add landing page</FixLink>;

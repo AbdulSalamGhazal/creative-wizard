@@ -306,6 +306,11 @@ describe("the registry", () => {
         "ps-what-it-takes",
         "ps-plan-breakdown",
         "ps-versions",
+        // Campaigns above ad sets (2026-11): the Campaigns list, and a
+        // campaign page's two tables. ("campaigns" is the AD SETS list.)
+        "parent-campaigns",
+        "parent-campaign-ad-sets",
+        "parent-campaign-creatives",
       ].sort(),
     );
   });

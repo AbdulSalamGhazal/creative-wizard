@@ -34,7 +34,8 @@ export const ACTIVITY_WHO_LABEL: Record<ActivityWho, string> = {
  */
 export const ANCHOR_TYPE_LABEL: Record<CommentAnchorType, string> = {
   creative: "Creatives",
-  campaign: "Campaigns",
+  campaign: "Ad sets",
+  parent_campaign: "Campaigns",
   budget_month: "Budget",
   ps_version: "Price versions",
   landing_page: "Landing pages",
@@ -49,7 +50,8 @@ export const ANCHOR_TYPE_LABEL: Record<CommentAnchorType, string> = {
  */
 export const ANCHOR_FALLBACK_LABEL: Record<CommentAnchorType, string> = {
   creative: "Deleted creative",
-  campaign: "Deleted campaign",
+  campaign: "Deleted ad set",
+  parent_campaign: "Deleted campaign",
   budget_month: "Budget month",
   ps_version: "Deleted price version",
   landing_page: "Deleted landing page",

@@ -137,7 +137,7 @@ export function DeleteCreativeDialog({
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-ink-3 pt-0.5">
                   <span>
-                    {int(summary.campaigns)} campaign
+                    {int(summary.campaigns)} ad set
                     {summary.campaigns === 1 ? "" : "s"}
                   </span>
                   {summary.firstDate && summary.lastDate && (

@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { int } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNavTransition } from "@/lib/nav-progress";
+import { adSetPath } from "@/lib/campaign";
 import {
   buildClusters,
   CANVAS_LENS_LABEL,
@@ -88,29 +89,29 @@ function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
     case "most-shared":
       if (view === "angle") return "Lights this creative in every angle it carries.";
       return view === "campaign"
-        ? "Lights every copy of this creative — one per campaign it runs in."
-        : "Best seen in By campaign, where the creative appears once per campaign it runs in.";
+        ? "Lights every copy of this creative — one per ad set it runs in."
+        : "Best seen in By ad set, where the creative appears once per ad set it runs in.";
     case "no-live-creatives":
       return view === "creative"
-        ? "Lights these campaigns' chips wherever they appear."
+        ? "Lights these ad sets' chips wherever they appear."
         : view === "campaign"
-          ? "Lights these campaigns' clusters — every chip inside is dashed."
-          : "Focuses these campaigns — every line out of them is dashed.";
+          ? "Lights these ad sets' clusters — every chip inside is dashed."
+          : "Focuses these ad sets — every line out of them is dashed.";
     case "idle-active":
       return view === "campaign" || view === "angle"
         ? "Lights the Idle creatives cluster."
         : "Focuses the active creatives with no spend in this range.";
     // The Rate patterns use your Rate rules (Configuration › Rate rules).
     case "losing-everywhere":
-      return "Rated Bad in two or more campaigns and not Good or Decent in any — pairings too small to judge don't count.";
+      return "Rated Bad in two or more ad sets and not Good or Decent in any — pairings too small to judge don't count.";
     case "leans-on-one":
-      return "One creative took 70% or more of the campaign's spend in this range, though the campaign ran others.";
+      return "One creative took 70% or more of the ad set's spend in this range, though the ad set ran others.";
     case "launched":
       return view === "angle"
-        ? "First spend ever falls inside this range. Lights the launched creatives; launched campaigns show in the other views."
-        : "First spend ever falls inside this range — creatives and campaigns.";
+        ? "First spend ever falls inside this range. Lights the launched creatives; launched ad sets show in the other views."
+        : "First spend ever falls inside this range — creatives and ad sets.";
     case "unscaled-winner":
-      return "Rated Good and still spending in a campaign, but not running in any other campaign yet.";
+      return "Rated Good and still spending in an ad set, but not running in any other ad set yet.";
   }
 }
 
@@ -255,7 +256,7 @@ export function CanvasView({
     (node: CanvasNode) => {
       const href =
         node.kind === "campaign"
-          ? `/campaigns/${encodeURIComponent(node.name)}`
+          ? adSetPath(node.name)
           : `/library/${encodeURIComponent(node.name)}`;
       startNav(() => router.push(href));
     },
@@ -431,15 +432,15 @@ export function CanvasView({
       </div>
 
       <p className="text-[11px] text-ink-3">
-        {int(graph.campaigns.length)} campaigns · {int(graph.creatives.length)}{" "}
+        {int(graph.campaigns.length)} ad sets · {int(graph.creatives.length)}{" "}
         creatives · {int(graph.edges.length)} connections.{" "}
         {view === "network"
           ? "A solid line is spending here now, a dashed one spent in the range but has stopped;"
           : view === "campaign"
-            ? "A creative appears once per campaign it ran in — a solid chip is spending there now, a dashed one has stopped;"
+            ? "A creative appears once per ad set it ran in — a solid chip is spending there now, a dashed one has stopped;"
             : view === "angle"
               ? "A creative appears once per angle it carries — a solid chip is spending somewhere now, a dashed one has stopped;"
-              : "A campaign appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;"}{" "}
+              : "An ad set appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;"}{" "}
         click for details, double-click to open, Esc to clear.
       </p>
     </div>

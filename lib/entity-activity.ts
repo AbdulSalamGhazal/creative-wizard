@@ -21,6 +21,7 @@ type Platform = (typeof platformEnum)[number];
 export const ENTITY_ACTIVITY_TYPES = [
   "creative",
   "campaign",
+  "parent_campaign",
   "budget_month",
   "ps_version",
   "landing_page",

@@ -28,6 +28,7 @@ import { PLATFORM_LABEL, ALL_PLATFORMS } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
+import { adSetPath } from "@/lib/campaign";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ const TRAILING_DAYS_DEFAULT = 30;
 
 const DIMS: Array<{ value: ChangeDim; label: string }> = [
   { value: "platform", label: "Platform" },
-  { value: "campaign", label: "Campaign" },
+  { value: "campaign", label: "Ad set" },
   { value: "creative", label: "Creative" },
 ];
 
@@ -47,7 +48,7 @@ function entityHref(dim: ChangeDim, key: string, label: string): string {
     case "platform":
       return `/platforms/${key}`;
     case "campaign":
-      return `/campaigns/${encodeURIComponent(key)}`;
+      return adSetPath(key);
     case "creative":
       return `/library/${encodeURIComponent(label)}`;
   }

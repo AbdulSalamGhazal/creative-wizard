@@ -15,11 +15,11 @@ import { PlatformDot } from "@/components/ui/platform-dot";
 import { CampaignStatusBadge } from "@/components/campaign/campaign-status-badge";
 import { CAMPAIGN_STATUS_LABEL, CAMPAIGN_STATUS_ORDER } from "@/lib/campaign-status";
 import {
-  CAMPAIGN_COLS_META,
-  CAMPAIGN_COLUMN_KEYS,
-  CAMPAIGN_DEFAULT_HIDDEN,
+  PORTFOLIO_LEVELS,
+  type PortfolioLevel,
 } from "@/components/portfolio/portfolio-columns";
-import type { PortfolioCampaignRow } from "@/db/queries/portfolio";
+import type { PortfolioCampaignRow, PortfolioParentRow } from "@/db/queries/portfolio";
+import { AD_NETWORK_LABEL, adSetPath, campaignPath } from "@/lib/campaign";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TotalLabel } from "@/components/ui/total-label";
 
@@ -38,19 +38,36 @@ export {
 const DASH = "—";
 const fRatio = (v: number | null) => roas(v);
 
+/** A CAMPAIGN-level row carries its network (the ad-set rows don't). */
+const isParentRow = (r: PortfolioCampaignRow): r is PortfolioParentRow => "network" in r;
+
+/** Where a row's page is: an ad set by its stored name, a campaign by network + name. */
+const rowPath = (r: PortfolioCampaignRow): string =>
+  isParentRow(r) ? campaignPath(r.network, r.campaign) : adSetPath(r.campaign);
+
+/**
+ * ONE table, two levels (2026-11): `level="adset"` is one row per AD SET (a
+ * `campaigns` row — the list this table has always been), `level="campaign"`
+ * one row per CAMPAIGN (`PortfolioParentRow`: its ad sets rolled up). Same
+ * columns, sort, totals and column control; the campaign level adds "Ad sets"
+ * and lists every objective its ad sets carry.
+ */
 export function PortfolioTable({
   rows,
+  level = "adset",
   sort: serverSort = "spend",
   dir: serverDir = "desc",
   hidden = [],
   order = [],
 }: {
   rows: PortfolioCampaignRow[];
+  level?: PortfolioLevel;
   sort?: string;
   dir?: "asc" | "desc";
   hidden?: string[];
   order?: string[];
 }) {
+  const meta = PORTFOLIO_LEVELS[level];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -81,12 +98,12 @@ export function PortfolioTable({
    * `order`.
    */
   const cols = useTableColumns({
-    tableKey: TABLE_KEYS.CAMPAIGNS,
-    hideable: CAMPAIGN_COLUMN_KEYS,
-    defaults: CAMPAIGN_COLUMN_KEYS,
+    tableKey: level === "campaign" ? TABLE_KEYS.PARENT_CAMPAIGNS : TABLE_KEYS.CAMPAIGNS,
+    hideable: meta.columnKeys,
+    defaults: meta.columnKeys,
     // `hidden` arrives DECODED (the server resolved it with this set), so the
     // hook sees plain keys; the URL gets the encoded form below.
-    defaultHidden: CAMPAIGN_DEFAULT_HIDDEN,
+    defaultHidden: meta.defaultHidden,
     value: { hidden, order },
     onChange: (next) =>
       pushParams((p) => {
@@ -95,9 +112,9 @@ export function PortfolioTable({
         // A CLOSED default-hidden column is implied, so it is not written.
         const hide = encodeHiddenColumns(
           next.hidden,
-          CAMPAIGN_COLUMN_KEYS,
-          CAMPAIGN_DEFAULT_HIDDEN,
-        ).filter((k) => !CAMPAIGN_DEFAULT_HIDDEN.includes(k));
+          meta.columnKeys,
+          meta.defaultHidden,
+        ).filter((k) => !meta.defaultHidden.includes(k));
         if (hide.length === 0) p.delete("hide");
         else p.set("hide", hide.join(","));
         if (next.order.length === 0) p.delete("order");
@@ -116,6 +133,7 @@ export function PortfolioTable({
         acc.orders += r.orders;
         acc.revenue += r.revenue;
         acc.creatives += r.creatives;
+        if (isParentRow(r)) acc.adSets += r.adSets;
         // NULL ≠ 0: a step only sums over the rows that report it, and VOC's
         // clicks only over rows that report LP views (the SQL guard's mirror).
         if (r.lpv !== null) {
@@ -134,6 +152,7 @@ export function PortfolioTable({
         orders: 0,
         revenue: 0,
         creatives: 0,
+        adSets: 0,
         lpvReported: null as number | null,
         lpvClicks: 0,
         addToCart: null as number | null,
@@ -155,6 +174,9 @@ export function PortfolioTable({
 
   const columns = useMemo<DataColumn<PortfolioCampaignRow>[]>(() => {
     const renderCell = (r: PortfolioCampaignRow, key: string): React.ReactNode => {
+      // A campaign that has never run has no numbers to show — "—", never 0.
+      const noData = isParentRow(r) && !r.hasData;
+      if (noData && meta.numericKeys.has(key)) return DASH;
       switch (key) {
         case "campaign":
           // No width cap — the (resizable) column governs how much shows, so the
@@ -162,13 +184,26 @@ export function PortfolioTable({
           return <span className="text-ink">{r.campaign}</span>;
         case "objective":
           return (
-            <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] text-ink-2 whitespace-nowrap">
-              {r.objective}
+            <span className="inline-flex items-center gap-1">
+              {(isParentRow(r) ? r.objectives : [r.objective]).map((o) => (
+                <span
+                  key={o}
+                  className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] text-ink-2 whitespace-nowrap"
+                >
+                  {o}
+                </span>
+              ))}
             </span>
           );
         case "status":
           return <CampaignStatusBadge status={r.status} />;
+        case "adSets":
+          return isParentRow(r) ? int(r.adSets) : null;
         case "platforms":
+          // A campaign with no ad set yet still says where it lives.
+          if (isParentRow(r) && r.platforms.length === 0) {
+            return <span className="text-ink-2">{AD_NETWORK_LABEL[r.network]}</span>;
+          }
           return (
             <span className="inline-flex items-center gap-2">
               {r.platforms.map((p) => (
@@ -227,6 +262,8 @@ export function PortfolioTable({
       switch (key) {
         case "campaign":
           return <TotalLabel className="text-ink-2 font-medium" />;
+        case "adSets":
+          return <span className="text-ink-3">{int(totals.adSets)}</span>;
         case "creatives":
           return <span className="text-ink-3">{int(totals.creatives)}</span>;
         case "spend":
@@ -268,6 +305,7 @@ export function PortfolioTable({
     const sortVal = (r: PortfolioCampaignRow, key: string): number | string | null => {
       if (key === "campaign") return r.campaign;
       if (key === "objective") return r.objective;
+      if (key === "adSets") return isParentRow(r) ? r.adSets : null;
       if (key === "status") return CAMPAIGN_STATUS_ORDER[r.status];
       if (key === "lastDate") return r.lastDate ?? "";
       if (key === "firstDate") return r.firstDate ?? "";
@@ -275,7 +313,7 @@ export function PortfolioTable({
       return (r[key as keyof PortfolioCampaignRow] as number | null) ?? null;
     };
 
-    return CAMPAIGN_COLS_META.map((m) => ({
+    return meta.cols.map((m) => ({
       key: m.key,
       label: m.label,
       align: m.align,
@@ -287,12 +325,7 @@ export function PortfolioTable({
       sortValue: m.sortable ? (r) => sortVal(r, m.key) : undefined,
       href:
         m.key === "campaign"
-          ? (r: PortfolioCampaignRow) =>
-              withDateRange(
-                `/campaigns/${encodeURIComponent(r.campaign)}`,
-                rangeFrom,
-                rangeTo,
-              )
+          ? (r: PortfolioCampaignRow) => withDateRange(rowPath(r), rangeFrom, rangeTo)
           : undefined,
       csv:
         m.key === "platforms"
@@ -301,13 +334,13 @@ export function PortfolioTable({
             ? (r: PortfolioCampaignRow) => CAMPAIGN_STATUS_LABEL[r.status]
             : undefined,
     }));
-  }, [totals, rangeFrom, rangeTo]);
+  }, [totals, rangeFrom, rangeTo, meta]);
 
   return (
     <DataTable
       columns={columns}
       rows={rows}
-      rowKey={(r) => r.campaign}
+      rowKey={(r) => r.campaignId}
       sort={sort}
       dir={dir}
       {...cols.tableProps}
@@ -320,18 +353,14 @@ export function PortfolioTable({
       }
       onRowClick={(r) =>
         startNav(() => router.push(
-          withDateRange(
-            `/campaigns/${encodeURIComponent(r.campaign)}`,
-            searchParams.get("from"),
-            searchParams.get("to"),
-          ),
+          withDateRange(rowPath(r), searchParams.get("from"), searchParams.get("to")),
         ))
       }
       showTotals
-      csvFileName="campaigns"
+      csvFileName={meta.csvFileName}
       minWidthClass="min-w-[1440px]"
       empty={
-        <EmptyState title="No campaigns match these filters." kind="filtered" />
+        <EmptyState title={meta.emptyTitle} kind="filtered" />
       }
     />
   );

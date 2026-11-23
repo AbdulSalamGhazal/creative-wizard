@@ -8,8 +8,20 @@
 
 ## Invariants
 
+- **An unregistered row says WHICH level is missing (2026-11).** Campaigns
+  and ad sets are two levels, both registered by hand
+  (`docs/decisions/campaigns.md`). The validate route hands the pipeline the
+  registered ad-set names AND the registered campaigns (`registeredParents`,
+  keyed `parentKey(network, name)`); a built name that isn't registered is
+  **E061** when its campaign is missing (the message names the campaign
+  alone; the report links to New campaign) and **E062** when the campaign
+  exists and only the ad set doesn't — the error carries `campaign:
+  { network, name, adSet }`, and the report links to that campaign's page
+  with "Add ad set" open on the name (`?addAdSet=`). The campaign is read off
+  the BUILT name (`parentOfBuiltName`), never the raw cell. Stage order, the
+  dedup key and the commit are unchanged.
 - **The confirm step carries the cross-check figures** (R-082, 2026-11): the
-  pre-commit summary shows Spend, Conversions, Revenue and Campaigns beside
+  pre-commit summary shows Spend, Conversions, Revenue and Ad sets beside
   Rows / Creatives / Date range, summed from the validated rows by
   `csv/upload-totals.ts` (post-W004 rounding, so they equal what commits; an
   unreported field is a dash, not 0) — a wrong export is caught before it

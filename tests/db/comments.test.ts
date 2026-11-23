@@ -602,7 +602,7 @@ describe("the /go resolver's reason to exist", () => {
       .where(eq(campaigns.id, CAMPAIGN_1));
 
     const mine = await resolveAnchorPath("campaign", CAMPAIGN_1, ACCOUNT_A);
-    expect(mine?.path).toBe(`/campaigns/${encodeURIComponent("Camp One ➤ Renamed (IG)")}`);
+    expect(mine?.path).toBe(`/ad-sets/${encodeURIComponent("Camp One ➤ Renamed (IG)")}`);
 
     // Another brand's campaign resolves to nothing — the link dead-ends
     // rather than confirming the campaign exists.

@@ -545,7 +545,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (stale.length > 0) {
     out.push({
       key: "no-live-creatives",
-      label: `${stale.length} campaign${stale.length === 1 ? "" : "s"} with no live creatives`,
+      label: `${stale.length} ad set${stale.length === 1 ? "" : "s"} with no live creatives`,
       focusIds: stale.map((c) => c.id),
     });
   }
@@ -601,7 +601,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (leaning.length > 0) {
     out.push({
       key: "leans-on-one",
-      label: `${leaning.length} campaign${leaning.length === 1 ? " leans" : "s lean"} on one creative`,
+      label: `${leaning.length} ad set${leaning.length === 1 ? " leans" : "s lean"} on one creative`,
       focusIds: leaning.map((c) => c.id),
     });
   }
@@ -615,7 +615,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (winners.length > 0) {
     out.push({
       key: "unscaled-winner",
-      label: `${winners.length} winner${winners.length === 1 ? "" : "s"} in one campaign only`,
+      label: `${winners.length} winner${winners.length === 1 ? "" : "s"} in one ad set only`,
       focusIds: winners.map((c) => c.id),
     });
   }
@@ -643,7 +643,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (top) {
     out.push({
       key: "most-shared",
-      label: `Most shared: «${top.name}» feeds ${topDegree} campaigns`,
+      label: `Most shared: «${top.name}» feeds ${topDegree} ad sets`,
       focusIds: [top.id],
     });
   }
@@ -662,7 +662,7 @@ export const CANVAS_VIEWS = ["network", "campaign", "creative", "angle"] as cons
 export type CanvasViewMode = (typeof CANVAS_VIEWS)[number];
 export const CANVAS_VIEW_LABEL: Record<CanvasViewMode, string> = {
   network: "Network",
-  campaign: "By campaign",
+  campaign: "By ad set",
   creative: "By creative",
   angle: "By angle",
 };
