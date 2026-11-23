@@ -52,6 +52,8 @@ export const connectorOrderSchema = z
         /** Coupons plus offers. */
         discount: amount,
         offers_discount: amount,
+        /** Sale-price markdown below regular prices — NOT part of `discount`. */
+        sale_discount: amount,
         shipping: amount,
         cod_fee: amount,
         tax: amount,
@@ -100,6 +102,9 @@ export const connectorItemSchema = z
     name: text,
     quantity: amount,
     total: amount,
+    /** Per unit, excl. VAT: what it sold at, and the regular price before a sale price. */
+    unit_price: amount,
+    original_price: amount,
   })
   .passthrough();
 

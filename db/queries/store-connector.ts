@@ -166,6 +166,8 @@ async function replaceOrderItems(
       name: l.name,
       quantity: l.quantity,
       lineTotalSar: l.lineTotalSar,
+      unitPriceSar: l.unitPriceSar,
+      originalUnitPriceSar: l.originalUnitPriceSar,
     })),
   );
   for (let i = 0; i < lines.length; i += CHUNK) {

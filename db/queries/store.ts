@@ -134,6 +134,9 @@ export interface StoreOrderItem {
   lineTotal: number | null;
   /** The unit cost in force on the order's date (SAR), or null when none is entered. */
   unitCost: number | null;
+  /** Per unit, excl. VAT, SAR: what it sold at and its regular price; null when not sent. */
+  unitPrice: number | null;
+  originalUnitPrice: number | null;
 }
 
 export interface StoreOrdersResult {
@@ -241,6 +244,8 @@ async function orderItemsFor(
       quantity: storeOrderItems.quantity,
       lineTotal: storeOrderItems.lineTotalSar,
       unitCost: sql<string | null>`${lineUnitCost}`,
+      unitPrice: storeOrderItems.unitPriceSar,
+      originalUnitPrice: storeOrderItems.originalUnitPriceSar,
     })
     .from(storeOrderItems)
     .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.storeOrderId))
@@ -259,6 +264,8 @@ async function orderItemsFor(
       quantity: l.quantity,
       lineTotal: l.lineTotal === null ? null : Number(l.lineTotal),
       unitCost: l.unitCost === null ? null : Number(l.unitCost),
+      unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
+      originalUnitPrice: l.originalUnitPrice === null ? null : Number(l.originalUnitPrice),
     });
   }
   return out;
@@ -277,6 +284,8 @@ export interface StoreTopProduct {
   unitsWithoutCost: number;
   /** Sales before VAT − COGS over the costed units; null when no unit has a cost. */
   grossProfit: number | null;
+  /** Salla sale-price markdown, excl. VAT, SAR: Σ max(0, regular − sold) × units. */
+  saleDiscount: number;
 }
 
 export interface StoreTopProducts {
@@ -301,6 +310,7 @@ export async function storeTopProducts(
   // Per line: its quantity, its SAR total, and the unit cost in force.
   const costed = sql`${storeOrderItems.quantity} * ${lineUnitCost}`;
   const hasCost = sql`${lineUnitCost} IS NOT NULL`;
+  const markdown = sql`GREATEST(${storeOrderItems.originalUnitPriceSar} - ${storeOrderItems.unitPriceSar}, 0) * ${storeOrderItems.quantity}`;
   const [rows, [bare]] = await Promise.all([
     db
       .select({
@@ -312,6 +322,7 @@ export async function storeTopProducts(
         quantity: sql<number>`SUM(${storeOrderItems.quantity})::int`,
         orders: sql<number>`COUNT(DISTINCT ${storeOrderItems.storeOrderId})::int`,
         sales: sql<string>`COALESCE(SUM(${storeOrderItems.lineTotalSar}), 0)`,
+        saleDiscount: sql<string>`COALESCE(SUM(${markdown}), 0)`,
       })
       .from(storeOrderItems)
       .innerJoin(storeOrders, eq(storeOrders.id, storeOrderItems.storeOrderId))
@@ -333,6 +344,7 @@ export async function storeTopProducts(
     rows: rows.map(({ costedSales, cogs, ...r }) => ({
       ...r,
       sales: Number(r.sales),
+      saleDiscount: Number(r.saleDiscount),
       cogs: Number(cogs),
       grossProfit:
         costedSales === null ? null : Math.round((beforeVat(Number(costedSales)) - Number(cogs)) * 100) / 100,

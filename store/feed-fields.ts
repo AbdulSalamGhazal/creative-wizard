@@ -4,7 +4,7 @@ import type { StoreFieldType } from "@/lib/enums";
  * The order fields the Salla feed OWNS beyond utm_source / channel / status
  * (2026-11-23: "build columns for all data received from Salla"). Plain
  * module — the Orders table (client) reads the keys, the mapper fills them,
- * and migrations 0078 + 0080 seed exactly these rows per connected brand (a test
+ * and migrations 0078 + 0080 + 0082 seed exactly these rows per connected brand (a test
  * pins the two lists together).
  *
  * Money is SAR (× the order's exchange rate), written as a number; a date is
@@ -47,6 +47,8 @@ export const FEED_FIELDS = [
   // 2026-11-23 (migration 0080): Salla special offers, split out of coupons by the connector.
   { key: "offers", label: "Offer", type: "text", shown: false },
   { key: "offers_discount", label: "Offer discount (excl. VAT)", type: "number", shown: false },
+  // 2026-11-23 (migration 0082): the sale-price markdown, apart from coupons and offers.
+  { key: "sale_discount", label: "Sale discount (excl. VAT)", type: "number", shown: false },
 ] as const satisfies readonly FeedField[];
 
 export type FeedFieldKey = (typeof FEED_FIELDS)[number]["key"];

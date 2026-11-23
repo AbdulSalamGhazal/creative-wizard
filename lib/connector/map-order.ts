@@ -62,6 +62,9 @@ export interface MappedOrderItem {
   quantity: number;
   /** The line incl. VAT in SAR, `numeric(12,2)` as text; null when no rate converts it. */
   lineTotalSar: string | null;
+  /** Per unit, excl. VAT, SAR: what it sold at, and its regular price before a sale price. */
+  unitPriceSar: string | null;
+  originalUnitPriceSar: string | null;
 }
 
 /** More lines than this on one order is not a real order; the rest are kept raw only. */
@@ -228,6 +231,11 @@ const FEED_READERS: Record<FeedFieldKey, (o: ConnectorOrder, rate: number | null
     const total = sent ?? (offers(o).length ? offers(o).reduce((a, c) => a + (toAmount(c.discount) ?? 0), 0) : null);
     return total === null || (total === 0 && offers(o).length === 0) ? null : toSar(total, rate);
   },
+  // 0 = nothing on sale: nothing written, like an order with no offer.
+  sale_discount: (o, rate) => {
+    const n = toAmount(o.amounts?.sale_discount);
+    return n === null || n === 0 ? null : toSar(n, rate);
+  },
   salla_customer_id: (o) =>
     o.customer?.salla_id === null || o.customer?.salla_id === undefined
       ? null
@@ -260,12 +268,20 @@ function mapItems(raw: unknown[] | null | undefined, rate: number | null): Mappe
     if (q === null) continue;
     const t = toAmount(l.total);
     const sar = t !== null && rate !== null ? t * rate : null;
+    const unitSar = (v: string | number | null | undefined) => {
+      const n = toAmount(v);
+      if (n === null || rate === null) return null;
+      const x = n * rate;
+      return Math.abs(x) < TOTAL_LIMIT ? x.toFixed(2) : null;
+    };
     out.push({
       position,
       sku: trimTo(l.sku, SKU_MAX),
       name: trimTo(l.name, NAME_MAX),
       quantity: Math.round(q),
       lineTotalSar: sar !== null && Math.abs(sar) < TOTAL_LIMIT ? sar.toFixed(2) : null,
+      unitPriceSar: unitSar(l.unit_price),
+      originalUnitPriceSar: unitSar(l.original_price),
     });
   }
   return out;

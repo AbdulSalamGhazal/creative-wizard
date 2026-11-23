@@ -12,6 +12,7 @@ import { Chip } from "@/components/ui/chip";
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "@/components/nav/link";
 import { orderProfit, type OrderProfit } from "@/store/order-profit";
+import { regularLineTotal } from "@/store/sale-price";
 import { isoDate, sarBare } from "@/lib/format";
 import type { StoreOrderItem, StoreOrderRow } from "@/db/queries/store";
 import {
@@ -34,7 +35,9 @@ export function productsSummary(items: StoreOrderItem[] | undefined): {
  * One order's products — the panel a row of the Orders table opens. Lines as
  * the Salla feed last sent them (incl. VAT, SAR); what the lines don't cover
  * (shipping, COD fee, discounts) is the difference to the total paid, shown
- * only when there is one. An uploaded order carries no lines and says so.
+ * only when there is one. A line sold below its regular price shows the
+ * regular total struck through above it (incl. VAT, like the line). An
+ * uploaded order carries no lines and says so.
  */
 export function OrderProductsSheet({
   order,
@@ -91,7 +94,7 @@ export function OrderProductsSheet({
                     <tr className="text-xs text-ink-2">
                       <th className="py-1 text-left font-normal">Product</th>
                       <th className="py-1 text-right font-normal">Qty</th>
-                      <th className="py-1 text-right font-normal">Total (SAR)</th>
+                      <th className="py-1 pl-3 text-right font-normal">Total (SAR)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -107,6 +110,7 @@ export function OrderProductsSheet({
                         </td>
                         <td className="py-2 text-right">{l.quantity}</td>
                         <td className="py-2 text-right">
+                          <RegularPrice line={l} />
                           {l.lineTotal === null ? "—" : sarBare(l.lineTotal)}
                         </td>
                       </tr>
@@ -136,6 +140,19 @@ export function OrderProductsSheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** The regular line total, struck through — only for a line sold below it. */
+function RegularPrice({ line }: { line: StoreOrderItem }) {
+  const regular = regularLineTotal(line);
+  if (regular === null) return null;
+  return (
+    <div className="text-xs text-ink-2">
+      <span className="sr-only">Regular price </span>
+      <s>{sarBare(regular)}</s>
+      <span className="sr-only">, sold at </span>
+    </div>
   );
 }
 

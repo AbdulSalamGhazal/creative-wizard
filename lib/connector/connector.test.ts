@@ -75,7 +75,7 @@ describe("mapConnectorOrder", () => {
         utm_medium: "paid",
       },
       updatedAt: "2026-11-08T18:10:00.000Z",
-      items: [{ position: 0, sku: "A", name: null, quantity: 1, lineTotalSar: null }],
+      items: [{ position: 0, sku: "A", name: null, quantity: 1, lineTotalSar: null, unitPriceSar: null, originalUnitPriceSar: null }],
     });
     expect(CONNECTOR_OWNED_KEYS.slice(0, 3)).toEqual(["utm_source", "channel", "order_status"]);
     expect(CONNECTOR_OWNED_KEYS.slice(3)).toEqual([...FEED_FIELD_KEYS]);
@@ -141,9 +141,22 @@ describe("mapConnectorOrder", () => {
       order({ items: [watch, null, { sku: "B", quantity: "2.6", total: "10" }, { sku: "C", total: 5 }] }),
     );
     expect(m?.items).toEqual([
-      { position: 0, sku: "S005-Silver", name: "ساعة", quantity: 1, lineTotalSar: "299.00" },
-      { position: 2, sku: "B", name: null, quantity: 3, lineTotalSar: "10.00" },
+      { position: 0, sku: "S005-Silver", name: "ساعة", quantity: 1, lineTotalSar: "299.00", unitPriceSar: "260.00", originalUnitPriceSar: null },
+      { position: 2, sku: "B", name: null, quantity: 3, lineTotalSar: "10.00", unitPriceSar: null, originalUnitPriceSar: null },
     ]);
+    // Sale prices: per unit excl. VAT, converted to SAR like the total.
+    expect(
+      mapConnectorOrder(
+        order({ currency: "QAR", exchange_rate: 2, amounts: { total: 100, total_sar: 200, sale_discount: 15 }, items: [{ ...watch, unit_price: 50, original_price: 65 }] }),
+      ),
+    ).toMatchObject({
+      items: [{ unitPriceSar: "100.00", originalUnitPriceSar: "130.00" }],
+      attributes: { sale_discount: 30 },
+    });
+    // Nothing on sale (the connector sends 0): no Sale discount written.
+    expect(mapConnectorOrder(order({ amounts: { total: 100, sale_discount: 0 } }))?.attributes).not.toHaveProperty(
+      "sale_discount",
+    );
     // A foreign order converts with its rate; without a rate the SAR figure is unknown, never guessed.
     const qar = { currency: "QAR", amounts: { total: 100, total_sar: 102.67 } };
     expect(
@@ -231,8 +244,8 @@ describe("mapConnectorOrder", () => {
     expect(none?.attributes).not.toHaveProperty("offers_discount");
   });
 
-  it("migrations 0078 + 0080 seed exactly the feed field list, and only four start shown", () => {
-    const sqlText = ["0078_store_feed_fields.sql", "0080_store_offer_fields.sql"]
+  it("migrations 0078 + 0080 + 0082 seed exactly the feed field list, and only four start shown", () => {
+    const sqlText = ["0078_store_feed_fields.sql", "0080_store_offer_fields.sql", "0082_store_sale_discount_field.sql"]
       .map((f) => readFileSync(path.join(process.cwd(), "db/migrations", f), "utf8"))
       .join("\n");
     const seeded = [...sqlText.matchAll(/\('([a-z_]+)', '([^']+)', '([a-z]+)', \d+\)/g)].map((m) => ({

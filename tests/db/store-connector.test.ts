@@ -365,7 +365,8 @@ describe("product lines", () => {
       .where(eq(storeOrderItems.storeOrderId, o.id))
       .orderBy(storeOrderItems.position);
   };
-  const watch = { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, unit_price: 260, total: 299 };
+  // On sale: listed at 350 incl. VAT (304.35 excl.), sold at 299 (260 excl.).
+  const watch = { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, unit_price: 260, original_price: 304.35, total: 299 };
   const strap = { sku: "A010-Black", name: "Strap", quantity: 2.4, total: 98 };
 
   it("the feed writes each order's lines in SAR, in order; a foreign order converts with its rate", async () => {
@@ -413,7 +414,9 @@ describe("product lines", () => {
     const page = await listStoreOrders({ from: "2026-11-08", to: "2026-11-08", page: 1, sort: "order_date", dir: "desc" });
     expect(page.rows).toHaveLength(1);
     const items = Object.values(page.itemsByOrder).flat();
-    expect(items).toEqual([{ sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotal: 299, unitCost: null }]);
+    expect(items).toEqual([
+      { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 1, lineTotal: 299, unitCost: null, unitPrice: 260, originalUnitPrice: 304.35 },
+    ]);
 
     await db.delete(storeOrders).where(eq(storeOrders.accountId, ACCOUNT_A));
     const left = await db.select({ a: storeOrderItems.accountId }).from(storeOrderItems);
@@ -432,8 +435,9 @@ describe("product lines", () => {
     await commitStoreUpload(csvForm(`${HEAD.join(",")}\n7033,2026-11-08,10,tiktok,web,X\n`));
     const top = await storeTopProducts("2026-11-08", "2026-11-08");
     expect(top.rows).toEqual([
-      { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 4, orders: 2, sales: 1196, cogs: 0, unitsWithoutCost: 4, grossProfit: null },
-      { sku: "A010-Black", name: "Strap", quantity: 2, orders: 1, sales: 98, cogs: 0, unitsWithoutCost: 2, grossProfit: null },
+      { sku: "S005-Silver", name: "ساعة ألترا 3", quantity: 4, orders: 2, sales: 1196, cogs: 0, unitsWithoutCost: 4, grossProfit: null, saleDiscount: 177.4 },
+      // No prices sent (a line from before 2026-11-23 14:46): no markdown, never a guess.
+      { sku: "A010-Black", name: "Strap", quantity: 2, orders: 1, sales: 98, cogs: 0, unitsWithoutCost: 2, grossProfit: null, saleDiscount: 0 },
     ]);
     expect(top.ordersWithoutProducts).toBe(1);
   });

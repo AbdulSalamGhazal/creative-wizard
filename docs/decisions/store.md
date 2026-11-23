@@ -151,6 +151,19 @@
   offer; Wizard writes nothing then, like a coupon-less order. An order
   received before the switch shows its offer as a coupon until it is
   pulled again (30-day re-pull). MCP: `get_store.by_offer`.
+- **Sale prices are per ITEM** (user decision 2026-11-23: "Yes, per item";
+  live from the connector 14:46 Riyadh that day). Each line stores
+  `unit_price_sar` (what it sold at) and `original_unit_price_sar` (the
+  product's regular price before a Salla sale price), both per unit, EXCL.
+  VAT, × the rate (migration 0081); NULL when not sent. The order panel shows
+  a discounted line's regular total struck through above what it sold for,
+  INCL. VAT like every panel figure (`store/sale-price.ts`: the regular unit
+  price × 1.15, rounded per unit as the store lists it, × quantity — so
+  304.35 excl. reads 350.00, two units 700.00, never 700.01). The order's markdown is the `sale_discount` feed
+  field ("Sale discount (excl. VAT)", hidden by default, migration 0082; 0 =
+  not written) — it is NOT part of `discount`, which stays coupons + offers.
+  The markdown never touches COGS or gross profit: those already use what the
+  line sold for. MCP: `get_store.top_products[].sale_discount_sar`.
 - **Product costs keep HISTORY** (user decision 2026-11-23):
   `store_product_costs` holds a unit cost (SAR) per product FROM a day; a
   line costs the row with the latest `effective_from` on or before its

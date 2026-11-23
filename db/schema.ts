@@ -1491,6 +1491,14 @@ export const storeOrderItems = pgTable(
     name: text("name"),
     quantity: integer("quantity").notNull(),
     lineTotalSar: numeric("line_total_sar", { precision: 12, scale: 2 }),
+    /**
+     * Per unit, EXCL. VAT, SAR (2026-11-23): what it sold at, and the product's
+     * regular price before a Salla sale price (equal when not on sale). Null
+     * when the connector sent none (lines received before 14:46 Riyadh that
+     * day, until pulled again) or no rate converts it.
+     */
+    unitPriceSar: numeric("unit_price_sar", { precision: 12, scale: 2 }),
+    originalUnitPriceSar: numeric("original_unit_price_sar", { precision: 12, scale: 2 }),
   },
   (t) => ({
     orderPositionUnique: uniqueIndex("store_order_items_order_position_idx").on(
