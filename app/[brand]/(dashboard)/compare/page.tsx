@@ -172,7 +172,10 @@ export default async function ComparePage({
           creatives={chartSides}
           metric={metric}
           align={!sameWindow}
-          header={<MetricBlockHeader metric={metric} metrics={parsed.metrics} />}
+          // Keyed though it's a prop, not a list child: an element made inside
+          // a server-side .map() reaches the client marked as a list item, and
+          // React warns when ChartHeader renders it unkeyed.
+          header={<MetricBlockHeader key={metric} metric={metric} metrics={parsed.metrics} />}
         />
       ))}
 
