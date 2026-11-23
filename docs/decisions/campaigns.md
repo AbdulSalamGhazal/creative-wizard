@@ -40,6 +40,28 @@
   (`{ parentId }` scope, `portfolioParentCampaigns`) — never a roll-up of
   per-ad-set ratios, and a creative in three ad sets counts once. It is active
   when ANY ad set is, from the one cached `campaignStatusMap()`.
+- **THE CAMPAIGN LEVEL IS ONE GROUP, EVERYWHERE (delivery 2, 2026-11-24).**
+  Canvas, Compare, Funnel, Trends › Changes, the one-platform Dashboard and
+  the MCP read a campaign as ONE group over the records of its ad sets —
+  `campaigns.parent_id`, joined or sub-selected in the query layer — so its
+  figures are component sums at every surface. Three shapes, never a fourth:
+  the breakdown dimension `parent_campaign` (`breakdownDim`,
+  db/queries/performance.ts), the filter `KpiFilters.parentCampaignIds`
+  (Compare), and the Canvas fold (`canvasPairs`). An ad set the reconcile
+  hasn't given a campaign is LEFT OUT of a campaign-level surface (it shows at
+  ad-set level) — the Campaigns list's rule, not a new one.
+- **Which level a screen opens on is the user's decision, per screen:** the
+  Canvas opens on AD SETS (`?level=campaign` switches; old links keep their
+  meaning); Funnel, Trends › Changes and the one-platform Dashboard open on
+  CAMPAIGNS (`?level=adset` / `?dim=campaign` switch back). `lib/breakdown-level.ts`
+  is the one parser for Funnel and the Dashboard.
+- **A campaign's key in a breakdown is its NAME — "Name (Network)" only when
+  the brand has that name on two networks** (`parentCampaignKey`); where a
+  key must be stable (Compare's `xParents`, Trends rows, exclusion rules,
+  `?focus=p:`) it is the campaign's id.
+- **Saved views: the Campaigns list keys its own by `parent_campaigns`**
+  (`PARENT_CAMPAIGNS_VIEW_PAGE`); `campaigns` stays the AD SETS list's stored
+  key. A campaign view never appears on Ad sets.
 - **Registry-first.** A campaign and an ad set with no records still have a
   page, and a never-run campaign is listed — a just-registered one must be
   reachable to add an ad set or fix a name before its first upload.
@@ -112,6 +134,44 @@ pinned against it by `tests/db/parent-campaign.test.ts`), both applied before
 the deploy; the reconcile re-run after it; a contract migration (reconcile +
 `SET NOT NULL`) follows as its own series once a rollback is off the table —
 the 0023 / 0024 expand-contract shape.
+
+### Delivery 2 — the campaign level on the screens that worked per ad set (2026-11-24)
+
+Delivery 1 gave the campaign a list and a page; six screens still read one
+row per ad set. Built in one series, after a mockup and ONE batch of four
+questions (all four recommendations taken):
+
+- **Canvas** — `Show: Campaigns · Ad sets`; opens on ad sets, so every shared
+  link, comment and "On the Canvas" button kept its meaning (`canvas.md`).
+- **Compare** — its own `Campaign` row between Platform and Ad set (a mixed
+  picker was declined: a campaign and one of its own ad sets could both be
+  ticked). `xParents` holds campaign IDS; with ad sets picked too the two AND
+  together, so picking a campaign prunes ad sets it doesn't contain in the
+  same navigation. The campaign page's rail got Compare and Open in Canvas —
+  no Compare for a Google campaign (Compare covers the platforms that report
+  a funnel).
+- **Funnel · Trends › Changes · the one-platform Dashboard** — open on the
+  CAMPAIGN (the user's choice: the campaign is the level they think in; the ad
+  set is one click away). Funnel's one switch drives the bottom table and what
+  a platform expands into; a campaign row is ONE row across its platforms
+  (Meta = Instagram + Facebook) listing its objectives. Trends keeps its own
+  `?dim=` — `parent_campaign` is now the clean URL, `dim=campaign` the ad set.
+- **Exclusions** — a "Whole campaign" rule (`exclusions.md`).
+- **Saved views on the Campaigns list**, and the MCP (`mcp-diagnosis.md`).
+
+Convention-level calls, reported: the campaign dimension INNER JOINs the
+campaign (an unreconciled ad set is left out, as on the Campaigns list) rather
+than inventing a nameless group; a campaign's breakdown key is its name with
+the network added only on a real collision, computed in SQL in one fragment
+so no consumer post-processes keys; Funnel's campaign row lists platforms and
+objectives instead of repeating the campaign once per platform; the campaign
+page hides Compare for Google rather than opening Compare on a side it can't
+show; an ad set's own records table says "Its campaign" for a whole-campaign
+rule (the creative page, which knows the row's ad set, names it).
+
+Not built, on purpose: a campaign-level per-creative chart in Compare (a side
+is still a filter, not a new chart), and any change to `get_funnel` (it has
+no per-campaign rows at either level).
 
 *The entries below were moved verbatim from CLAUDE.md (2026-10). Line
 references are to the file as it stood before the restructure.*

@@ -372,14 +372,14 @@ this map is still a rule you broke.
 ### Campaigns
 
 - TWO LEVELS: a `parent_campaigns` row is the UI's Campaign; every `campaign` identifier and stored key is the UI's AD SET.
-- A perf row's campaign is a FK; the name format lives only in `buildCampaignName()`.
+- A perf row's campaign is a FK; the name format lives only in `buildCampaignName()`. A campaign is ONE group over its ad sets' records at every surface (the `parent_campaign` dimension · `parentCampaignIds` · the Canvas fold) — never a roll-up of ad-set ratios.
 
 → **`docs/decisions/campaigns.md`**
 
 ### Canvas
 
 - Read-only facts: nothing is edited, no position is saved.
-- TWO CLOCKS: the range decides existence, the status window decides liveness.
+- TWO CLOCKS: the range decides existence, the status window decides liveness. `?level=campaign` folds the SAME scan (`canvasPairs`) before totals and the cap; a folded pairing's clocks and Rate are judged per platform (`pairVerdict`).
 - `@xyflow/react` has exactly one importer, lazily loaded.
 - The Rate lens recolours, never restates: a pairing's Rate is `rateBlock`
   over its range sums, by the campaign platform's rules.
@@ -426,7 +426,7 @@ this map is still a rule you broke.
 ### Exclusions
 
 - `excluded_from_aggregates` has exactly two writers: manual and rule.
-- Un-applying a rule re-sweeps the survivors; manual un-exclude refuses a rule's row.
+- Un-applying a rule re-sweeps the survivors; manual un-exclude refuses a rule's row. A whole-campaign rule (`parent_campaign`) is its ad sets AT SWEEP TIME — never a stored list.
 
 → **`docs/decisions/exclusions.md`**
 

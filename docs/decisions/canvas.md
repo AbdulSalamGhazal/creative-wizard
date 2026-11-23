@@ -41,10 +41,27 @@
   range spend; UNSCALED WINNER = one campaign, that pairing Good AND live.
   The strip and the MCP's `get_canvas_patterns` are the SAME function — never
   a second copy of a definition.
+- **THE LEVEL FOLDS THE SAME SCAN (2026-11-24).** `?level=campaign` draws
+  CAMPAIGNS (`parent_campaigns`, node id `p:<uuid>`) on the campaign side; ad
+  sets are the default and the clean URL (user decision — old links keep
+  their meaning). The scan never changes: one row per (ad set, creative),
+  LEFT JOINed to its campaign; `canvasPairs` folds it to (campaign, creative)
+  BEFORE totals, health and the cap, so every rule above holds at both
+  levels. A folded pairing is judged by `pairVerdict` PER PLATFORM: live when
+  live on ANY of its platforms (each against its own latest spend day — the
+  window clock is per platform, never merged); Rate by that platform's rules
+  when it ran on one, the brand default when on two (Summary's scope rule);
+  the line takes the colour of the platform that spent most, and its tooltip
+  names both. A campaign is active when ANY registered ad set is — one
+  registry read, never a status scan. The level is a SERVER param (a
+  navigation), unlike `?view=` / `?lens=`. The patterns' definitions are the
+  same function at both levels; only the word changes (`canvasLevelNoun`).
 - **`?focus=` IS THE INSPECTED NODE, AND ONLY THAT.** The URL carries the node
-  the inspector is open on (`k:<uuid>` creative / `c:<uuid>` campaign — an id,
-  so a rename never breaks a link), parsed by ONE `parseCanvasFocus` for
-  server and client. A chip's group focus never enters the link (it's
+  the inspector is open on (`k:<uuid>` creative / `c:<uuid>` ad set /
+  `p:<uuid>` campaign — an id, so a rename never breaks a link), parsed by ONE
+  `parseCanvasFocus` for server and client. A link naming only a campaign's
+  node is a campaign-level link (`focusLevel`); a node drawn at the OTHER
+  level is said so, never blamed on the range. A chip's group focus never enters the link (it's
   recomputed from the range). Written by shallow REPLACE like `?view=` /
   `?lens=` — node clicks add no Back steps. A linked node that isn't drawn is
   SAID (a notice naming it, brand-scoped `canvasFocusName`), never silently
@@ -408,3 +425,47 @@ as it stood before the restructure.*
     occurrences by spend and says so.
   - MCP: not relevant — `get_trends` already returns per-angle performance
     (`angleRollup`); this view is a re-layout of the same graph.
+
+### Campaign level (2026-11-24)
+
+- **C9: `Show: Campaigns · Ad sets` — the campaign side at either level.**
+  Delivery 2 of the campaign / ad set split (`campaigns.md`). The Canvas drew
+  one node per ad set — 191 on Urjwan — when the user thinks in 76 campaigns.
+  - **User decision:** the Canvas OPENS ON AD SETS (the recommendation): every
+    shared link, every comment's captured query string and every "On the
+    Canvas" button keeps meaning what it meant; campaigns is one click, kept
+    in the link (`?level=campaign`).
+  - **How:** `canvasGraph({ level })`. The scan is untouched save a LEFT JOIN
+    to `parent_campaigns`; the pure `canvasPairs` folds (ad set, creative)
+    rows to (campaign, creative) pairings — summed, the per-platform slices
+    kept apart — and the loop that builds nodes, health and edges runs over
+    pairings at both levels. `pairVerdict` is the one place a pairing gets
+    its two clocks and its Rate. At campaign level the "spent before the
+    range" lookup reads `campaigns.parent_id` (a campaign launched only if
+    none of its ad sets had spent), and one registry read gives each campaign
+    its ad sets (status = any active; the count on the node).
+  - **A Meta campaign runs on two platforms**, which the ad-set Canvas never
+    had to answer. Decided with the user in the plan: the line takes the
+    colour of the platform that spent most in the pairing and the tooltip
+    names both ("Instagram + Facebook"); the pairing is live when it is live
+    on either, each against its own platform's latest spend day; its Rate uses
+    that platform's rules when it ran on one, the brand default when on two.
+  - **The node** shows the campaign's name, "N ad sets" (the registry count,
+    its objectives in the tooltip — a campaign may carry several) where an
+    ad set shows its objective, and the same status word, health and spend.
+    The inspector adds its network; "Open campaign" and a double-click go to
+    the campaign page. The second view reads "By campaign".
+  - **Focus across a switch:** an inspected AD SET follows up to its
+    campaign, an inspected creative stays (it is drawn at both levels), a
+    campaign has no one ad set to land on and clears; a chip's group focus is
+    dropped with the level (its node ids are gone). A `?focus=` drawn at the
+    other level says so — "is an ad set — switch Show to Ad sets" — instead
+    of blaming the range.
+  - **Found in passing, fixed:** the missing-node notice printed the code's
+    word ("The linked campaign isn't in this brand") for an AD SET; it now
+    reads the UI's word for each kind (`CANVAS_FOCUS_NOUN`).
+  - MCP: `get_canvas_patterns` takes `level` (default `ad_set`); a campaign
+    item carries `network` and `ad_sets`. Same functions, no second copy.
+  - Tests: `lib/canvas-level.test.ts` (the fold, the verdicts, the words) and
+    `tests/db/campaign-level.test.ts` (true totals, liveness on a real Meta
+    campaign, launched, tenancy).

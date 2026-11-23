@@ -70,7 +70,17 @@
   One entry in `DATE_PRESETS`, so every picker and the saved preference get
   it; ad data for today is partial and the pages say nothing special about it.
 - A VIEW SWITCH is not a filter, and the Excluded toggle is a data-scope
-  switch, not a filter. Neither is ever a `FilterDef`.
+  switch, not a filter. Neither is ever a `FilterDef`. **The campaign / ad set
+  LEVEL is a view switch too (2026-11-24)** — `LevelSwitch`
+  (`?level=adset` on Funnel and the one-platform Dashboard; the Canvas's own
+  `Show` switch, `?level=campaign`; Trends › Changes' `?dim=`): URL-backed so
+  a shared link and a comment reproduce it, never remembered as a preference,
+  never touched by Clear. It changes what the SERVER groups by, so it
+  navigates through `useNavTransition` and keeps every other param.
+- **Saved views live on four lists**, each keyed by its own `page`: `summary`
+  (Ads), `creatives` (Library), `campaigns` (the AD SETS list — the stored
+  key predates the two levels) and `parent_campaigns` (the Campaigns list,
+  2026-11-24). `SAVED_VIEW_PATH` is the one map from key to route.
 - **Every range and every main filter resolves SERVER-side**
   (`resolvePreferredRange`, `resolveFilterPrefs`): pass RAW search params, never
   validator output, and hand the resolved values BACK to the bar — a filter the

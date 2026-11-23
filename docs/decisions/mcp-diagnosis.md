@@ -165,6 +165,33 @@ as it stood before the restructure.*
   `lib/mcp/coverage.ts` lists both tools under `budget`. Daily's per-day
   cells and Analysis's product cut have no tool of their own.
 
+### The campaign level on three more tools (2026-11-24)
+
+Delivery 2 of the campaign / ad set split gave six screens a campaign level;
+the MCP reads what they read. No new tool — three existing ones take the
+level, each defaulting to what it has always returned:
+
+- **`get_campaign`** — `level: "campaign"` reads ONE campaign in depth (the
+  gap delivery 1 left): `name` is the campaign's own name, `network` only when
+  two networks share it (the tool looks the name up on each and asks if it
+  finds two). Returns the campaign (network, status, ad-set count, objectives,
+  platforms), `totals` over every record of its ad sets (`campaignAnalytics`
+  with a `{ parentId }` scope), every registered ad set side by side
+  (`parentCampaignAdSets`, `has_data: false` for one with nothing in the
+  range) and `dailyByAdSet` — the campaign page's own queries.
+- **`get_timeseries`** — `dimension: "parent_campaign"` beside `platform` and
+  `campaign` (= the ad set, the historical name). Keys are campaign names,
+  "Name (Network)" only on a real collision.
+- **`get_canvas_patterns`** — `level: "campaign"` folds each campaign's ad
+  sets together, exactly as the Canvas's `Show: Campaigns` does (the same
+  `canvasGraph` + `canvasInsights`); the result echoes `level`, and a campaign
+  item carries `network` and `ad_sets`.
+
+Not extended, on purpose: `get_funnel` (it returns totals, not per-campaign
+rows, at either level) and `get_trends` (angles and types — the Changes
+page's per-entity deltas have never been on the MCP). Exclusion rules stay an
+admin surface. `tests/db/mcp.test.ts` pins all three.
+
 ### Two levels: campaigns above ad sets (2026-11-23)
 
 The app gained a Campaign level above what it had always called a campaign

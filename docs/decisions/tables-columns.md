@@ -46,6 +46,10 @@
   explicitly as `!key`** (`SHOW_MARKER`), so a new catalog column cannot pop
   open for everyone who has ever set their columns.
 - Precedence is ONE rule: **URL → applied saved view → preference → config**.
+- **A table that draws two LEVELS of the same row keeps ONE `columnsKey`**
+  (Funnel's by-campaign / by-ad-set table, 2026-11-24): the columns are the
+  same, so a column hidden at one level is hidden at the other; only the
+  first column's word, its link and the platform / objective cells differ.
 - Reset DELETES the row, and so does a state matching the table's own default.
   A preference write a NAVIGATION depends on is awaited; every other is
   fire-and-forget.
