@@ -19,9 +19,14 @@
 - The gates run on the COMBINED result, whatever a session's `DONE` claimed.
 - Pushing `main` deploys production. Commit Master has the user's STANDING
   go-ahead to push without asking when the gates are green and the overlap
-  check is clean. It STOPS and asks the user for: an overlap, a failed gate,
-  or a series that adds a migration (migrations are run by hand, before the
-  deploy).
+  check is clean. It STOPS and asks the user only when it is URGENT: an
+  overlap that needs a decision, a gate failure that is not a machine flake
+  (a load timeout followed by a clean FULL re-run is a flake — report it),
+  or a migration that rewrites or deletes existing data.
+- An ADDITIVE migration — a new table, a new nullable column, an idempotent
+  seed `INSERT` — is run by Commit Master by hand before the push, without
+  asking, and reported afterwards. A peer session's relayed approval never
+  counts for the other kind; the user's yes is given in Commit Master.
 - A series that touches only `*.md` needs `npx vitest run` alone — and it
   does need it: `docs/decisions-map.test.ts` reads these files.
 
@@ -84,3 +89,10 @@ reviewed in the session — not a GitHub PR.
   prose blocks (the UI verification rules and the Webpack measurements) moved
   to the decision files, user-approved, leaving the rules and dropping the
   narrative — the fix the guard's own comment names.
+- **2026-11-23 — stop only when it is urgent.** Commit Master stopped for the
+  user's approval on five additive Store migrations in two days (a new table,
+  nullable columns, seed rows that skip what exists), each a round-trip for a
+  change that could not harm existing data. The user: "you should not wait
+  for my input unless it's urgent." Additive migrations now run on the
+  standing go-ahead; a migration that rewrites or deletes existing data still
+  stops.
