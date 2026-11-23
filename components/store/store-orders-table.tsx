@@ -20,6 +20,7 @@ import { toastActionFailure } from "@/lib/action-toast";
 import type { StoreOrderItem, StoreOrderRow } from "@/db/queries/store";
 import { OrderProductsSheet, productsSummary } from "@/components/store/order-products-sheet";
 import type { StoreField } from "@/store/fields";
+import { FEED_FIELDS_HIDDEN_BY_DEFAULT } from "@/store/feed-fields";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import {
@@ -108,8 +109,13 @@ export function StoreOrdersTable({
     [customCols, showSource],
   );
   const defaultHidden = useMemo(
-    () => [...(showSource ? [SYNCED_AT_KEY] : []), ...BOOKKEEPING_KEYS],
-    [showSource],
+    () => [
+      ...(showSource ? [SYNCED_AT_KEY] : []),
+      // The Salla feed's extra fields start hidden, bar the few most used.
+      ...customCols.map((c) => c.key).filter((k) => FEED_FIELDS_HIDDEN_BY_DEFAULT.includes(k)),
+      ...BOOKKEEPING_KEYS,
+    ],
+    [customCols, showSource],
   );
   /**
    * Still HIDDEN-key semantics — a field added in Order fields is not in the
@@ -274,8 +280,7 @@ export function StoreOrdersTable({
               const v = get(r);
               if (v === undefined || v === null || v === "") return "—";
               const label = orderStatusLabel(String(v));
-              const tone = orderStatusTone(String(v));
-              return tone ? <Chip tone={tone}>{label}</Chip> : label;
+              return <Chip tone={orderStatusTone(String(v))}>{label}</Chip>;
             },
             sortValue: (r) => (get(r) == null ? null : String(get(r))),
           };

@@ -126,6 +126,25 @@
   from before the connector sent it uses `amounts.total` only when the order
   is SAR or names no currency; a foreign-currency order with no SAR total is
   logged and NOT applied — a QAR figure is never filed as riyals.
+- **The feed OWNS every other Salla order field too** (2026-11-23, "columns
+  for all data received from Salla"): the 25 keys of `store/feed-fields.ts`
+  — payment method and COD/prepaid, coupon code and discount, discount,
+  subtotal, shipping, COD fee, VAT, city, country, shipping company,
+  tracking number, delivered day, refund amount, tags, UTM medium / campaign
+  / term / content, Salla source, entry, currency, rate, Salla customer id.
+  They are part of `CONNECTOR_OWNED_KEYS`, so a later version that drops a
+  coupon or a tag removes it, and an upload can't change them on a feed
+  order. Money is SAR (× the rate) stored as a JSON NUMBER, like an uploaded
+  number field; a foreign order with no rate gets no money keys. Migration
+  0078 seeds the field rows (a test pins it to the list); only payment
+  method, coupon code, discount and city are shown by default on Orders —
+  the rest start hidden (`FEED_FIELDS_HIDDEN_BY_DEFAULT`). A key the list
+  adds is a key an upload of the same name loses on feed orders: check the
+  brands' upload fields before adding one.
+- **Salla statuses are coloured by stage** (user decision 2026-11-23):
+  waiting grey · on the way (shipped, out for delivery) blue (`Chip` tone
+  `info`, the theme's blue) · delivered green · refunded amber · cancelled /
+  deleted red — `orderStatusTone`, every status a `Chip`.
 - **The feed FILLS three customer keys, it does not own them** —
   `customer_name`, `phone` (written `+<digits>`, the export's form), `email`
   (`CONNECTOR_CUSTOMER_KEYS`). Written when sent, never removed when absent
@@ -450,3 +469,9 @@ products, creatives, angles and platform field mappings had gained
   got their own table rather than a read of the raw log so the page (100
   orders) and top products stay one indexed query each; migration 0077
   backfilled them from the log, so no re-pull was needed.
+- Every Salla field (2026-11-23): the feed had sent ~20 more fields per
+  order since the start, kept only in the raw log. All became owned order
+  fields at once rather than a chosen few, hidden by default bar four, so
+  Insights' "Analyze by", the CSV and the Columns menu offer them without
+  crowding the table. A 30-day re-pull fills them on the orders the
+  connector still holds; older orders keep what they had.

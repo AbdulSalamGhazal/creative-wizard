@@ -547,6 +547,13 @@
       "when": 1795364292579,
       "tag": "0077_store_order_items_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1795424733455,
+      "tag": "0078_store_feed_fields",
+      "breakpoints": true
     }
   ]
 }

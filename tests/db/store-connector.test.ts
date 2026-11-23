@@ -62,7 +62,7 @@ const HEADERS: Record<string, string[]> = {
   order_date: ["order date"],
   total_amount: ["total"],
 };
-const HEAD = ["Order ID", "Order date", "Total", "utm_source", "channel", "City"];
+const HEAD = ["Order ID", "Order date", "Total", "utm_source", "channel", "Notes"];
 
 function csvForm(csv: string, upsert = false) {
   const fd = new FormData();
@@ -133,7 +133,7 @@ beforeAll(async () => {
   await db.insert(storeOrderFields).values([
     ...coreFieldRows(ACCOUNT_A).map((r) => ({ ...r, headers: HEADERS[r.key] ?? [] })),
     ...systemRequiredFieldRows(ACCOUNT_A),
-    { accountId: ACCOUNT_A, key: "city", label: "City", type: "text" as const, headers: ["city"], sortOrder: 9 },
+    { accountId: ACCOUNT_A, key: "notes", label: "Notes", type: "text" as const, headers: ["notes"], sortOrder: 9 },
   ]);
 });
 beforeEach(async () => {
@@ -255,7 +255,9 @@ describe("the feed patches only its own attributes", () => {
     await ingestConnectorEvents([event("urjwan", "3001", { total: 60, source: null })], "webhook", "live");
     const o = await orderRow(ACCOUNT_A, "3001");
     // utm_source came back null from Salla → removed, not left as the file's "fb".
-    expect(o!.attributes).toEqual({ channel: "mobile", order_status: "processing", city: "Riyadh" });
+    expect(o!.attributes).toEqual({
+      channel: "mobile", order_status: "processing", utm_campaign: "c1", notes: "Riyadh",
+    });
     expect(o).toMatchObject({ totalAmount: "60.00", orderDate: "2026-11-08" });
     expect(o!.uploadBatchId).toBe(up.ok ? up.batchId : "");
   });
@@ -279,13 +281,13 @@ describe("uploads coexist — the Salla feed wins", () => {
       expect(await orderRow(ACCOUNT_A, "4001")).toMatchObject({
         orderDate: "2026-11-08",
         totalAmount: "100.00",
-        attributes: { utm_source: "tiktok", channel: "mobile", order_status: "processing", city: "Jeddah" },
+        attributes: { utm_source: "tiktok", channel: "mobile", order_status: "processing", notes: "Jeddah" },
       });
     }
     // The order the feed does not hold is an ordinary insert.
     expect(await orderRow(ACCOUNT_A, "4002")).toMatchObject({
       totalAmount: "70.00",
-      attributes: { utm_source: "ig", channel: "web", city: "Dammam" },
+      attributes: { utm_source: "ig", channel: "web", notes: "Dammam" },
     });
   });
 
@@ -294,7 +296,7 @@ describe("uploads coexist — the Salla feed wins", () => {
     await commitStoreUpload(csvForm(`${HEAD.join(",")}\n4001,2026-01-01,1,fb,web,Jeddah\n`, true));
     await commitStoreUpload(csvForm(`${HEAD.join(",")}\n4001,2026-01-01,1,,,\n`, true));
     expect((await orderRow(ACCOUNT_A, "4001"))!.attributes).toEqual({
-      utm_source: "tiktok", channel: "mobile", order_status: "processing",
+      utm_source: "tiktok", channel: "mobile", order_status: "processing", utm_campaign: "c1",
     });
   });
 
@@ -454,5 +456,33 @@ describe("product lines", () => {
     // Running it again adds nothing.
     await db.execute(sql.raw(readFileSync(file, "utf8")));
     expect(await lines(ACCOUNT_A, "7040")).toHaveLength(2);
+  });
+});
+
+describe("every Salla field", () => {
+  it("the feed owns its fields: a later version without a coupon removes it; an upload column stays", async () => {
+    const withCoupon = event("urjwan", "8001", { updated: "2026-11-08T21:00:00+03:00" });
+    (withCoupon.data.order as Record<string, unknown>).coupons = [{ code: "SALE10", discount: 10 }];
+    (withCoupon.data.order as Record<string, unknown>).shipping = { city: "Riyadh" };
+    (withCoupon.data.order as Record<string, unknown>).amounts = { total: 100, subtotal_excl_vat: 80 };
+    await ingestConnectorEvents([withCoupon], "webhook", "live");
+    await commitStoreUpload(csvForm(`${HEAD.join(",")}\n8001,2026-11-08,1,fb,web,keep me\n`, true));
+    expect((await orderRow(ACCOUNT_A, "8001"))!.attributes).toMatchObject({
+      coupon_code: "SALE10",
+      coupon_discount: 10,
+      city: "Riyadh",
+      notes: "keep me",
+      // Money is a JSON number, like an uploaded number field.
+      subtotal: 80,
+    });
+
+    await ingestConnectorEvents(
+      [event("urjwan", "8001", { updated: "2026-11-08T22:00:00+03:00" })],
+      "webhook", "live",
+    );
+    const after = (await orderRow(ACCOUNT_A, "8001"))!.attributes as Record<string, unknown>;
+    expect(after).not.toHaveProperty("coupon_code");
+    expect(after).not.toHaveProperty("city");
+    expect(after.notes).toBe("keep me");
   });
 });

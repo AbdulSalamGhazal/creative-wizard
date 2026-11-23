@@ -24,22 +24,56 @@ export const connectorOrderSchema = z
       .nullish()
       .catch(undefined),
     currency: text,
+    /** `cod` | `prepaid`; `payment_method_raw` is Salla's own (mada, tabby…). */
+    payment_method: text,
+    payment_method_raw: text,
+    /** Salla's order source (store, lp-…, dashboard…) — not the UTM source. */
+    source: text,
+    coupons: z.array(z.unknown()).nullish().catch(undefined),
+    tags: z.array(z.unknown()).nullish().catch(undefined),
+    shipping: z
+      .object({ city: text, country: text, company: text, tracking_number: text, delivered_at: text })
+      .passthrough()
+      .nullish()
+      .catch(undefined),
+    refund: z.object({ amount }).passthrough().nullish().catch(undefined),
     /** SAR per 1 unit of `currency` (1 for SAR). */
     exchange_rate: amount,
     /** Each line is read on its own (`connectorItemSchema`): one bad line never drops the rest. */
     items: z.array(z.unknown()).nullish().catch(undefined),
     amounts: z
-      .object({ total: amount, total_sar: amount })
+      .object({
+        total: amount,
+        total_sar: amount,
+        subtotal_excl_vat: amount,
+        discount: amount,
+        shipping: amount,
+        cod_fee: amount,
+        tax: amount,
+      })
       .passthrough()
       .nullish()
       .catch(undefined),
     customer: z
-      .object({ name: text, phone: text, email: text })
+      .object({
+        salla_id: z.union([z.string(), z.number()]).nullish().catch(undefined),
+        name: text,
+        phone: text,
+        email: text,
+      })
       .passthrough()
       .nullish()
       .catch(undefined),
     attribution: z
-      .object({ utm_source: text, device: text })
+      .object({
+        utm_source: text,
+        utm_medium: text,
+        utm_campaign: text,
+        utm_term: text,
+        utm_content: text,
+        entry: text,
+        device: text,
+      })
       .passthrough()
       .nullish()
       .catch(undefined),
@@ -47,6 +81,9 @@ export const connectorOrderSchema = z
   .passthrough();
 
 export type ConnectorOrder = z.infer<typeof connectorOrderSchema>;
+
+/** One `order.coupons[]` entry: `discount` excl. VAT, in the order's currency. */
+export const connectorCouponSchema = z.object({ code: text, discount: amount }).passthrough();
 
 /** One `order.items[]` line: `total` is incl. VAT, in the order's currency. */
 export const connectorItemSchema = z

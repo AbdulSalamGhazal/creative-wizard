@@ -36,15 +36,18 @@ export function orderStatusLabel(slug: string): string {
 }
 
 /**
- * The statuses that change what an order MEANS get a tone; every other
- * status is plain text. Matched loosely so a new Salla slug of the same
- * family is still caught.
+ * Every status is coloured BY STAGE (user decision 2026-11-23): waiting grey
+ * · on the way blue · delivered green · refunded amber · cancelled red.
+ * Matched loosely so a new Salla slug of the same family is still caught; an
+ * unknown one is grey.
  */
-export function orderStatusTone(slug: string): Extract<ChipTone, "neg" | "warn"> | null {
+export function orderStatusTone(slug: string): Extract<ChipTone, "neutral" | "info" | "pos" | "warn" | "neg"> {
   const s = slug.toLowerCase();
   if (s.includes("cancel") || s === "deleted") return "neg";
   if (s.includes("refund") || s.includes("restor")) return "warn";
-  return null;
+  if (s === "delivered") return "pos";
+  if (s === "shipped" || s.includes("delivering")) return "info";
+  return "neutral";
 }
 
 /**

@@ -8,6 +8,9 @@ import {
 import { pulledOrderEvent } from "@/lib/connector/ingest";
 import { riyadhToday } from "@/lib/connector/time";
 import { orderStatusLabel, orderStatusTone } from "@/store/order-status";
+import { FEED_FIELDS, FEED_FIELD_KEYS, FEED_FIELDS_HIDDEN_BY_DEFAULT } from "@/store/feed-fields";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const SECRET = "whsec_test_secret";
 const NOW = 1_800_000_000_000;
@@ -64,11 +67,18 @@ describe("mapConnectorOrder", () => {
       orderId: "298890143",
       orderDate: "2026-11-08",
       totalAmount: "412.00",
-      attributes: { utm_source: "tiktok", channel: "mobile-app", order_status: "delivered" },
+      attributes: {
+        utm_source: "tiktok",
+        channel: "mobile-app",
+        order_status: "delivered",
+        subtotal: 300,
+        utm_medium: "paid",
+      },
       updatedAt: "2026-11-08T18:10:00.000Z",
       items: [{ position: 0, sku: "A", name: null, quantity: 1, lineTotalSar: null }],
     });
-    expect([...CONNECTOR_OWNED_KEYS]).toEqual(["utm_source", "channel", "order_status"]);
+    expect(CONNECTOR_OWNED_KEYS.slice(0, 3)).toEqual(["utm_source", "channel", "order_status"]);
+    expect(CONNECTOR_OWNED_KEYS.slice(3)).toEqual([...FEED_FIELD_KEYS]);
   });
 
   it("files a 23:30 Riyadh order under its RIYADH day, not the UTC one", () => {
@@ -81,9 +91,13 @@ describe("mapConnectorOrder", () => {
   });
 
   it("an order with no UTM, device or status simply has no such keys", () => {
-    const m = mapConnectorOrder(order({ attribution: null, status: null }));
+    const m = mapConnectorOrder(
+      order({ attribution: null, status: null, amounts: { total: 412 } }),
+    );
     expect(m?.attributes).toEqual({});
-    const blank = mapConnectorOrder(order({ attribution: { utm_source: "  ", device: null } }));
+    const blank = mapConnectorOrder(
+      order({ attribution: { utm_source: "  ", device: null }, amounts: { total: 412 } }),
+    );
     expect(blank?.attributes).toEqual({ order_status: "delivered" });
   });
 
@@ -140,6 +154,76 @@ describe("mapConnectorOrder", () => {
     expect(mapConnectorOrder(order({ items: "nope" }))?.items).toEqual([]);
   });
 
+  it("fills every Salla field: money in SAR as numbers, lists joined, the delivered day", () => {
+    const m = mapConnectorOrder(
+      order({
+        currency: "QAR",
+        exchange_rate: 2,
+        payment_method: "prepaid",
+        payment_method_raw: "tabby_installment",
+        source: "lp-123",
+        amounts: { total: 100, total_sar: 200, subtotal_excl_vat: 80, discount: 5, shipping: 10, cod_fee: 0, tax: 12 },
+        coupons: [{ code: "SALE10", discount: 3 }, { code: " ", discount: 1 }, "junk"],
+        shipping: { city: "Riyadh", country: "SA", company: "SMSA", tracking_number: "T1", delivered_at: "2026-11-10T23:30:00+03:00" },
+        refund: { amount: 7.5, items: [] },
+        tags: ["VIP", "", 3],
+        customer: { salla_id: 42 },
+        attribution: { utm_source: "tiktok", utm_medium: "paid", utm_campaign: "c1", entry: "direct", device: "mobile" },
+      }),
+    );
+    expect(m?.attributes).toMatchObject({
+      payment_method: "tabby_installment",
+      payment_type: "Prepaid",
+      salla_source: "lp-123",
+      subtotal: 160,
+      discount: 10,
+      shipping_fee: 20,
+      cod_fee: 0,
+      vat: 24,
+      coupon_code: "SALE10",
+      coupon_discount: 8,
+      city: "Riyadh",
+      country: "SA",
+      shipping_company: "SMSA",
+      tracking_number: "T1",
+      delivered_date: "2026-11-10",
+      refund_amount: 15,
+      tags: "VIP",
+      utm_medium: "paid",
+      utm_campaign: "c1",
+      entry: "direct",
+      currency: "QAR",
+      exchange_rate: 2,
+      salla_customer_id: "42",
+    });
+    // A foreign order with no rate keeps its text fields but no money.
+    const noRate = mapConnectorOrder(
+      order({ currency: "AED", amounts: { total: 1, total_sar: 1, discount: 5 }, shipping: { city: "Dubai" } }),
+    );
+    expect(noRate?.attributes).toMatchObject({ city: "Dubai", currency: "AED" });
+    expect(noRate?.attributes).not.toHaveProperty("discount");
+  });
+
+  it("migration 0078 seeds exactly the feed field list, and only four start shown", () => {
+    const sqlText = readFileSync(
+      path.join(process.cwd(), "db/migrations/0078_store_feed_fields.sql"),
+      "utf8",
+    );
+    const seeded = [...sqlText.matchAll(/\('([a-z_]+)', '([^']+)', '([a-z]+)', \d+\)/g)].map((m) => ({
+      key: m[1],
+      label: m[2],
+      type: m[3],
+    }));
+    expect(seeded).toEqual(FEED_FIELDS.map(({ key, label, type }) => ({ key, label, type })));
+    expect(FEED_FIELDS.filter((f) => f.shown).map((f) => f.key)).toEqual([
+      "payment_method",
+      "coupon_code",
+      "discount",
+      "city",
+    ]);
+    expect(FEED_FIELDS_HIDDEN_BY_DEFAULT).toHaveLength(FEED_FIELDS.length - 4);
+  });
+
   it("returns null for what can't be a Store row — never a guess", () => {
     expect(mapConnectorOrder(order({ reference: null }))).toBeNull();
     expect(mapConnectorOrder(order({ reference: "x".repeat(65) }))).toBeNull();
@@ -165,14 +249,19 @@ describe("helpers", () => {
     expect(riyadhToday(Date.parse("2026-11-08T21:00:00Z"))).toBe("2026-11-09");
   });
 
-  it("only cancelled and refunded statuses carry a tone", () => {
+  it("every status is coloured by stage: waiting grey, on the way blue, delivered green, refunded amber, cancelled red", () => {
     expect(orderStatusTone("cancelled")).toBe("neg");
     expect(orderStatusTone("canceled")).toBe("neg");
+    expect(orderStatusTone("deleted")).toBe("neg");
     expect(orderStatusTone("refunded")).toBe("warn");
     expect(orderStatusTone("restored")).toBe("warn");
-    expect(orderStatusTone("delivered")).toBeNull();
     expect(orderStatusTone("restoring")).toBe("warn");
-    expect(orderStatusTone("deleted")).toBe("neg");
+    expect(orderStatusTone("delivered")).toBe("pos");
+    expect(orderStatusTone("shipped")).toBe("info");
+    expect(orderStatusTone("delivering")).toBe("info");
+    for (const s of ["payment_pending", "under_review", "in_progress", "completed", "on_hold"]) {
+      expect(orderStatusTone(s)).toBe("neutral");
+    }
     expect(orderStatusLabel("payment_pending")).toBe("Payment pending");
     // The connector's documented slugs read as their meaning…
     expect(orderStatusLabel("canceled")).toBe("Cancelled");

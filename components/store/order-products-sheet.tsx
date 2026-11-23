@@ -47,7 +47,6 @@ export function OrderProductsSheet({
 }) {
   const status = order?.attributes[ORDER_STATUS_FIELD_KEY];
   const statusSlug = typeof status === "string" && status !== "" ? status : null;
-  const tone = statusSlug ? orderStatusTone(statusSlug) : null;
   const linesKnown = items.every((l) => l.lineTotal !== null);
   const linesSum = items.reduce((a, l) => a + (l.lineTotal ?? 0), 0);
   const other = order && linesKnown ? Math.round((order.totalAmount - linesSum) * 100) / 100 : 0;
@@ -71,12 +70,7 @@ export function OrderProductsSheet({
               <SheetTitle className="font-mono">Order {order.orderId}</SheetTitle>
               <SheetDescription className="flex flex-wrap items-center gap-2 tabular-nums">
                 <span>{isoDate(order.orderDate)}</span>
-                {statusSlug &&
-                  (tone ? (
-                    <Chip tone={tone}>{orderStatusLabel(statusSlug)}</Chip>
-                  ) : (
-                    <span>· {orderStatusLabel(statusSlug)}</span>
-                  ))}
+                {statusSlug && <Chip tone={orderStatusTone(statusSlug)}>{orderStatusLabel(statusSlug)}</Chip>}
               </SheetDescription>
             </SheetHeader>
 

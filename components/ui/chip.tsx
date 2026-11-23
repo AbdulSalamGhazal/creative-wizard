@@ -34,6 +34,8 @@ const chipVariants = cva(
         pos: "border-pos/40 bg-pos/10 text-pos",
         neg: "border-neg/40 bg-neg/10 text-neg",
         warn: "border-warn/40 bg-warn/10 text-warn",
+        // Blue for "in motion" (an order on its way) — the theme's own blue.
+        info: "border-ahead/40 bg-ahead/10 text-ahead",
         solid: "border-transparent font-semibold",
       },
     },

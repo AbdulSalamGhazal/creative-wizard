@@ -2,7 +2,13 @@ import { parseStoreDate } from "@/store/parse";
 import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
 import { STORE_CHANNEL_FIELD_KEY } from "@/store/channels";
 import { ORDER_STATUS_FIELD_KEY } from "@/store/order-status";
-import { connectorItemSchema, connectorOrderSchema } from "@/validators/connector";
+import { FEED_FIELD_KEYS, type FeedFieldKey } from "@/store/feed-fields";
+import {
+  connectorCouponSchema,
+  connectorItemSchema,
+  connectorOrderSchema,
+  type ConnectorOrder,
+} from "@/validators/connector";
 
 
 /**
@@ -10,11 +16,12 @@ import { connectorItemSchema, connectorOrderSchema } from "@/validators/connecto
  * write they are replaced as a set (a null value removes the key); an upload
  * never changes them on such an order ("the Salla feed wins").
  */
-export const CONNECTOR_OWNED_KEYS = [
+export const CONNECTOR_OWNED_KEYS: readonly string[] = [
   STORE_SOURCE_FIELD_KEY,
   STORE_CHANNEL_FIELD_KEY,
   ORDER_STATUS_FIELD_KEY,
-] as const;
+  ...FEED_FIELD_KEYS,
+];
 
 /**
  * The customer keys the feed FILLS when Salla sends them (personal data is
@@ -39,8 +46,8 @@ export interface MappedConnectorOrder {
   orderDate: string;
   /** `numeric(12,2)` as text. */
   totalAmount: string;
-  /** Only the feed-owned keys that HAVE a value. */
-  attributes: Record<string, string>;
+  /** Only the keys that HAVE a value; money is a number (SAR), the rest text. */
+  attributes: Record<string, string | number>;
   /** The connector's `updated_at` (ISO), or null when it sent none. */
   updatedAt: string | null;
   /** The order's product lines, in the order the connector sent them. */
@@ -96,7 +103,8 @@ function isoInstant(v: string | null | undefined): string | null {
  * - customer_name / phone / email = `customer.*` when sent; the phone is
  *   written `+<digits>`, the form Salla's export uses
  * - utm_source = `attribution.utm_source`, channel = `attribution.device`,
- *   order_status = `status.slug`
+ *   order_status = `status.slug`, and every `store/feed-fields.ts` key
+ *   (`FEED_READERS`) — all OWNED: replaced as a set on every write
  * - items = `items[]` → product lines, each `total` (incl. VAT) in SAR via
  *   `exchange_rate` (see `mapItems`)
  */
@@ -117,7 +125,8 @@ export function mapConnectorOrder(raw: unknown): MappedConnectorOrder | null {
     sar ?? (currency === null || currency === "SAR" ? toAmount(o.amounts?.total) : null);
   if (total === null) return null;
 
-  const attributes: Record<string, string> = {};
+  const rate = sarRate(currency, o.exchange_rate);
+  const attributes: Record<string, string | number> = {};
   const source = clean(o.attribution?.utm_source);
   if (source) attributes[STORE_SOURCE_FIELD_KEY] = source;
   const channel = clean(o.attribution?.device);
@@ -132,15 +141,84 @@ export function mapConnectorOrder(raw: unknown): MappedConnectorOrder | null {
   const email = clean(o.customer?.email);
   if (email) attributes[CONNECTOR_CUSTOMER_KEYS.email] = email;
 
+  for (const key of FEED_FIELD_KEYS) {
+    const v = FEED_READERS[key](o, rate);
+    if (v !== null) attributes[key] = v;
+  }
+
   return {
     orderId,
     orderDate,
     totalAmount: total.toFixed(2),
     attributes,
     updatedAt: isoInstant(o.updated_at),
-    items: mapItems(o.items, sarRate(currency, o.exchange_rate)),
+    items: mapItems(o.items, rate),
   };
 }
+
+/** An amount in the order's currency → SAR, 2 decimals; null without a rate. */
+function toSar(v: string | number | null | undefined, rate: number | null): number | null {
+  const n = toAmount(v);
+  if (n === null || rate === null) return null;
+  return Math.round(n * rate * 100) / 100;
+}
+
+/** The non-blank strings of a list, joined — tags, coupon codes. */
+function joined(list: unknown[] | null | undefined, pick: (x: unknown) => string | null): string | null {
+  const parts = (list ?? []).map(pick).filter((s): s is string => !!s);
+  return parts.length ? parts.join(", ").slice(0, RAW_VALUE_MAX) : null;
+}
+
+const coupons = (o: ConnectorOrder) =>
+  (o.coupons ?? []).flatMap((c) => {
+    const p = connectorCouponSchema.safeParse(c);
+    return p.success ? [p.data] : [];
+  });
+
+const PAYMENT_TYPE: Record<string, string> = { cod: "COD", prepaid: "Prepaid" };
+
+/**
+ * How each feed field is read from a connector order (`store/feed-fields.ts`
+ * lists them). Typed by key, so a field added there without a reader here
+ * fails to compile. Null = not sent, and the owned key is removed.
+ */
+const FEED_READERS: Record<FeedFieldKey, (o: ConnectorOrder, rate: number | null) => string | number | null> = {
+  payment_method: (o) => clean(o.payment_method_raw) ?? clean(o.payment_method),
+  payment_type: (o) => {
+    const p = clean(o.payment_method)?.toLowerCase();
+    return p ? (PAYMENT_TYPE[p] ?? p) : null;
+  },
+  coupon_code: (o) => joined(coupons(o), (c) => clean((c as { code?: string | null }).code)),
+  coupon_discount: (o, rate) => {
+    const list = coupons(o);
+    if (list.length === 0) return null;
+    return toSar(list.reduce((a, c) => a + (toAmount(c.discount) ?? 0), 0), rate);
+  },
+  discount: (o, rate) => toSar(o.amounts?.discount, rate),
+  subtotal: (o, rate) => toSar(o.amounts?.subtotal_excl_vat, rate),
+  shipping_fee: (o, rate) => toSar(o.amounts?.shipping, rate),
+  cod_fee: (o, rate) => toSar(o.amounts?.cod_fee, rate),
+  vat: (o, rate) => toSar(o.amounts?.tax, rate),
+  city: (o) => clean(o.shipping?.city),
+  country: (o) => clean(o.shipping?.country),
+  shipping_company: (o) => clean(o.shipping?.company),
+  tracking_number: (o) => clean(o.shipping?.tracking_number),
+  delivered_date: (o) => (o.shipping?.delivered_at ? parseStoreDate(o.shipping.delivered_at) : null),
+  refund_amount: (o, rate) => toSar(o.refund?.amount, rate),
+  tags: (o) => joined(o.tags, (t) => (typeof t === "string" ? clean(t) : null)),
+  utm_medium: (o) => clean(o.attribution?.utm_medium),
+  utm_campaign: (o) => clean(o.attribution?.utm_campaign),
+  utm_term: (o) => clean(o.attribution?.utm_term),
+  utm_content: (o) => clean(o.attribution?.utm_content),
+  salla_source: (o) => clean(o.source),
+  entry: (o) => clean(o.attribution?.entry),
+  currency: (o) => clean(o.currency)?.toUpperCase() ?? null,
+  exchange_rate: (o) => toAmount(o.exchange_rate),
+  salla_customer_id: (o) =>
+    o.customer?.salla_id === null || o.customer?.salla_id === undefined
+      ? null
+      : clean(String(o.customer.salla_id)),
+};
 
 /** SAR per unit of the order's currency: 1 for SAR (or no currency named), else the sent rate. */
 function sarRate(currency: string | null, rate: string | number | null | undefined): number | null {

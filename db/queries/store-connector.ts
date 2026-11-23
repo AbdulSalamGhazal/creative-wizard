@@ -80,7 +80,7 @@ export interface ConnectorOrderWrite {
   orderDate: string;
   totalAmount: string;
   /** Feed-owned keys that have a value. */
-  attributes: Record<string, string>;
+  attributes: Record<string, string | number>;
   /** The version's timestamp — the ordering guard compares on it. */
   connectorUpdatedAt: Date;
   /** The order's product lines; replace the stored set when this version applies. */
