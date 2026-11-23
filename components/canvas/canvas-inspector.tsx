@@ -12,7 +12,13 @@ import { CAMPAIGN_STATUS_DOT, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-statu
 import { RATING_META } from "@/lib/rating";
 import { int, longDate, monthDay, pct1, roas, usd, usd0 } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { CanvasInspection, CanvasNode } from "@/lib/canvas";
+import {
+  canvasLevelNoun,
+  type CanvasInspection,
+  type CanvasLevel,
+  type CanvasNode,
+} from "@/lib/canvas";
+import { AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
 
 /**
  * The CLICK INSPECTOR — a read-only panel beside the canvas (an overlay on a
@@ -35,12 +41,15 @@ function EntityMark({ node }: { node: CanvasNode }) {
 
 export function CanvasInspector({
   inspection,
+  level,
   onInspect,
   onOpen,
   onClose,
   className,
 }: {
   inspection: CanvasInspection;
+  /** What the campaign side holds on this canvas — names a creative's pairings. */
+  level: CanvasLevel;
   /** Inspect another entity (a pairing row) — moves focus + panel. */
   onInspect: (entityId: string) => void;
   /** The entity's own page (the brand-aware router lives in the caller). */
@@ -51,6 +60,7 @@ export function CanvasInspector({
 }) {
   const { node, pairings, hiddenPairings } = inspection;
   const isCampaign = node.kind === "campaign";
+  const sideLevel = level;
   const status = isCampaign
     ? { color: CAMPAIGN_STATUS_DOT[node.status], label: CAMPAIGN_STATUS_LABEL[node.status] }
     : { color: STATUS_DOT[node.status], label: STATUS_LABEL[node.status] };
@@ -79,9 +89,19 @@ export function CanvasInspector({
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-ink-2">
             <StatusDot color={status.color} label={status.label} />
             {isCampaign ? (
-              <span className="tabular-nums" title="Creatives currently spending here / creatives that spent here in the range">
-                {node.liveChildren}/{node.totalChildren} live
-              </span>
+              <>
+                {node.level === "campaign" && (
+                  <span className="tabular-nums" title={node.objective || undefined}>
+                    {node.network && AD_NETWORK_LABEL[node.network as AdNetwork]
+                      ? `${AD_NETWORK_LABEL[node.network as AdNetwork]} · `
+                      : ""}
+                    {int(node.adSets)} ad set{node.adSets === 1 ? "" : "s"}
+                  </span>
+                )}
+                <span className="tabular-nums" title="Creatives currently spending here / creatives that spent here in the range">
+                  {node.liveChildren}/{node.totalChildren} live
+                </span>
+              </>
             ) : (
               node.priority !== null && <PriorityStars value={node.priority} />
             )}
@@ -118,7 +138,8 @@ export function CanvasInspector({
 
         {/* Pairings */}
         <p className="text-label mb-1 mt-4 text-ink-3">
-          {isCampaign ? "Creatives" : "Ad sets"} · {int(pairings.length)}
+          {isCampaign ? "Creatives" : sideLevel === "campaign" ? "Campaigns" : "Ad sets"} ·{" "}
+          {int(pairings.length)}
         </p>
         {pairings.length === 0 ? (
           <p className="py-2 text-ink-2">No spend in this range.</p>
@@ -189,7 +210,7 @@ export function CanvasInspector({
           onClick={() => onOpen(node)}
           className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
         >
-          Open {isCampaign ? "ad set" : "creative"}
+          Open {isCampaign ? canvasLevelNoun(node.level) : "creative"}
           <ArrowRight className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>

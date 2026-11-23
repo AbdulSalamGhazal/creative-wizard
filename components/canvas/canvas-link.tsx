@@ -15,7 +15,7 @@ export function CanvasLink({
   to,
   className,
 }: {
-  entity: { campaignId: string } | { creativeId: string };
+  entity: { campaignId: string } | { parentCampaignId: string } | { creativeId: string };
   from: string;
   to: string;
   className?: string;

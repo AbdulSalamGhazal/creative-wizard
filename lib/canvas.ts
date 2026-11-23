@@ -10,17 +10,72 @@
 import type { CreativeStatus } from "@/lib/creative-status";
 import { deriveCampaignStatus, type CampaignStatus } from "@/lib/campaign-status";
 import { rateBlock, rulesForScope, type Rating, type RatingConfig } from "@/lib/rating";
+import { adNetwork } from "@/lib/campaign";
 
 export type CanvasCreativeType = "video" | "image" | "slides";
 
+// ── The level switch ────────────────────────────────────────────────────────
+
+/**
+ * `?level=` — WHAT the campaign side of the graph is (2026-11, the two levels
+ * of lib/campaign.ts): AD SETS (the default and the clean URL — a `campaigns`
+ * row, what this module has always called "campaign") or CAMPAIGNS (a
+ * `parent_campaigns` row, its ad sets folded together). Same scan, same two
+ * clocks, same cap at both levels — the level decides only how the scanned
+ * pairs are grouped (`canvasPairs`).
+ */
+export const CANVAS_LEVELS = ["adset", "campaign"] as const;
+export type CanvasLevel = (typeof CANVAS_LEVELS)[number];
+/** The switch's options, in the order it draws them (campaigns first). */
+export const CANVAS_LEVEL_OPTIONS: ReadonlyArray<{ value: CanvasLevel; label: string }> = [
+  { value: "campaign", label: "Campaigns" },
+  { value: "adset", label: "Ad sets" },
+];
+
+/** `?level=` → a level; anything unknown is ad sets. */
+export function parseCanvasLevel(value: string | null | undefined): CanvasLevel {
+  return (CANVAS_LEVELS as readonly string[]).includes(value ?? "")
+    ? (value as CanvasLevel)
+    : "adset";
+}
+
+/** What a campaign-side node is CALLED at each level — the UI's own words. */
+export function canvasLevelNoun(level: CanvasLevel | undefined, count = 1): string {
+  const one = level === "campaign" ? "campaign" : "ad set";
+  return count === 1 ? one : `${one}s`;
+}
+
 export interface CanvasCampaignNode {
   kind: "campaign";
+  /**
+   * Which level this node is: an AD SET (`c:<id>`, a `campaigns` row) or a
+   * CAMPAIGN (`p:<id>`, a `parent_campaigns` row). One graph holds one level.
+   */
+  level: CanvasLevel;
   /** Graph id — prefixed so a campaign and a creative can never collide. */
   id: string;
+  /** The row id: the ad set's, or at campaign level the campaign's. */
   campaignId: string;
   name: string;
+  /** The ad set's objective; a campaign's ad sets' objectives, " · "-joined. */
   objective: string;
+  /**
+   * The platform the node is MARKED by: an ad set's own; for a campaign, the
+   * one that spent most in the range (a Meta campaign runs on two).
+   */
   platform: string;
+  /** Every platform it spent on in the range, biggest first — one for an ad set. */
+  platforms: string[];
+  /** Its ad network (`meta` = Instagram + Facebook); null if unknown. */
+  network: string | null;
+  /**
+   * The CAMPAIGN's row id — an ad set's parent (null until the reconcile
+   * reaches it), or the node's own id at campaign level. What a level switch
+   * re-maps an inspected ad set to.
+   */
+  parentId: string | null;
+  /** Registered ad sets under a campaign (the registry count); 1 for an ad set. */
+  adSets: number;
   status: CampaignStatus;
   spend: number;
   conversions: number;
@@ -74,8 +129,13 @@ export interface CanvasEdge {
   source: string;
   /** Creative node id. */
   target: string;
-  /** The CAMPAIGN's platform — what the edge is colored by. */
+  /**
+   * What the edge is colored by: the ad set's platform — or, for a campaign
+   * pairing that ran on two (Meta), the one that spent most in it.
+   */
   platform: string;
+  /** Every platform the pairing spent on, biggest first. */
+  platforms: string[];
   spend: number;
   /** The pair's last real-spend day (spend > 0), NOT clipped to the range. */
   lastSpendDay: string | null;
@@ -165,6 +225,8 @@ export function edgeIsLive(input: {
 }
 
 export interface CanvasGraph {
+  /** What `campaigns` holds: ad sets (the default) or campaigns. */
+  level: CanvasLevel;
   campaigns: CanvasCampaignNode[];
   creatives: CanvasCreativeNode[];
   edges: CanvasEdge[];
@@ -186,32 +248,220 @@ export function earlierDay(a: string | null, b: string | null): string | null {
 
 export const campaignNodeId = (id: string) => `c:${id}`;
 export const creativeNodeId = (id: string) => `k:${id}`;
+/** A CAMPAIGN's node id (a `parent_campaigns` row) — campaign level only. */
+export const parentNodeId = (id: string) => `p:${id}`;
+
+// ── Folding the scan to a level ─────────────────────────────────────────────
+
+/** One row of the ONE aggregation scan: an (ad set, creative) pair's sums. */
+export interface CanvasScanRow {
+  campaignId: string;
+  campaignName: string;
+  objective: string;
+  campaignPlatform: string;
+  /** The ad set's campaign — null until the reconcile reaches the ad set. */
+  parentId: string | null;
+  parentName: string | null;
+  parentNetwork: string | null;
+  creativeId: string;
+  spend: number;
+  conversions: number;
+  revenue: number;
+  /** The pair's last REAL-spend day, unclipped — the window clock's input. */
+  lastSpendDay: string | null;
+  /** The pair's first real-spend day IN the range — LAUNCHED's input. */
+  firstSpendDay: string | null;
+}
+
+/** A pairing's slice on ONE platform — the window clock runs per platform. */
+export interface CanvasPairPlatform {
+  platform: string;
+  spend: number;
+  revenue: number;
+  lastSpendDay: string | null;
+}
+
+/** One PAIRING at the chosen level: a campaign-side node × a creative. */
+export interface CanvasPair {
+  /** The campaign-side node id (`c:` an ad set, `p:` a campaign). */
+  sideId: string;
+  /** Its row id. */
+  rowId: string;
+  name: string;
+  network: string | null;
+  parentId: string | null;
+  /** The ad sets behind this pairing (one at ad-set level). */
+  adSetIds: string[];
+  /** Their objectives, distinct, in first-seen order. */
+  objectives: string[];
+  creativeId: string;
+  spend: number;
+  conversions: number;
+  revenue: number;
+  firstSpendDay: string | null;
+  /** Biggest spender first. */
+  byPlatform: CanvasPairPlatform[];
+}
+
+/** The later of two ISO days (null = none). */
+function laterDay(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a >= b ? a : b;
+}
+
+/**
+ * The scan's (ad set, creative) rows as PAIRINGS at a level. Ad sets: one
+ * pairing per row. Campaigns: the rows of a campaign's ad sets FOLDED per
+ * creative — component sums (a creative in three ad sets of one campaign is
+ * ONE pairing, counted once), the per-platform slices kept apart because the
+ * window clock is per platform. An ad set with no campaign yet (the reconcile
+ * hasn't reached it) has no campaign-level pairing — it shows at ad-set level,
+ * the Campaigns list's own rule.
+ */
+export function canvasPairs(rows: readonly CanvasScanRow[], level: CanvasLevel): CanvasPair[] {
+  const out = new Map<string, CanvasPair>();
+  for (const r of rows) {
+    if (level === "campaign" && (r.parentId === null || r.parentName === null)) continue;
+    const sideId = level === "campaign" ? parentNodeId(r.parentId!) : campaignNodeId(r.campaignId);
+    const key = `${sideId}|${r.creativeId}`;
+    let pair = out.get(key);
+    if (!pair) {
+      pair = {
+        sideId,
+        rowId: level === "campaign" ? r.parentId! : r.campaignId,
+        name: level === "campaign" ? r.parentName! : r.campaignName,
+        network: r.parentNetwork ?? adNetwork(r.campaignPlatform),
+        parentId: r.parentId,
+        adSetIds: [],
+        objectives: [],
+        creativeId: r.creativeId,
+        spend: 0,
+        conversions: 0,
+        revenue: 0,
+        firstSpendDay: null,
+        byPlatform: [],
+      };
+      out.set(key, pair);
+    }
+    if (!pair.adSetIds.includes(r.campaignId)) pair.adSetIds.push(r.campaignId);
+    if (!pair.objectives.includes(r.objective)) pair.objectives.push(r.objective);
+    pair.spend += r.spend;
+    pair.conversions += r.conversions;
+    pair.revenue += r.revenue;
+    pair.firstSpendDay = earlierDay(pair.firstSpendDay, r.firstSpendDay);
+    const slice = pair.byPlatform.find((p) => p.platform === r.campaignPlatform);
+    if (slice) {
+      slice.spend += r.spend;
+      slice.revenue += r.revenue;
+      slice.lastSpendDay = laterDay(slice.lastSpendDay, r.lastSpendDay);
+    } else {
+      pair.byPlatform.push({
+        platform: r.campaignPlatform,
+        spend: r.spend,
+        revenue: r.revenue,
+        lastSpendDay: r.lastSpendDay,
+      });
+    }
+  }
+  for (const pair of out.values()) {
+    pair.byPlatform.sort((a, b) => b.spend - a.spend || a.platform.localeCompare(b.platform));
+  }
+  return [...out.values()];
+}
+
+/**
+ * A pairing's VERDICTS, from its per-platform slices — both clocks and the
+ * Rate, at either level:
+ *  - LIVE when it is live on ANY of its platforms, each judged by
+ *    {@link edgeIsLive} against that platform's OWN latest spend day (a Meta
+ *    campaign still spending on Facebook is live, whatever Instagram did);
+ *  - its last spend day is the latest of them;
+ *  - the line is coloured by the platform that spent most in the pairing;
+ *  - its RATE is {@link pairRate} over the pairing's summed spend and revenue,
+ *    by that platform's rules when it ran on ONE, the brand default when on
+ *    several — Summary's scope rule, the same one `creativeRate` applies.
+ */
+export function pairVerdict(
+  pair: Pick<CanvasPair, "spend" | "revenue" | "byPlatform">,
+  ctx: {
+    /** Each platform's own latest spend day (`platformSpendFreshness`). */
+    freshness: Partial<Record<string, string | null>>;
+    windowDays: number;
+    ratingConfig: RatingConfig;
+  },
+): Pick<CanvasEdge, "platform" | "platforms" | "lastSpendDay" | "live" | "roas" | "rate"> {
+  const platforms = pair.byPlatform.map((p) => p.platform);
+  let lastSpendDay: string | null = null;
+  let live = false;
+  for (const p of pair.byPlatform) {
+    lastSpendDay = laterDay(lastSpendDay, p.lastSpendDay);
+    if (
+      edgeIsLive({
+        lastSpendDay: p.lastSpendDay,
+        platformLatestDay: ctx.freshness[p.platform] ?? null,
+        windowDays: ctx.windowDays,
+      })
+    ) {
+      live = true;
+    }
+  }
+  return {
+    platform: platforms[0] ?? "",
+    platforms,
+    lastSpendDay,
+    live,
+    ...pairRate(
+      {
+        spend: pair.spend,
+        revenue: pair.revenue,
+        platform: platforms.length === 1 ? platforms[0]! : "total",
+      },
+      ctx.ratingConfig,
+    ),
+  };
+}
 
 // ── Focus in the link ───────────────────────────────────────────────────────
 
 /**
- * `?focus=` — the INSPECTED entity, as its graph node id (`c:<uuid>` a
- * campaign, `k:<uuid>` a creative). A node id, not a name, so a rename never
- * breaks a shared link. Anything else parses to null — a bad value is simply
- * no focus. One parser for the server (`validators/canvas.ts`) and the client.
+ * `?focus=` — the INSPECTED entity, as its graph node id (`c:<uuid>` an ad
+ * set — code's "campaign" —, `p:<uuid>` a campaign, `k:<uuid>` a creative). A
+ * node id, not a name, so a rename never breaks a shared link. Anything else
+ * parses to null — a bad value is simply no focus. One parser for the server
+ * (`validators/canvas.ts`) and the client.
  */
 export interface CanvasFocusParam {
-  kind: "campaign" | "creative";
+  /** `campaign` = an AD SET, `parent_campaign` = a CAMPAIGN (lib/campaign.ts). */
+  kind: "campaign" | "parent_campaign" | "creative";
   /** The entity's row id. */
   id: string;
   /** Its graph node id — what the canvas focuses. */
   nodeId: string;
 }
 
-const FOCUS_RE = /^([ck]):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const FOCUS_RE = /^([ckp]):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export function parseCanvasFocus(value: string | null | undefined): CanvasFocusParam | null {
   const m = FOCUS_RE.exec(value ?? "");
   if (!m?.[1] || !m[2]) return null;
   const id = m[2].toLowerCase();
-  return m[1] === "c"
-    ? { kind: "campaign", id, nodeId: campaignNodeId(id) }
-    : { kind: "creative", id, nodeId: creativeNodeId(id) };
+  const prefix = m[1].toLowerCase();
+  if (prefix === "c") return { kind: "campaign", id, nodeId: campaignNodeId(id) };
+  if (prefix === "p") return { kind: "parent_campaign", id, nodeId: parentNodeId(id) };
+  return { kind: "creative", id, nodeId: creativeNodeId(id) };
+}
+
+/** The UI's word for a focus kind ("campaign" in code is the ad set). */
+export const CANVAS_FOCUS_NOUN: Record<CanvasFocusParam["kind"], string> = {
+  campaign: "ad set",
+  parent_campaign: "campaign",
+  creative: "creative",
+};
+
+/** The level a focus kind is DRAWN at; null = both (a creative). */
+export function focusLevel(kind: CanvasFocusParam["kind"]): CanvasLevel | null {
+  return kind === "campaign" ? "adset" : kind === "parent_campaign" ? "campaign" : null;
 }
 
 /**
@@ -238,13 +488,19 @@ export function focusParamFor(
  * own (remembered per user), exactly like the Compare link.
  */
 export function canvasFocusHref(
-  entity: { campaignId: string } | { creativeId: string },
+  entity: { campaignId: string } | { parentCampaignId: string } | { creativeId: string },
   range: { from: string; to: string },
 ): string {
   const p = new URLSearchParams();
+  // A CAMPAIGN is drawn at campaign level only, so its link says so.
+  if ("parentCampaignId" in entity) p.set("level", "campaign");
   p.set(
     "focus",
-    "campaignId" in entity ? campaignNodeId(entity.campaignId) : creativeNodeId(entity.creativeId),
+    "parentCampaignId" in entity
+      ? parentNodeId(entity.parentCampaignId)
+      : "campaignId" in entity
+        ? campaignNodeId(entity.campaignId)
+        : creativeNodeId(entity.creativeId),
   );
   p.set("from", range.from);
   p.set("to", range.to);
@@ -529,8 +785,12 @@ export const LOSER_MIN_BAD = 2;
  *
  * Strip order: the problems first, the existing chips keep their places.
  */
-export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives" | "edges">): CanvasInsight[] {
+export function canvasInsights(
+  graph: Pick<CanvasGraph, "campaigns" | "creatives" | "edges"> & { level?: CanvasLevel },
+): CanvasInsight[] {
   const out: CanvasInsight[] = [];
+  // The definitions are the same at both levels; only the WORD changes.
+  const noun = (count: number) => canvasLevelNoun(graph.level, count);
 
   const degree = new Map<string, number>();
   for (const e of graph.edges) {
@@ -545,7 +805,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (stale.length > 0) {
     out.push({
       key: "no-live-creatives",
-      label: `${stale.length} ad set${stale.length === 1 ? "" : "s"} with no live creatives`,
+      label: `${stale.length} ${noun(stale.length)} with no live creatives`,
       focusIds: stale.map((c) => c.id),
     });
   }
@@ -601,7 +861,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (leaning.length > 0) {
     out.push({
       key: "leans-on-one",
-      label: `${leaning.length} ad set${leaning.length === 1 ? " leans" : "s lean"} on one creative`,
+      label: `${leaning.length} ${noun(leaning.length)} ${leaning.length === 1 ? "leans" : "lean"} on one creative`,
       focusIds: leaning.map((c) => c.id),
     });
   }
@@ -615,7 +875,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (winners.length > 0) {
     out.push({
       key: "unscaled-winner",
-      label: `${winners.length} winner${winners.length === 1 ? "" : "s"} in one ad set only`,
+      label: `${winners.length} winner${winners.length === 1 ? "" : "s"} in one ${noun(1)} only`,
       focusIds: winners.map((c) => c.id),
     });
   }
@@ -643,7 +903,7 @@ export function canvasInsights(graph: Pick<CanvasGraph, "campaigns" | "creatives
   if (top) {
     out.push({
       key: "most-shared",
-      label: `Most shared: «${top.name}» feeds ${topDegree} ad sets`,
+      label: `Most shared: «${top.name}» feeds ${topDegree} ${noun(topDegree)}`,
       focusIds: [top.id],
     });
   }
@@ -666,6 +926,11 @@ export const CANVAS_VIEW_LABEL: Record<CanvasViewMode, string> = {
   creative: "By creative",
   angle: "By angle",
 };
+
+/** The switcher's label: the second view is named after the LEVEL drawn. */
+export function canvasViewLabel(view: CanvasViewMode, level: CanvasLevel): string {
+  return view === "campaign" && level === "campaign" ? "By campaign" : CANVAS_VIEW_LABEL[view];
+}
 
 /** Anything that isn't a known view is the default — never an error. */
 export function parseCanvasView(value: string | null | undefined): CanvasViewMode {

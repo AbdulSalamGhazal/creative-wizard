@@ -15,6 +15,7 @@ import {
 } from "@/validators/canvas";
 import { CanvasFilterBar } from "@/components/canvas/canvas-filter-bar";
 import { CanvasView } from "@/components/canvas/canvas-view";
+import { focusLevel, type CanvasLevel } from "@/lib/canvas";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
 
 export const dynamic = "force-dynamic";
@@ -60,8 +61,15 @@ export default async function CanvasPage({
     statuses: pref.statuses,
     productIds: pref.productIds,
     stages: pref.stages,
+    level: pickFirst(params.level),
     focus: pickFirst(params.focus),
   });
+  // The LEVEL the campaign side is drawn at: what the link says; a link that
+  // names only a campaign's node (`focus=p:…`) is a campaign-level link.
+  const level: CanvasLevel =
+    pickFirst(params.level) === undefined && parsed.focus
+      ? (focusLevel(parsed.focus.kind) ?? parsed.level)
+      : parsed.level;
 
   // The range is resolved HERE and the one value feeds both the query and the
   // picker's label — a fresh URL runs the last 30 days, and says so.
@@ -85,6 +93,7 @@ export default async function CanvasPage({
     productIds: parsed.productIds.length > 0 ? parsed.productIds : undefined,
     stages: parsed.stages.length > 0 ? parsed.stages : undefined,
     includeExcluded,
+    level,
   }), getRatingConfig()]);
 
   // `?focus=` — a shared link's inspected node. Drawn → the canvas opens on it
@@ -94,7 +103,7 @@ export default async function CanvasPage({
   const focus = parsed.focus;
   const focusDrawn =
     focus !== null &&
-    (focus.kind === "campaign" ? graph.campaigns : graph.creatives).some(
+    (focus.kind === "creative" ? graph.creatives : graph.campaigns).some(
       (n) => n.id === focus.nodeId,
     );
   const linkedFocus = focus

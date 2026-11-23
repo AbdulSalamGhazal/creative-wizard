@@ -21,7 +21,7 @@ import "@xyflow/react/dist/style.css";
 import { CircleHelp, Film, Image as ImageIcon, Layers, Search, X } from "lucide-react";
 import { PlatformDot } from "@/components/ui/platform-dot";
 import { PriorityStars } from "@/components/creative/priority-stars";
-import { PLATFORM_COLOR, RATE_COLOR } from "@/lib/palette";
+import { PLATFORM_COLOR, PLATFORM_LABEL, RATE_COLOR } from "@/lib/palette";
 import { RATING_META, RATING_VALUES, type Rating, type RatingRules } from "@/lib/rating";
 import {
   CREATIVE_STATUSES,
@@ -45,6 +45,7 @@ import {
   ANGLE_HEADER_WIDTH,
   CANVAS_NODE_HEIGHT,
   CANVAS_NODE_WIDTH,
+  canvasLevelNoun,
   canvasNodeSizes,
   isAngleHeaderId,
   clusterBoxes,
@@ -57,6 +58,7 @@ import {
   focusFor,
   tripartiteBoxes,
   type CanvasCluster,
+  type CanvasLevel,
   type CanvasSide,
   type CanvasViewMode,
   type CanvasLens,
@@ -173,8 +175,17 @@ const CampaignNodeView = memo(function CampaignNodeView({
           <LaunchedTag on={n.launchedOn} />
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
-          <Chip className="min-w-0 shrink">
-            <span className="truncate">{n.objective}</span>
+          {/* An ad set carries ONE objective; a campaign's ad sets may carry
+              several, so its chip counts them instead. */}
+          <Chip
+            className="min-w-0 shrink"
+            title={n.level === "campaign" ? `Registered ad sets · ${n.objective}` : undefined}
+          >
+            <span className="truncate tabular-nums">
+              {n.level === "campaign"
+                ? `${int(n.adSets)} ad set${n.adSets === 1 ? "" : "s"}`
+                : n.objective}
+            </span>
           </Chip>
           <span className="shrink-0 text-[10px] text-ink-2">
             {CAMPAIGN_STATUS_LABEL[n.status]}
@@ -282,6 +293,20 @@ const FLOW_THEME = {
  * The pairing's performance, in both lenses: its ROAS and its Rate (a swatch
  * in the Rate colour + the word, so the colour is never the only carrier).
  */
+/**
+ * A pairing that ran on MORE than one platform (a Meta campaign on Instagram
+ * and Facebook) names them — its line can only carry one colour. A pairing on
+ * one platform says nothing: the colour already did.
+ */
+function PlatformsLine({ platforms }: { platforms: readonly string[] }) {
+  if (platforms.length < 2) return null;
+  return (
+    <p className="mt-0.5 text-[11px] text-ink-3">
+      {platforms.map((p) => PLATFORM_LABEL[p as PlatformKey] ?? p).join(" + ")}
+    </p>
+  );
+}
+
 function RateLine({ value, rate }: { value: number | null; rate: Rating }) {
   return (
     <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-3">
@@ -670,7 +695,8 @@ function Flow({
                 <p className="mt-0.5 text-[11px] text-ink-2">
                   <span className="text-ink">{chip.live ? "spending now" : "stopped"}</span>
                   {" · "}
-                  <span className="tabular-nums text-ink">{usd(chip.spend)}</span> in all ad sets
+                  <span className="tabular-nums text-ink">{usd(chip.spend)}</span> in all{" "}
+                  {canvasLevelNoun(graph.level, 2)}
                 </p>
                 <RateLine value={chip.roas} rate={chip.rate} />
                 <p className="mt-1 text-[10px] text-ink-2">Double-click to open</p>
@@ -703,9 +729,10 @@ function Flow({
                   </p>
                   <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
                     {share === null ? "—" : pct1(share)} of{" "}
-                    <span className="text-ink-2">{camp?.name ?? "the ad set"}</span>
+                    <span className="text-ink-2">{camp?.name ?? `the ${canvasLevelNoun(graph.level)}`}</span>
                     &rsquo;s spend
                   </p>
+                  <PlatformsLine platforms={edge.platforms} />
                   <RateLine value={edge.roas} rate={edge.rate} />
                 </>
               ) : (
@@ -768,9 +795,10 @@ function Flow({
             </p>
             <p className="mt-0.5 max-w-[16rem] text-[11px] text-ink-3">
               {share === null ? "—" : pct1(share)} of{" "}
-              <span className="text-ink-2">{camp?.name ?? "the ad set"}</span>
+              <span className="text-ink-2">{camp?.name ?? `the ${canvasLevelNoun(graph.level)}`}</span>
               &rsquo;s spend
             </p>
+            <PlatformsLine platforms={edge.platforms} />
             <RateLine value={edge.roas} rate={edge.rate} />
           </>
         ),
@@ -843,7 +871,7 @@ function Flow({
             sits over React Flow's attribution (bottom-right, under the map). */}
         <Controls showInteractive={false} position="top-right" />
         <Panel position="bottom-left">
-          <Legend view={view} lens={lens} rateRules={rateRules} />
+          <Legend view={view} lens={lens} level={graph.level} rateRules={rateRules} />
         </Panel>
         <MiniMap
           pannable
@@ -869,7 +897,9 @@ function Flow({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && matches[0]) jumpTo(matches[0]);
               }}
-              placeholder="Find an ad set or creative…"
+              placeholder={
+                graph.level === "campaign" ? "Find a campaign or creative…" : "Find an ad set or creative…"
+              }
               aria-label="Find a node"
               className="h-8 w-full rounded-md border border-line bg-surface pl-7 pr-2 text-xs text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
             />
@@ -883,7 +913,7 @@ function Flow({
                       className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-surface-2 hover:text-ink"
                     >
                       <span className="text-eyebrow shrink-0 text-ink-3">
-                        {n.kind === "campaign" ? "Ad set" : "Crtv"}
+                        {n.kind === "campaign" ? (n.level === "campaign" ? "Camp" : "Ad set") : "Crtv"}
                       </span>
                       <span className="truncate">{n.name}</span>
                     </button>
@@ -923,12 +953,15 @@ const threshold = (x: number) => `${Number(x.toFixed(2))}×`;
 function Legend({
   view,
   lens,
+  level,
   rateRules,
 }: {
   view: CanvasViewMode;
   lens: CanvasLens;
+  level: CanvasLevel;
   rateRules: RatingRules;
 }) {
+  const nouns = canvasLevelNoun(level, 2);
   const [open, setOpen] = useState(false);
   const paneHeight = useStore((st) => st.height);
   useEffect(() => {
@@ -992,8 +1025,10 @@ function Legend({
         ))}
       </ul>
       <p className="mt-1 text-[10px] text-ink-2">
-        Ad sets: {CAMPAIGN_STATUS_LABEL.active} / {CAMPAIGN_STATUS_LABEL.inactive}, same
-        colors. “3/5” = creatives currently spending there.
+        {level === "campaign" ? "Campaigns" : "Ad sets"}: {CAMPAIGN_STATUS_LABEL.active} /{" "}
+        {CAMPAIGN_STATUS_LABEL.inactive}, same colors. “3/5” = creatives currently spending
+        there.
+        {level === "campaign" && " A campaign is active when any of its ad sets is."}
       </p>
 
       {view !== "network" && (
@@ -1002,8 +1037,8 @@ function Legend({
         <>
           <p className="mb-1 mt-2.5 text-ink-3">
             {view === "angle"
-              ? "Chip — the whole creative, across its ad sets"
-              : `Chip — a pairing, not the whole ${view === "campaign" ? "creative" : "ad set"}`}
+              ? `Chip — the whole creative, across its ${nouns}`
+              : `Chip — a pairing, not the whole ${view === "campaign" ? "creative" : canvasLevelNoun(level)}`}
           </p>
           <ul className="space-y-1">
             <li className="flex items-center gap-1.5">
@@ -1086,7 +1121,9 @@ function Legend({
         {view === "network"
           ? lens === "rate"
             ? "Size and line weight — spend in the range."
-            : "Size and line weight — spend in the range. Line color — platform."
+            : level === "campaign"
+              ? "Size and line weight — spend in the range. Line color — platform; a campaign on two takes the one that spent most."
+              : "Size and line weight — spend in the range. Line color — platform."
           : view === "angle"
             ? "A creative repeats once per angle it carries, so angle totals overlap."
             : "Header size — spend in the range. A name repeats once per pairing."}

@@ -4,6 +4,7 @@ import {
   campaigns,
   creativeAngles,
   creatives,
+  parentCampaigns,
   performanceRecords,
   type platformEnum,
 } from "@/db/schema";
@@ -26,19 +27,22 @@ import {
 import { sortStages, splitStageFilter } from "@/lib/funnel-stages";
 import { getRatingConfig } from "@/db/queries/rating";
 import {
-  pairRate,
   CANVAS_MAX_NODES,
   campaignHealth,
   campaignNodeId,
+  canvasPairs,
   capEdges,
   creativeNodeId,
-  edgeIsLive,
+  pairVerdict,
+  parentNodeId,
   type CanvasCampaignNode,
   type CanvasCreativeNode,
   type CanvasCreativeType,
   type CanvasEdge,
   type CanvasFocusParam,
   type CanvasGraph,
+  type CanvasLevel,
+  type CanvasScanRow,
   creativeRate,
   earlierDay,
 } from "@/lib/canvas";
@@ -56,6 +60,11 @@ export interface CanvasFilters {
   productIds?: string[];
   stages?: string[];
   includeExcluded?: boolean;
+  /**
+   * What the campaign side holds (2026-11): ad sets (the default) or
+   * campaigns — a `parent_campaigns` row with its ad sets folded together.
+   */
+  level?: CanvasLevel;
 }
 
 /** The creative-side filters, shared by the edge scan and the idle lookup so
@@ -127,9 +136,17 @@ function scopedStatus(
  * Node totals are the entity's TRUE range spend under the SQL-level filters;
  * the status filter and the scale cap only HIDE things, they never restate a
  * number — so "42% of this campaign's spend" stays honest whatever is shown.
+ *
+ * THE LEVEL (2026-11): the scan is the same at both levels — one row per
+ * (ad set, creative) — and `canvasPairs` FOLDS it to (campaign, creative)
+ * before any total, health count or cap is taken, so every rule above holds
+ * for a campaign exactly as for an ad set. Campaign level adds one registry
+ * read (which ad sets a campaign has — its status and its count), never a
+ * second scan of the records.
  */
 export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
   const acct = await getActiveAccountId();
+  const level: CanvasLevel = f.level ?? "adset";
 
   const conds: SQL[] = [
     eq(performanceRecords.accountId, acct),
@@ -160,13 +177,18 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
     before.push(inArray(performanceRecords.platform, f.platforms));
   }
 
-  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours, ratingConfig, priorCreatives, priorCampaigns] = await Promise.all([
+  const [rows, creativeStatuses, campaignStatuses, freshness, windowHours, ratingConfig, priorCreatives, priorCampaigns, registry] = await Promise.all([
     db
       .select({
         campaignId: campaigns.id,
         campaignName: campaigns.name,
         objective: campaigns.objective,
         campaignPlatform: campaigns.platform,
+        // The ad set's CAMPAIGN — LEFT JOINed: `parent_id` is nullable until
+        // the contract migration, and an ad set without one still draws.
+        parentId: parentCampaigns.id,
+        parentName: parentCampaigns.name,
+        parentNetwork: parentCampaigns.network,
         creativeId: creatives.id,
         creativeName: creatives.name,
         type: creatives.type,
@@ -184,8 +206,9 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       .from(performanceRecords)
       .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
       .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
+      .leftJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
       .where(and(...conds))
-      .groupBy(campaigns.id, creatives.id)
+      .groupBy(campaigns.id, creatives.id, parentCampaigns.id)
       // An edge EXISTS only on in-range spend — later spend alone draws nothing.
       .having(gt(inRange.spend, 0)),
     creativeStatusMap(),
@@ -198,16 +221,41 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       .selectDistinct({ id: performanceRecords.creativeId })
       .from(performanceRecords)
       .where(and(...before)),
-    db
-      .selectDistinct({ id: performanceRecords.campaignId })
-      .from(performanceRecords)
-      .where(and(...before)),
+    // Who spent before, on the campaign side — at the level being drawn: a
+    // campaign launched only if NONE of its ad sets had spent before.
+    level === "campaign"
+      ? db
+          .selectDistinct({ id: campaigns.parentId })
+          .from(performanceRecords)
+          .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+          .where(and(...before))
+      : db
+          .selectDistinct({ id: performanceRecords.campaignId })
+          .from(performanceRecords)
+          .where(and(...before)),
+    // Campaign level only: which ad sets each campaign HAS (the registry, not
+    // the records) — its status is "any ad set active", and that ad set may
+    // have no spend inside an old range.
+    level === "campaign"
+      ? db
+          .select({ id: campaigns.id, parentId: campaigns.parentId })
+          .from(campaigns)
+          .where(eq(campaigns.accountId, acct))
+      : Promise.resolve([] as Array<{ id: string; parentId: string | null }>),
   ]);
+  const sideNodeId = level === "campaign" ? parentNodeId : campaignNodeId;
   const spentBefore = new Set<string>([
     ...priorCreatives.map((r) => creativeNodeId(r.id)),
-    ...priorCampaigns.map((r) => campaignNodeId(r.id)),
+    ...priorCampaigns.flatMap((r) => (r.id === null ? [] : [sideNodeId(r.id)])),
   ]);
   const windowDays = hoursToWindowDays(windowHours);
+  const adSetsOf = new Map<string, string[]>();
+  for (const r of registry) {
+    if (r.parentId === null) continue;
+    const list = adSetsOf.get(r.parentId) ?? [];
+    list.push(r.id);
+    adSetsOf.set(r.parentId, list);
+  }
 
   const shown = new Set<CreativeStatus>(f.statuses);
   const statusOf = (creativeId: string) =>
@@ -218,13 +266,32 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
   const campaignNodes = new Map<string, CanvasCampaignNode>();
   const creativeNodes = new Map<string, CanvasCreativeNode>();
   const allEdges: CanvasEdge[] = [];
-  for (const r of rows) {
-    const spend = Number(r.spend ?? 0);
-    const conversions = Number(r.conversions ?? 0);
-    const revenue = Number(r.revenue ?? 0);
+  // The scan as PAIRINGS at the level drawn (`canvasPairs`) — ad sets: one per
+  // row; campaigns: a campaign's ad sets folded per creative, summed.
+  const scan: CanvasScanRow[] = rows.map((r) => ({
+    campaignId: r.campaignId,
+    campaignName: r.campaignName,
+    objective: r.objective,
+    campaignPlatform: r.campaignPlatform,
+    parentId: r.parentId,
+    parentName: r.parentName,
+    parentNetwork: r.parentNetwork,
+    creativeId: r.creativeId,
+    spend: Number(r.spend ?? 0),
+    conversions: Number(r.conversions ?? 0),
+    revenue: Number(r.revenue ?? 0),
+    lastSpendDay: r.lastSpendDay,
+    firstSpendDay: r.firstSpendDay,
+  }));
+  const creativeFacts = new Map(rows.map((r) => [r.creativeId, r]));
+  /** A campaign-side node's spend per platform — picks the one it is marked by. */
+  const platformSpend = new Map<string, Map<string, number>>();
+  const objectivesOf = new Map<string, string[]>();
+  const verdictCtx = { freshness, windowDays, ratingConfig };
 
-    const first = r.firstSpendDay;
-    const cid = campaignNodeId(r.campaignId);
+  for (const pair of canvasPairs(scan, level)) {
+    const { spend, conversions, revenue, firstSpendDay: first } = pair;
+    const cid = pair.sideId;
     const camp = campaignNodes.get(cid);
     if (camp) {
       camp.spend += spend;
@@ -232,14 +299,24 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       camp.revenue += revenue;
       camp.launchedOn = earlierDay(camp.launchedOn, first);
     } else {
+      // A CAMPAIGN is active when ANY of its registered ad sets is — the
+      // ad-set rule rolled up, from the one cached status map.
+      const adSetIds = level === "campaign" ? (adSetsOf.get(pair.rowId) ?? pair.adSetIds) : pair.adSetIds;
       campaignNodes.set(cid, {
         kind: "campaign",
+        level,
         id: cid,
-        campaignId: r.campaignId,
-        name: r.campaignName,
-        objective: r.objective,
-        platform: r.campaignPlatform,
-        status: campaignStatusFor(campaignStatuses, r.campaignId),
+        campaignId: pair.rowId,
+        name: pair.name,
+        objective: "", // filled below, once every pairing has been seen
+        platform: pair.byPlatform[0]?.platform ?? "",
+        platforms: [],
+        network: pair.network,
+        parentId: pair.parentId,
+        adSets: adSetIds.length,
+        status: adSetIds.some((id) => campaignStatusFor(campaignStatuses, id) === "active")
+          ? "active"
+          : "inactive",
         spend,
         conversions,
         revenue,
@@ -248,8 +325,16 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         launchedOn: first, // the min over its pairs; cleared below if it spent before
       });
     }
+    const perPlatform = platformSpend.get(cid) ?? new Map<string, number>();
+    for (const p of pair.byPlatform) {
+      perPlatform.set(p.platform, (perPlatform.get(p.platform) ?? 0) + p.spend);
+    }
+    platformSpend.set(cid, perPlatform);
+    const objectives = objectivesOf.get(cid) ?? [];
+    for (const o of pair.objectives) if (!objectives.includes(o)) objectives.push(o);
+    objectivesOf.set(cid, objectives);
 
-    const kid = creativeNodeId(r.creativeId);
+    const kid = creativeNodeId(pair.creativeId);
     const cre = creativeNodes.get(kid);
     if (cre) {
       cre.spend += spend;
@@ -257,16 +342,17 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       cre.revenue += revenue;
       cre.launchedOn = earlierDay(cre.launchedOn, first);
     } else {
+      const fact = creativeFacts.get(pair.creativeId)!;
       creativeNodes.set(kid, {
         kind: "creative",
         id: kid,
-        creativeId: r.creativeId,
-        name: r.creativeName,
-        type: r.type as CanvasCreativeType,
-        status: statusOf(r.creativeId),
-        priority: r.priority,
-        stages: sortStages(r.stages ?? []),
-        thumbnailUrl: r.thumbnailUrl,
+        creativeId: pair.creativeId,
+        name: fact.creativeName,
+        type: fact.type as CanvasCreativeType,
+        status: statusOf(pair.creativeId),
+        priority: fact.priority,
+        stages: sortStages(fact.stages ?? []),
+        thumbnailUrl: fact.thumbnailUrl,
         spend,
         conversions,
         revenue,
@@ -281,17 +367,22 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
       id: `${cid}|${kid}`,
       source: cid,
       target: kid,
-      platform: r.campaignPlatform,
       spend,
-      ...pairRate({ spend, revenue, platform: r.campaignPlatform }, ratingConfig),
-      lastSpendDay: r.lastSpendDay,
-      live: edgeIsLive({
-        lastSpendDay: r.lastSpendDay,
-        platformLatestDay:
-          freshness[r.campaignPlatform as keyof typeof freshness] ?? null,
-        windowDays,
-      }),
+      // Both clocks' verdicts and the Rate, from the pairing's per-platform
+      // slices — one platform for an ad set, up to two for a Meta campaign.
+      ...pairVerdict(pair, verdictCtx),
     });
+  }
+
+  // What each campaign-side node is MARKED by: the platform that spent most
+  // there in the range, and the objectives its ad sets carry.
+  for (const node of campaignNodes.values()) {
+    const ranked = [...(platformSpend.get(node.id) ?? new Map<string, number>()).entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
+    node.platforms = ranked.map(([p]) => p);
+    node.platform = node.platforms[0] ?? node.platform;
+    node.objective = (objectivesOf.get(node.id) ?? []).join(" · ");
   }
 
   // The CREATIVE's own Rate (By angle's chip colour), over its summed totals.
@@ -404,6 +495,7 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
   }
 
   return {
+    level,
     campaigns: [...campaignNodes.values()].filter((n) => keptNodeIds.has(n.id)),
     creatives: drawnCreatives,
     edges: kept,
@@ -431,7 +523,13 @@ export async function canvasFocusName(
           .from(campaigns)
           .where(and(eq(campaigns.id, focus.id), eq(campaigns.accountId, acct)))
           .limit(1)
-      : await db
+      : focus.kind === "parent_campaign"
+        ? await db
+            .select({ name: parentCampaigns.name })
+            .from(parentCampaigns)
+            .where(and(eq(parentCampaigns.id, focus.id), eq(parentCampaigns.accountId, acct)))
+            .limit(1)
+        : await db
           .select({ name: creatives.name })
           .from(creatives)
           .where(and(eq(creatives.id, focus.id), eq(creatives.accountId, acct)))

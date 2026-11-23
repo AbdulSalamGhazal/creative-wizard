@@ -13,21 +13,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { int } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNavTransition } from "@/lib/nav-progress";
-import { adSetPath } from "@/lib/campaign";
+import { adSetPath, campaignPath } from "@/lib/campaign";
 import {
   buildClusters,
+  CANVAS_FOCUS_NOUN,
   CANVAS_LENS_LABEL,
   CANVAS_LENSES,
-  CANVAS_VIEW_LABEL,
+  CANVAS_LEVEL_OPTIONS,
   CANVAS_VIEWS,
   canvasInsights,
+  canvasLevelNoun,
+  canvasViewLabel,
+  focusLevel,
   focusParamFor,
   inspectFor,
   isAngleHeaderId,
+  parentNodeId,
   parseCanvasLens,
   parseCanvasView,
   type CanvasGraph,
   type CanvasLens,
+  type CanvasLevel,
   type CanvasInsight,
   type CanvasLinkedFocus,
   type CanvasNode,
@@ -74,44 +80,46 @@ const LENS_OPTIONS = CANVAS_LENSES.map((value) => ({
   label: CANVAS_LENS_LABEL[value],
 }));
 
-const VIEW_OPTIONS = CANVAS_VIEWS.map((value) => ({
-  value,
-  label: CANVAS_VIEW_LABEL[value],
-}));
-
 /**
  * What an insight chip lights up differs by view, so its tooltip says so.
  * "Most shared" is the one with a best view: By campaign draws the creative
- * once per campaign, so focusing it shows the sharing itself.
+ * once per campaign, so focusing it shows the sharing itself. The campaign
+ * side is named after the LEVEL drawn ("ad set" / "campaign").
  */
-function insightTitle(key: CanvasInsight["key"], view: CanvasViewMode): string {
+function insightTitle(
+  key: CanvasInsight["key"],
+  view: CanvasViewMode,
+  level: CanvasLevel,
+): string {
+  const one = canvasLevelNoun(level);
+  const many = canvasLevelNoun(level, 2);
   switch (key) {
     case "most-shared":
       if (view === "angle") return "Lights this creative in every angle it carries.";
       return view === "campaign"
-        ? "Lights every copy of this creative — one per ad set it runs in."
-        : "Best seen in By ad set, where the creative appears once per ad set it runs in.";
+        ? `Lights every copy of this creative — one per ${one} it runs in.`
+        : `Best seen in ${canvasViewLabel("campaign", level)}, where the creative appears once per ${one} it runs in.`;
     case "no-live-creatives":
       return view === "creative"
-        ? "Lights these ad sets' chips wherever they appear."
+        ? `Lights these ${many}' chips wherever they appear.`
         : view === "campaign"
-          ? "Lights these ad sets' clusters — every chip inside is dashed."
-          : "Focuses these ad sets — every line out of them is dashed.";
+          ? `Lights these ${many}' clusters — every chip inside is dashed.`
+          : `Focuses these ${many} — every line out of them is dashed.`;
     case "idle-active":
       return view === "campaign" || view === "angle"
         ? "Lights the Idle creatives cluster."
         : "Focuses the active creatives with no spend in this range.";
     // The Rate patterns use your Rate rules (Configuration › Rate rules).
     case "losing-everywhere":
-      return "Rated Bad in two or more ad sets and not Good or Decent in any — pairings too small to judge don't count.";
+      return `Rated Bad in two or more ${many} and not Good or Decent in any — pairings too small to judge don't count.`;
     case "leans-on-one":
-      return "One creative took 70% or more of the ad set's spend in this range, though the ad set ran others.";
+      return `One creative took 70% or more of the ${one}'s spend in this range, though the ${one} ran others.`;
     case "launched":
       return view === "angle"
-        ? "First spend ever falls inside this range. Lights the launched creatives; launched ad sets show in the other views."
-        : "First spend ever falls inside this range — creatives and ad sets.";
+        ? `First spend ever falls inside this range. Lights the launched creatives; launched ${many} show in the other views.`
+        : `First spend ever falls inside this range — creatives and ${many}.`;
     case "unscaled-winner":
-      return "Rated Good and still spending in an ad set, but not running in any other ad set yet.";
+      return `Rated Good and still spending in ${level === "campaign" ? "a campaign" : "an ad set"}, but not running in any other ${one} yet.`;
   }
 }
 
@@ -176,6 +184,15 @@ export function CanvasView({
       if (linkedFocus) setFocus({ ids: [linkedFocus.nodeId], fit: "first", inspect: true });
     }
   }
+  // A LEVEL change redraws the campaign side under new node ids: a focus the
+  // link doesn't carry across (a chip's group focus) is dropped, never left
+  // pointing at nodes that are gone.
+  const level = graph.level;
+  const [seenLevel, setSeenLevel] = useState(level);
+  if (level !== seenLevel) {
+    setSeenLevel(level);
+    if (!linkedFocus) setFocus(null);
+  }
   // Every user-made focus change goes through here: it supersedes the notice.
   const focusTo = useCallback((next: CanvasFocusRequest | null) => {
     setMissing(null);
@@ -233,6 +250,41 @@ export function CanvasView({
     [pathname, searchParams],
   );
 
+  // `?level=` — Campaigns · Ad sets. Unlike the view and the lens it is a
+  // SERVER param: the level decides how the scan is folded, before totals and
+  // the cap, so the switch is a navigation (progress bar and all). An
+  // inspected AD SET follows up to its campaign, an inspected creative stays
+  // (it is drawn at both levels); a campaign has no one ad set to land on.
+  const setLevel = useCallback(
+    (next: CanvasLevel) => {
+      if (next === level) return;
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "adset") params.delete("level");
+      else params.set("level", next);
+      const inspectedId = focus?.inspect ? (focus.ids[0] ?? null) : null;
+      const inspected = inspectedId
+        ? (graph.campaigns.find((c) => c.id === inspectedId) ??
+          graph.creatives.find((c) => c.id === inspectedId))
+        : undefined;
+      const carried =
+        inspected?.kind === "creative"
+          ? inspected.id
+          : inspected && next === "campaign" && inspected.parentId
+            ? parentNodeId(inspected.parentId)
+            : null;
+      if (carried) params.set("focus", carried);
+      else params.delete("focus");
+      const qs = params.toString();
+      startNav(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
+    },
+    [focus, graph, level, pathname, router, searchParams, startNav],
+  );
+
+  const viewOptions = useMemo(
+    () => CANVAS_VIEWS.map((value) => ({ value, label: canvasViewLabel(value, level) })),
+    [level],
+  );
+
   // The cluster model is a pure function of the graph — nothing re-queried.
   const clustered = useMemo(
     () => (view === "network" ? null : buildClusters(graph, view)),
@@ -256,7 +308,9 @@ export function CanvasView({
     (node: CanvasNode) => {
       const href =
         node.kind === "campaign"
-          ? adSetPath(node.name)
+          ? node.level === "campaign" && node.network
+            ? campaignPath(node.network, node.name)
+            : adSetPath(node.name)
           : `/library/${encodeURIComponent(node.name)}`;
       startNav(() => router.push(href));
     },
@@ -298,9 +352,20 @@ export function CanvasView({
       {/* Insights: the page TELLS you the patterns; a chip focuses its nodes.
           Scrolls sideways on a phone rather than stacking into a wall. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-xs text-ink-3" aria-hidden>
+          Show
+        </span>
+        <SegmentedControl
+          ariaLabel="Show campaigns or ad sets"
+          options={CANVAS_LEVEL_OPTIONS}
+          value={level}
+          onChange={setLevel}
+        />
+      </div>
       <SegmentedControl
         ariaLabel="Canvas view"
-        options={VIEW_OPTIONS}
+        options={viewOptions}
         value={view}
         onChange={setView}
         className="shrink-0"
@@ -326,7 +391,7 @@ export function CanvasView({
                 key={i.key}
                 type="button"
                 aria-pressed={on}
-                title={insightTitle(i.key, view)}
+                title={insightTitle(i.key, view, level)}
                 onClick={() => focusTo(on ? null : { ids: i.focusIds, fit: "all" })}
                 className={cn(
                   "shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors",
@@ -347,12 +412,22 @@ export function CanvasView({
         <Callout tone="info" className="flex items-center gap-2">
           <span className="min-w-0 flex-1">
             {missing.name ? (
-              <>
-                <bdi className="font-medium">{missing.name}</bdi>{" "}
-                isn&apos;t on the canvas for this range and these filters.
-              </>
+              focusLevel(missing.kind) !== null && focusLevel(missing.kind) !== level ? (
+                // Drawn at the OTHER level — say which, instead of blaming
+                // the range or the filters.
+                <>
+                  <bdi className="font-medium">{missing.name}</bdi> is{" "}
+                  {missing.kind === "campaign" ? "an ad set" : "a campaign"} — switch Show to{" "}
+                  {missing.kind === "campaign" ? "Ad sets" : "Campaigns"} to see it.
+                </>
+              ) : (
+                <>
+                  <bdi className="font-medium">{missing.name}</bdi>{" "}
+                  isn&apos;t on the canvas for this range and these filters.
+                </>
+              )
             ) : (
-              <>The linked {missing.kind} isn&apos;t in this brand.</>
+              <>The linked {CANVAS_FOCUS_NOUN[missing.kind]} isn&apos;t in this brand.</>
             )}
           </span>
           <Button
@@ -421,6 +496,7 @@ export function CanvasView({
           <CanvasInspector
             key={inspection.node.id}
             inspection={inspection}
+            level={level}
             onInspect={inspect}
             onOpen={open}
             onClose={closeInspector}
@@ -432,15 +508,15 @@ export function CanvasView({
       </div>
 
       <p className="text-[11px] text-ink-3">
-        {int(graph.campaigns.length)} ad sets · {int(graph.creatives.length)}{" "}
-        creatives · {int(graph.edges.length)} connections.{" "}
+        {int(graph.campaigns.length)} {canvasLevelNoun(level, graph.campaigns.length)} ·{" "}
+        {int(graph.creatives.length)} creatives · {int(graph.edges.length)} connections.{" "}
         {view === "network"
           ? "A solid line is spending here now, a dashed one spent in the range but has stopped;"
           : view === "campaign"
-            ? "A creative appears once per ad set it ran in — a solid chip is spending there now, a dashed one has stopped;"
+            ? `A creative appears once per ${canvasLevelNoun(level)} it ran in — a solid chip is spending there now, a dashed one has stopped;`
             : view === "angle"
               ? "A creative appears once per angle it carries — a solid chip is spending somewhere now, a dashed one has stopped;"
-              : "An ad set appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;"}{" "}
+              : `${level === "campaign" ? "A campaign" : "An ad set"} appears once per creative it ran — a solid chip is spending there now, a dashed one has stopped;`}{" "}
         click for details, double-click to open, Esc to clear.
       </p>
     </div>

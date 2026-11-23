@@ -2,7 +2,7 @@ import { z } from "zod";
 import { platformEnum } from "@/lib/enums";
 import { CREATIVE_STATUSES } from "@/lib/creative-status";
 import { STAGE_FILTER_VALUES } from "@/lib/funnel-stages";
-import { parseCanvasFocus, parseCanvasView } from "@/lib/canvas";
+import { parseCanvasFocus, parseCanvasLevel, parseCanvasView } from "@/lib/canvas";
 import { csvEnum } from "@/validators/shared";
 
 /**
@@ -44,8 +44,19 @@ export const canvasFiltersSchema = z.object({
     .catch(undefined)
     .transform((v) => parseCanvasView(v)),
   /**
-   * `?focus=` — the inspected creative or campaign (`k:<uuid>` / `c:<uuid>`).
-   * Malformed → null (no focus), never thrown. Same parser as the client.
+   * `?level=` — what the campaign side holds: ad sets (default, the clean
+   * URL) or `campaign`. Unlike `view`, the SERVER reads it: the level decides
+   * how the scan is folded, before the totals and the cap.
+   */
+  level: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .transform((v) => parseCanvasLevel(v)),
+  /**
+   * `?focus=` — the inspected creative, ad set or campaign (`k:<uuid>` /
+   * `c:<uuid>` / `p:<uuid>`). Malformed → null (no focus), never thrown. Same
+   * parser as the client.
    */
   focus: z
     .string()
