@@ -9,6 +9,10 @@ import {
   resolveTablePrefs,
 } from "@/db/queries/user-prefs";
 import { TABLE_KEYS, parseColumnList, resolveColumnPrefs } from "@/lib/table-columns";
+import { VIEW_MARKER_PARAM, isSavedViewApplied } from "@/validators/user-prefs";
+import { getDefaultSummaryView, listSummaryViews } from "@/db/queries/summary-views";
+import { PARENT_CAMPAIGNS_VIEW_PAGE } from "@/lib/saved-view-href";
+import { brandRedirect } from "@/lib/brand-redirect";
 import { can, requireAuth } from "@/lib/auth";
 import Link from "@/components/nav/link";
 import { Plus } from "lucide-react";
@@ -38,7 +42,8 @@ export const metadata = { title: "Campaigns" };
  * and filter bar (`level="campaign"`). A campaign's numbers are the component
  * sums of its ad sets' records; it is active when any ad set is. A campaign
  * that has never run is listed too, so a just-registered one can be found.
- * Saved views stay on the Ad sets list for now.
+ * Its saved views are its OWN (page key `parent_campaigns`) — the Ad sets
+ * list keeps the stored key `campaigns`, and the two never mix.
  */
 export default async function CampaignsPage({
   searchParams,
@@ -48,6 +53,17 @@ export default async function CampaignsPage({
   const params = await searchParams;
   const user = await requireAuth();
   const level = PORTFOLIO_LEVELS.campaign;
+
+  // Bare /campaigns (no params) lands on the caller's own default view, if
+  // set — the Ad sets list's rule, with this list's own page key.
+  if (Object.keys(params).length === 0) {
+    const def = await getDefaultSummaryView(user.id, PARENT_CAMPAIGNS_VIEW_PAGE);
+    if (def && def.query.trim().length > 0) {
+      // The marker says "a saved view owns this state" — the remembered
+      // filters below then no-op (transient, so it never lands in a view).
+      return brandRedirect(`/campaigns?${def.query}&${VIEW_MARKER_PARAM}=${def.id}`);
+    }
+  }
 
   const rawFrom = pickFirst(params.from);
   const rawTo = pickFirst(params.to);
@@ -59,14 +75,16 @@ export default async function CampaignsPage({
     (key: string) => pickFirst(params[key]),
   );
 
-  // COLUMNS: URL → this user's preference → the config's own order.
+  // COLUMNS: URL → applied saved view → this user's preference → the config's
+  // own order. The view suppression reuses the filters' `sv` marker, so a view
+  // owns everything its URL states.
   const tablePrefs = await resolveTablePrefs([TABLE_KEYS.PARENT_CAMPAIGNS]);
   const columns = resolveColumnPrefs({
     url: {
       hidden: parseColumnList(pickFirst(params.hide)),
       order: parseColumnList(pickFirst(params.order)),
     },
-    viewApplied: false,
+    viewApplied: isSavedViewApplied((key: string) => pickFirst(params[key])),
     pref: tablePrefs[TABLE_KEYS.PARENT_CAMPAIGNS],
     hideable: [...level.columnKeys],
     defaults: [...level.columnKeys],
@@ -104,7 +122,10 @@ export default async function CampaignsPage({
     includeExcluded,
   };
 
-  const campaigns = await portfolioParentCampaigns(filters);
+  const [campaigns, views] = await Promise.all([
+    portfolioParentCampaigns(filters),
+    listSummaryViews(user.id, PARENT_CAMPAIGNS_VIEW_PAGE),
+  ]);
   const table = (
     <PortfolioTable
       level="campaign"
@@ -144,6 +165,9 @@ export default async function CampaignsPage({
           includeExcludedDefault={includeExcluded}
           defaultFrom={from}
           defaultTo={to}
+          views={views}
+          currentUserId={user.id}
+          isAdmin={user.role === "admin"}
         />
       </Suspense>
 

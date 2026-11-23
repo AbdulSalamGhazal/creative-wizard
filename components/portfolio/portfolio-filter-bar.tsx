@@ -14,6 +14,7 @@ import { ALL_PLATFORMS } from "@/lib/palette";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import { CAMPAIGN_STATUSES, CAMPAIGN_STATUS_LABEL } from "@/lib/campaign-status";
 import { rememberIncludeExcluded } from "@/lib/pref-sync";
+import { AD_SETS_VIEW_PAGE, PARENT_CAMPAIGNS_VIEW_PAGE } from "@/lib/saved-view-href";
 
 function csv(v: string | null): string[] {
   return v ? v.split(",").filter(Boolean) : [];
@@ -30,14 +31,15 @@ export function PortfolioFilterBar({
   resolvedFilters,
 }: {
   /**
-   * Which list this bar sits on (2026-11): the AD SETS list (saved views, as
-   * always) or the CAMPAIGNS list — the same filters, no saved views yet.
+   * Which list this bar sits on (2026-11): the AD SETS list or the CAMPAIGNS
+   * list — the same filters, and each with its OWN saved views (a campaign
+   * view never appears on Ad sets: the two lists have different columns).
    */
   level?: "adset" | "campaign";
   /** Effective default range (user's saved choice) for the picker label. */
   defaultFrom?: string;
   defaultTo?: string;
-  /** The ad-set list's saved views; the campaigns list passes none. */
+  /** This list's saved views (the caller reads them by this level's page key). */
   views?: SummaryViewRow[];
   currentUserId?: string;
   isAdmin?: boolean;
@@ -144,13 +146,17 @@ export function PortfolioFilterBar({
       filters={filters}
       tier1={({ fullWidth }) => (
         <>
-          {level === "adset" && views && currentUserId ? (
+          {views && currentUserId ? (
             <ViewsControl
               views={views}
               currentUserId={currentUserId}
               isAdmin={isAdmin ?? false}
-              page="campaigns"
-              clearLabel="Show all ad sets (ignore default)"
+              page={level === "campaign" ? PARENT_CAMPAIGNS_VIEW_PAGE : AD_SETS_VIEW_PAGE}
+              clearLabel={
+                level === "campaign"
+                  ? "Show all campaigns (ignore default)"
+                  : "Show all ad sets (ignore default)"
+              }
             />
           ) : null}
           <FilterSearch

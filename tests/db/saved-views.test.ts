@@ -142,6 +142,18 @@ describe("saved views — brand isolation", () => {
     expect(await isDefault(inB)).toBe(true);
   });
 
+  it("the Campaigns list's views are its own — never the Ad sets list's (2026-11)", async () => {
+    const campaignView = await save("Active Meta", "parent_campaigns", "statuses=active&platforms=instagram");
+    const adSetView = await save("Active Meta", "campaigns", "statuses=active");
+    await setDefaultView(campaignView);
+
+    expect((await listSummaryViews(OWNER, "parent_campaigns")).map((v) => v.id)).toEqual([campaignView]);
+    expect((await listSummaryViews(OWNER, "campaigns")).map((v) => v.id)).toEqual([adSetView]);
+    // One default per (owner, page): the Campaigns default is not Ad sets'.
+    expect((await getDefaultSummaryView(OWNER, "parent_campaigns"))?.id).toBe(campaignView);
+    expect(await getDefaultSummaryView(OWNER, "campaigns")).toBeNull();
+  });
+
   it("the same name may exist once per brand for one owner", async () => {
     await save("Weekly");
     inBrand(ACCOUNT_B);

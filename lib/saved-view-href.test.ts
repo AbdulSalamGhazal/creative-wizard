@@ -18,11 +18,22 @@ describe("savedViewHref (the palette's saved views, R-027)", () => {
       ["components/summary/summary-filter-bar.tsx", "summary"],
       ["components/creative/library-filter-bar.tsx", "creatives"],
       ["components/portfolio/portfolio-filter-bar.tsx", "campaigns"],
+      // The same bar on the Campaigns list keys its own views (2026-11).
+      ["components/portfolio/portfolio-filter-bar.tsx", "parent_campaigns"],
     ] as const) {
       const src = readFileSync(file, "utf8");
       expect(src).toContain("<ViewsControl");
       expect(SAVED_VIEW_PATH[page]).toBeTruthy();
     }
+  });
+  it("the two campaign-side lists keep separate views, each at its own address", () => {
+    // `campaigns` is the AD SETS list's stored key (never renamed); the
+    // Campaigns list keys its views by the code's word for a campaign.
+    expect(SAVED_VIEW_PATH.campaigns).toBe("/ad-sets");
+    expect(SAVED_VIEW_PATH.parent_campaigns).toBe("/campaigns");
+    expect(savedViewHref(SAVED_VIEW_PATH.parent_campaigns!, "statuses=active", "v9")).toBe(
+      "/campaigns?statuses=active&sv=v9",
+    );
   });
   it("mirrors the Views control's own apply (same marker, same escape)", () => {
     const src = readFileSync("components/summary/views-control.tsx", "utf8");
