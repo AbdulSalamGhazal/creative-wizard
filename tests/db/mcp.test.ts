@@ -202,6 +202,89 @@ describe("MCP tools — brand scoping for a restricted user", () => {
     });
   });
 
+  it("get_campaign reads a whole CAMPAIGN on request (level: campaign, 2026-11)", async () => {
+    const tools = loadTools();
+    const call = (args: Record<string, unknown>) =>
+      runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("get_campaign")!({ from: "2026-01-01", to: "2026-01-31", ...args }, {}),
+      );
+    const out = parse(await call({ name: "Camp One", level: "campaign" }));
+    expect(out.level).toBe("campaign");
+    expect(out.campaign).toMatchObject({
+      name: "Camp One",
+      network: "meta",
+      ad_sets: 1,
+      objectives: ["Sales"],
+      platforms: ["instagram"],
+    });
+    // The campaign's totals are its ad sets' records summed (excluded hidden).
+    expect(out.totals.spend).toBe(200);
+    expect(out.adSets).toHaveLength(1);
+    expect(out.adSets[0]).toMatchObject({
+      campaign: "Camp One ➤ Broad (IG)",
+      ad_set: "Broad",
+      platform: "instagram",
+      has_data: true,
+      spend: 200,
+    });
+    expect(out.dailyByAdSet.length).toBeGreaterThan(0);
+    // The same name with a network that doesn't have it, an ad set's stored
+    // name, and another brand's campaign: all "no such campaign", never data.
+    for (const args of [
+      { name: "Camp One", level: "campaign", network: "tiktok" },
+      { name: "Camp One ➤ Broad (IG)", level: "campaign" },
+      { name: "Camp B", level: "campaign" },
+    ]) {
+      const res = await call(args);
+      expect(res.isError).toBe(true);
+      expect(res.content[0]!.text).toMatch(/No campaign named/);
+    }
+  });
+
+  it("get_timeseries breaks down by campaign as well as by ad set", async () => {
+    const tools = loadTools();
+    const call = (dimension: string) =>
+      runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("get_timeseries")!({ from: "2026-01-01", to: "2026-01-03", dimension }, {}),
+      ).then(parse);
+    const byCampaign = await call("parent_campaign");
+    expect(byCampaign.dimension).toBe("parent_campaign");
+    const keys = new Set((byCampaign.points as Array<{ key: string }>).map((p) => p.key));
+    expect([...keys].sort()).toEqual(["Camp One", "Camp Two"]);
+    const total = (byCampaign.points as Array<{ key: string; spend: number }>)
+      .filter((p) => p.key === "Camp One")
+      .reduce((s, p) => s + p.spend, 0);
+    expect(total).toBe(200);
+    // "campaign" is still the AD SET, keyed by its stored name.
+    const byAdSet = await call("campaign");
+    expect(
+      (byAdSet.points as Array<{ key: string }>).some((p) => p.key === "Camp One ➤ Broad (IG)"),
+    ).toBe(true);
+  });
+
+  it("get_canvas_patterns folds to campaigns on request (level: campaign)", async () => {
+    const tools = loadTools();
+    const call = (args: Record<string, unknown>) =>
+      runWithMcpActor({ user: restricted, tokenId: "t" }, () =>
+        tools.get("get_canvas_patterns")!({ from: "2026-01-01", to: "2026-01-03", ...args }, {}),
+      ).then(parse);
+    expect((await call({})).level).toBe("ad_set");
+
+    const out = await call({ level: "campaign" });
+    expect(out.level).toBe("campaign");
+    const shared = out.patterns.find((p: { key: string }) => p.key === "most_shared");
+    expect(shared.label).toBe("Most shared: «A-Creative-1» feeds 2 campaigns");
+    expect(shared.items[0].campaigns.map((c: { name: string }) => c.name).sort()).toEqual([
+      "Camp One",
+      "Camp Two",
+    ]);
+    // A campaign item says which network it is on and how many ad sets it has.
+    const shown = await call({ level: "campaign", include_excluded: true });
+    const lean = shown.patterns.find((p: { key: string }) => p.key === "leans_on_one");
+    expect(lean.items[0]).toMatchObject({ name: "Camp One", network: "meta", ad_sets: 1 });
+    expect(lean.items[0].top_share).toBe(0.83);
+  });
+
   it("get_canvas_patterns returns the Canvas insight strip as data", async () => {
     const tools = loadTools();
     const call = (args: Record<string, unknown>) =>

@@ -30,8 +30,10 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
   "creative-status": { mcp: "tools", tools: ["get_creative"] },
   portfolio: { mcp: "tools", tools: ["list_campaigns"] },
   campaign: { mcp: "tools", tools: ["get_campaign"] },
-  // The level ABOVE an ad set (2026-11): `list_campaigns` rolls up by it
-  // (`level: "campaign"`), `get_campaign` names an ad set's campaign.
+  // The level ABOVE an ad set (2026-11): `list_campaigns` rolls up by it and
+  // `get_campaign` reads ONE in depth (both `level: "campaign"`);
+  // `get_timeseries` breaks down by it (`dimension: "parent_campaign"`) and
+  // `get_canvas_patterns` folds to it (`level: "campaign"`).
   "parent-campaign": { mcp: "tools", tools: ["list_campaigns", "get_campaign"] },
   "campaign-status": { mcp: "tools", tools: ["get_campaign"] },
   summary: { mcp: "tools", tools: ["get_summary"] },
