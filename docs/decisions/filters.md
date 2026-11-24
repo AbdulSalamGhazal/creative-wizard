@@ -72,8 +72,9 @@
 - A VIEW SWITCH is not a filter, and the Excluded toggle is a data-scope
   switch, not a filter. Neither is ever a `FilterDef`. **The campaign / ad set
   LEVEL is a view switch too (2026-11-24)** — `LevelSwitch`
-  (`?level=adset` on Funnel and the one-platform Dashboard; the Canvas's own
-  `Show` switch, `?level=campaign`; Trends › Changes' `?dim=`): URL-backed so
+  (`?level=adset` on Funnel and the one-platform Dashboard) and Trends ›
+  Changes' `?dim=` are ONE control, `ParamSwitch` ("By  …"); the Canvas has
+  its own `Show` switch, `?level=campaign`. All of them: URL-backed so
   a shared link and a comment reproduce it, never remembered as a preference,
   never touched by Clear. It changes what the SERVER groups by, so it
   navigates through `useNavTransition` and keeps every other param.

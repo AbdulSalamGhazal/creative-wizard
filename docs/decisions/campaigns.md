@@ -22,8 +22,12 @@
   campaign and a TikTok one. Its name never contains ` ➤ `.
 - **Both levels are registered by hand.** "New campaign" registers the
   campaign and its first ad sets in ONE transaction (`createParentCampaign`);
-  later ones come from "Add ad set" on its page (`addAdSets`). A Meta ad set
-  ticked for Instagram and Facebook is TWO rows, as an upload reports it.
+  later ones come from "Add ad set" on its page, or "New ad set" on the Ad
+  sets list, which asks WHICH campaign first — one dialog (`AddAdSetDialog`),
+  one action (`addAdSets`). A Meta ad set ticked for Instagram and Facebook is
+  TWO rows, as an upload reports it. The Ad sets list shows ad sets WITH
+  records, so a new one is not in it yet: the success toast carries "Open
+  campaign".
 - **An ad set's stored name is ALWAYS `buildCampaignName(campaign, ad set,
   platform)`** and stays the upload-matching key, unique per BRAND — so the
   same `Campaign ➤ Ad set` cannot exist under two networks (the action names
@@ -57,6 +61,21 @@
   meaning); Funnel, Trends › Changes and the one-platform Dashboard open on
   CAMPAIGNS (`?level=adset` / `?dim=campaign` switch back). `lib/breakdown-level.ts`
   is the one parser for Funnel and the Dashboard.
+- **The switch's WORD is "By" — except on the Canvas (user decision,
+  2026-11-24).** Funnel, the one-platform Dashboard and Trends › Changes say
+  "By  Campaign · Ad set" (Changes: "By  Platform · Campaign · Ad set ·
+  Creative") through ONE control, `ParamSwitch`. The Canvas keeps "Show
+  Campaigns · Ad sets": "By" there already names its layout switch ("By ad
+  set · By creative · By angle"), and the same word on two switches side by
+  side would mean two things.
+- **Where a campaign or an ad set is NAMED, the name is the way to its page**
+  (2026-11-24): a platform's expanded rows on Funnel, the Dashboard's
+  one-platform breakout (Type mix, Status flow, Spend by rating), Compare's
+  totals row when a side is exactly ONE campaign or ONE ad set, and the audit
+  log. Built only with `campaignPath` / `adSetPath`, on the page's range. The
+  audit log resolves the page from the entry's ID (`AuditFeedRow.livePath`),
+  never from the label stored when it was written — a rename keeps the link,
+  a deleted row has none.
 - **A campaign's key in a breakdown is its NAME — "Name (Network)" only when
   the brand has that name on two networks AND the query's platform filter
   spans more than one** (`parentCampaignKey`; pinned to one network — always
@@ -237,6 +256,33 @@ What the sweep found and fixed, beyond wording:
   because TikTok's Summer may well exist.
 - A dead `/platforms/<key>` link on Trends › Changes (older than the split)
   was removed while there.
+
+### The polish after the sweep (2026-11-24)
+
+The sweep left a short list of things seen and not changed; the user asked
+for all of them.
+
+- **One word on the level switch.** Canvas said "Show", Funnel and the
+  Dashboard "By", Changes had bare tabs. The user chose "By" everywhere — and
+  then, shown that the Canvas already has a "By ad set · By creative" layout
+  switch beside it, chose to leave the Canvas on "Show". The first question
+  was asked before that clash had been looked for; it cost a second question.
+  Changes' hand-rolled tabs became the house control (`ParamSwitch`, which
+  `LevelSwitch` now wraps).
+- **"New ad set" on the Ad sets list**, beside "New campaign" (now the
+  quieter button there). With no campaign registered there is nothing to add
+  one to, so "New campaign" stands alone as the main button.
+- **Links to the campaign** in the four places that named one without a way
+  to it: the audit log (declined in the sweep, asked for now), Compare, the
+  Dashboard breakout and Funnel's platform expansion.
+- **Funnel's platform CSV** put campaign and ad-set names under "Platform".
+  It exports two columns now (`DataColumn.csvColumns`): the platform on every
+  line, the name in its own.
+- Two wordings on the Canvas: the search list says "Campaign" / "Creative"
+  in full, and a campaign chip's tooltip says what its count is ("3 ad sets
+  registered under this campaign · Sales").
+- The Exclusions form's picker moved to `components/ui/search-select.tsx`
+  unchanged, because "New ad set" needed the same control for the same list.
 
 ### Campaign identity = campaign_id FK
 

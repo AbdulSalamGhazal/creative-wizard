@@ -21,7 +21,11 @@
   costs zero vertical pixels. Never give it a row of its own again. **Export
   lives there too (R-084, 2026-11-07):** a `csvFileName` puts a Download icon
   button beside Columns — the old "Download CSV" row above the frame is gone.
-  The CSV is built on click and covers every row (revealed or not).
+  The CSV is built on click and covers every row (revealed or not). One CSV
+  column per table column — unless the column declares `csvColumns`, for a
+  cell that shows two different things by row (Funnel's platform table nests
+  campaigns under a platform: it exports "Platform" AND "Campaign" / "Ad
+  set", never names under "Platform"). `toCsvColumns` is the one mapping.
 - **Table accessibility and drill-down (2026-11-07 audit):** every sortable
   `<th>` carries `aria-sort` (DataTable and the Ads table, R-026); a table
   that navigates on row click ALSO gives its identity column an `href`, so

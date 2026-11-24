@@ -49,6 +49,10 @@
   (`Created “Hook 01”`); a form's failure shows once, in the inline banner,
   never also as a toast; the house noun is **Rate** ("Rate rules").
 - **Use the shared primitives; if one doesn't fit, EXTEND it — don't fork it.**
+  A searchable pick of ONE from a long list is `SearchSelect`
+  (`components/ui/search-select.tsx`, 2026-11-24 — the Exclusions picker,
+  moved when "New ad set" needed the same control); a URL-backed "By …"
+  switch is `ParamSwitch`.
 - Any component that drives a route or search-param change uses
   `useNavTransition`, or the progress bar never shows — except a SHALLOW
   presentation param (a sort, an Ads column toggle; D12, tables-columns.md),

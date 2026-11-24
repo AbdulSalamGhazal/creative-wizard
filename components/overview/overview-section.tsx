@@ -53,6 +53,8 @@ import {
 import { PLATFORM_COLOR, PLATFORM_LABEL, swatchColor } from "@/lib/palette";
 import { AdDataGate } from "@/components/ui/no-ad-data-state";
 import { dimensionNoun } from "@/lib/breakdown-level";
+import { adNetwork, adSetPath, campaignPath } from "@/lib/campaign";
+import { withDateRange } from "@/lib/url";
 
 
 const CAMPAIGN_LINE_LIMIT = 6;
@@ -96,6 +98,16 @@ export async function OverviewSection({
   const breakout = dimension !== "platform";
   const chartDimension = breakout ? "campaign" : "platform";
   const breakoutNoun = dimension === "platform" ? undefined : dimensionNoun(dimension);
+  // A breakout row's OWN PAGE (2026-11), on this range. The key is the ad
+  // set's stored name — its address — or the campaign's name, which with the
+  // pinned platform's network is the campaign's address. A platform has none.
+  const pinnedNetwork = breakout ? adNetwork(filters.platforms?.[0] ?? "") : null;
+  const breakoutHref = (key: string): string | undefined => {
+    if (dimension === "campaign") return withDateRange(adSetPath(key), rangeFrom, rangeTo);
+    if (dimension === "parent_campaign" && pinnedNetwork)
+      return withDateRange(campaignPath(pinnedNetwork, key), rangeFrom, rangeTo);
+    return undefined;
+  };
 
   // Edge-fill bounds for the over-time chart, from TWO per-platform reads that
   // also give the grouped-total bounds (W2-3, 2026-10): the data horizon is the
@@ -217,6 +229,7 @@ export async function OverviewSection({
       dimension === "platform"
         ? PLATFORM_LABEL[k as keyof typeof PLATFORM_LABEL] ?? k
         : k,
+    href: breakoutHref(k),
   }));
   const typeOverallLabel =
     breakout ? dimensionLabel ?? `All ${breakoutNoun}s` : "Overall";
@@ -272,7 +285,13 @@ export async function OverviewSection({
       dimension === "platform"
         ? PLATFORM_LABEL[k as keyof typeof PLATFORM_LABEL] ?? k
         : k,
+    href: breakoutHref(k),
   }));
+  const statusHrefs: Record<string, string> = {};
+  for (const sc of statusScopes) {
+    const href = breakoutHref(sc.key);
+    if (href) statusHrefs[sc.key] = href;
+  }
 
   return (
     <section className="space-y-4">
@@ -316,7 +335,12 @@ export async function OverviewSection({
 
       {/* Status flow — four diagrams (per platform, or per top campaign when a
           single platform is filtered) */}
-      <StatusFlowGrid scopes={statusScopes} dimension={chartDimension} breakoutNoun={breakoutNoun} />
+      <StatusFlowGrid
+        scopes={statusScopes}
+        dimension={chartDimension}
+        breakoutNoun={breakoutNoun}
+        hrefs={statusHrefs}
+      />
 
       {/* Rating mix + per-creative correlation matrix (full row, half each) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -159,6 +159,8 @@ export default async function FunnelPage({
           platforms={byPlatform}
           campaigns={byPlatformCampaign}
           level={level}
+          from={from}
+          to={to}
         />
       </div>
 

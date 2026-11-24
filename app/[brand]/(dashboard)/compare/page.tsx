@@ -2,6 +2,7 @@ import {
   kpis,
   compareDimensions,
   compareSideSeries,
+  type CompareDimensionRow,
   type CompareMetric,
   type KpiFilters,
 } from "@/db/queries/performance";
@@ -11,7 +12,12 @@ import {
   MetricBlockHeader,
 } from "@/components/compare/metric-blocks";
 import { CompareChart } from "@/components/charts/compare-chart";
-import { CompareTotalsTable } from "@/components/compare/compare-totals-table";
+import {
+  CompareTotalsTable,
+  type CompareSelectionPart,
+} from "@/components/compare/compare-totals-table";
+import { adSetPath, campaignPath } from "@/lib/campaign";
+import { withDateRange } from "@/lib/url";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { resolveIncludeExcluded, resolvePreferredRange } from "@/db/queries/user-prefs";
@@ -44,17 +50,50 @@ function sideFilter(
   };
 }
 
-function sideSummary(side: CompareSide): string {
-  const parts: string[] = [];
-  if (side.platforms.length) parts.push(`${side.platforms.length} platform(s)`);
-  if (side.parents.length) parts.push(`${side.parents.length} campaign(s)`);
-  if (side.campaigns.length) parts.push(`${side.campaigns.length} ad set(s)`);
-  if (side.creatives.length) parts.push(`${side.creatives.length} creative(s)`);
+/**
+ * What a side covers, as the totals row says it: a count per level — except
+ * ONE campaign or ONE ad set, which is named and links to its own page on the
+ * side's window (2026-11). A campaign id that is no longer an option (deleted,
+ * or on a platform Compare doesn't cover) stays a count: there is no page to
+ * send anyone to.
+ */
+function sideSummary(
+  side: CompareSide,
+  range: { from: string; to: string },
+  dimensions: ReadonlyArray<CompareDimensionRow>,
+): CompareSelectionPart[] {
+  const parts: CompareSelectionPart[] = [];
+  if (side.platforms.length) parts.push({ text: `${side.platforms.length} platform(s)` });
+  if (side.parents.length === 1) {
+    const d = dimensions.find((x) => x.parentId === side.parents[0]);
+    parts.push(
+      d?.parentName && d.parentNetwork
+        ? {
+            text: d.parentName,
+            href: withDateRange(campaignPath(d.parentNetwork, d.parentName), range.from, range.to),
+          }
+        : { text: "1 campaign(s)" },
+    );
+  } else if (side.parents.length) {
+    parts.push({ text: `${side.parents.length} campaign(s)` });
+  }
+  if (side.campaigns.length === 1) {
+    const name = side.campaigns[0]!;
+    parts.push(
+      dimensions.some((x) => x.campaign === name)
+        ? { text: name, href: withDateRange(adSetPath(name), range.from, range.to) }
+        : { text: "1 ad set(s)" },
+    );
+  } else if (side.campaigns.length) {
+    parts.push({ text: `${side.campaigns.length} ad set(s)` });
+  }
+  if (side.creatives.length) parts.push({ text: `${side.creatives.length} creative(s)` });
   if (side.landingPages.length)
-    parts.push(`${side.landingPages.length} landing page(s)`);
-  const sel = sideIsEmpty(side) ? "All data" : parts.join(" · ");
+    parts.push({ text: `${side.landingPages.length} landing page(s)` });
+  if (sideIsEmpty(side)) parts.push({ text: "All data" });
   // Surface a side-specific window so the totals row says what it covers.
-  return side.from && side.to ? `${sel} · ${side.from} → ${side.to}` : sel;
+  if (side.from && side.to) parts.push({ text: `${side.from} → ${side.to}` });
+  return parts;
 }
 
 export const metadata = { title: "Analyzers · Compare" };
@@ -199,7 +238,7 @@ export default async function ComparePage({
           <CompareTotalsTable
             sides={parsed.sides.map((s, i) => ({
               label: s.label,
-              selection: sideSummary(s),
+              selection: sideSummary(s, effRange(s), dimensions),
               totals: totals[i]!,
             }))}
           />

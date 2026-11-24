@@ -579,6 +579,9 @@ export interface PlatformCampaignRow {
   objective: CampaignObjective;
   /** Campaign level only: every objective its ad sets on this platform carry. */
   objectives?: CampaignObjective[];
+  /** Campaign level only: its ad network — with the name, the campaign's
+   *  address (`campaignPath`). An ad set's address is its stored name. */
+  network?: AdNetwork;
   spend: number;
   impressions: number;
   clicks: number;
@@ -619,6 +622,7 @@ export async function platformCampaignFunnel(
       .select({
         platform: performanceRecords.platform,
         campaign: parentCampaigns.name,
+        network: parentCampaigns.network,
         objectives: sql<string[] | null>`array_agg(DISTINCT ${campaigns.objective})`,
         ...funnelRowMetrics,
       })
@@ -627,7 +631,12 @@ export async function platformCampaignFunnel(
       .innerJoin(creatives, eq(creatives.id, performanceRecords.creativeId))
       .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
       .where(whereFor(f, acct))
-      .groupBy(performanceRecords.platform, parentCampaigns.id, parentCampaigns.name)
+      .groupBy(
+        performanceRecords.platform,
+        parentCampaigns.id,
+        parentCampaigns.name,
+        parentCampaigns.network,
+      )
       .having(gt(sumSpend, 0))
       .orderBy(desc(sumSpend));
     return parentRows.map((r) => {
@@ -635,6 +644,7 @@ export async function platformCampaignFunnel(
       return {
         platform: r.platform as Platform,
         campaign: r.campaign,
+        network: r.network,
         objective: objectives[0] ?? CAMPAIGN_OBJECTIVES[0],
         objectives,
         spend: num(r.spend),

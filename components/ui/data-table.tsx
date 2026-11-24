@@ -46,6 +46,17 @@ export interface DataColumn<T> {
   /** Raw value for CSV export. Falls back to `sortValue` when omitted. */
   csv?: (row: T) => string | number | null;
   /**
+   * This ONE on-screen column exports as SEVERAL CSV columns, each under its
+   * own header (wins over `csv`). For a cell that shows two different things
+   * depending on the row — Funnel's platform table nests a platform's
+   * campaigns under it in the same column, and a file whose "Platform" column
+   * holds campaign names can't be filtered or pivoted.
+   */
+  csvColumns?: ReadonlyArray<{
+    label: string;
+    value: (row: T) => string | number | null;
+  }>;
+  /**
    * This column cannot be hidden RIGHT NOW, for a reason the consumer owns —
    * the dashboard's Top-creatives table force-shows whatever metric the table
    * is currently ranked by, so you can always see what you sorted on. The
@@ -88,6 +99,25 @@ export function compareSortValues(
     return (av < bv ? -1 : av > bv ? 1 : 0) * factor;
   }
   return ((av as number) - (bv as number)) * factor;
+}
+
+/**
+ * The CSV columns a set of table columns exports as: one each, under its own
+ * label — except a column with `csvColumns`, which exports as those instead.
+ * Exported so the rule can be pinned by a unit test.
+ */
+export function toCsvColumns<T>(cols: ReadonlyArray<DataColumn<T>>): CsvColumn<T>[] {
+  return cols.flatMap((c): CsvColumn<T>[] =>
+    c.csvColumns
+      ? c.csvColumns.map((x, i) => ({ key: `${c.key}:${i}`, label: x.label, value: x.value }))
+      : [
+          {
+            key: c.key,
+            label: c.label,
+            value: (r) => (c.csv ? c.csv(r) : c.sortValue ? c.sortValue(r) : null),
+          },
+        ],
+  );
 }
 
 export function DataTable<T>({
@@ -272,12 +302,7 @@ export function DataTable<T>({
   // every row, including any not yet revealed.
   const csvContent = useMemo(() => {
     if (!csvFileName) return "";
-    const csvCols: CsvColumn<T>[] = cols.map((c) => ({
-      key: c.key,
-      label: c.label,
-      value: (r) => (c.csv ? c.csv(r) : c.sortValue ? c.sortValue(r) : null),
-    }));
-    return rowsToCsv(sorted, csvCols);
+    return rowsToCsv(sorted, toCsvColumns(cols));
   }, [csvFileName, cols, sorted]);
   // Export lives in the table's corner beside Columns (R-084) — one place
   // for table-level actions, no row of its own above the frame.

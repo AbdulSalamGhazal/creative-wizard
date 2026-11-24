@@ -9,6 +9,7 @@ import { int, pct, roas, usd } from "@/lib/format";
 import type { Kpis } from "@/db/queries/performance";
 import { METRIC_LABEL } from "@/lib/metric-labels";
 import { EmptyState } from "@/components/ui/empty-state";
+import Link from "@/components/nav/link";
 
 type MetricKey = Exclude<keyof Kpis, "funnelCpm" | "funnelCtr">;
 
@@ -66,11 +67,22 @@ const DEFAULT_HIDDEN = COLUMNS.filter(
   (c) => !DEFAULT_VISIBLE.includes(c.key),
 ).map((c) => c.key as string);
 
+/** One piece of what a side covers: a count, or a NAME that links to its page. */
+export interface CompareSelectionPart {
+  text: string;
+  href?: string;
+}
+
 export interface CompareSideTotals {
   label: string;
-  selection: string;
+  /** What the side covers, in order — joined with " · ". */
+  selection: CompareSelectionPart[];
   totals: Kpis;
 }
+
+/** The selection as one line of text — the CSV cell. */
+export const selectionText = (parts: readonly CompareSelectionPart[]): string =>
+  parts.map((p) => p.text).join(" · ");
 
 /**
  * The A/B totals table — one row per SIDE, on the shared `DataTable`.
@@ -112,9 +124,28 @@ export function CompareTotalsTable({ sides }: { sides: CompareSideTotals[] }) {
         label: "Selection",
         align: "left",
         render: (s) => (
-          <span className="whitespace-nowrap text-xs text-ink-3">{s.selection}</span>
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-ink-3">
+            {s.selection.map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5">
+                {i > 0 && <span aria-hidden>·</span>}
+                {p.href ? (
+                  // ONE campaign or ad set: its name, and the way to its page.
+                  <Link
+                    href={p.href}
+                    title={p.text}
+                    dir="auto"
+                    className="block max-w-[16rem] truncate text-ink-2 no-underline transition-colors hover:text-ink"
+                  >
+                    {p.text}
+                  </Link>
+                ) : (
+                  p.text
+                )}
+              </span>
+            ))}
+          </span>
         ),
-        csv: (s) => s.selection,
+        csv: (s) => selectionText(s.selection),
       },
       ...COLUMNS.map<DataColumn<CompareSideTotals>>((c) => ({
         key: c.key,

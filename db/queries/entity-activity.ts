@@ -134,6 +134,8 @@ export async function entityActivityPage(
       entityId: r.entityId,
       entityLabel: r.entityLabel,
       meta: (r.meta as Record<string, unknown> | null) ?? null,
+      // An entity's own Activity never links to another page (it IS the page).
+      livePath: null,
       actor: r.actorId
         ? {
             id: r.actorId,

@@ -5,6 +5,8 @@ import {
   portfolioCampaignList,
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
+import { listParentCampaignOptions } from "@/db/queries/parent-campaign";
+import { AddAdSetDialog } from "@/components/campaign/add-ad-set-dialog";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
 import {
   resolvePreferredRange,
@@ -134,9 +136,13 @@ export default async function AdSetsPage({
     includeExcluded,
   };
 
-  const [{ rows: campaigns, creativesTotal }, views] = await Promise.all([
+  const canCreate = can(user, "campaign.create");
+  const [{ rows: campaigns, creativesTotal }, views, campaignChoices] = await Promise.all([
     portfolioCampaignList(filters),
     listSummaryViews(user.id, "campaigns"),
+    // The registry (not the records): "New ad set" can go under a campaign
+    // that has no data yet. Only read for someone who can register.
+    canCreate ? listParentCampaignOptions() : Promise.resolve([]),
   ]);
 
   return (
@@ -150,12 +156,18 @@ export default async function AdSetsPage({
           </span>
         }
         rightSlot={
-          can(user, "campaign.create") ? (
-            <Button asChild>
-              <Link href="/campaigns/new">
-                <Plus className="w-4 h-4" /> New campaign
-              </Link>
-            </Button>
+          canCreate ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* "New ad set" asks which campaign, then takes the ad set. With
+                  no campaign registered yet there is nothing to add one to,
+                  so "New campaign" stands alone as the main button. */}
+              <AddAdSetDialog campaigns={campaignChoices} />
+              <Button asChild variant={campaignChoices.length > 0 ? "outline" : "default"}>
+                <Link href="/campaigns/new">
+                  <Plus className="w-4 h-4" /> New campaign
+                </Link>
+              </Button>
+            </div>
           ) : undefined
         }
       />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RATING_VALUES, type Rating, type RatingWindow } from "@/lib/rating";
 import { RatingWindowControl } from "@/components/charts/rating-window-control";
+import Link from "@/components/nav/link";
 
 const COLOR: Record<Rating, string> = {
   // --pos and --warn are both bright enough that white in-segment text washes
@@ -43,6 +44,8 @@ export interface RatingRow {
 interface SeriesItem {
   key: string;
   label: string;
+  /** The row's own page (a campaign, an ad set) — a platform has none. */
+  href?: string;
 }
 
 // Only label a segment when it's wide enough to fit "NN%" without clipping;
@@ -120,14 +123,31 @@ export function RatingMixBars({
     </div>
   );
 
-  const row = (label: string, m: Map<Rating, number>, total: number, tall: boolean) => (
+  const row = (
+    label: string,
+    m: Map<Rating, number>,
+    total: number,
+    tall: boolean,
+    href?: string,
+  ) => (
     <div className="flex items-center gap-2.5">
-      <span
-        className={`w-20 shrink-0 truncate text-xs ${tall ? "font-semibold text-ink" : "text-ink-2"}`}
-        title={label}
-      >
-        {label}
-      </span>
+      {href ? (
+        <Link
+          href={href}
+          className="w-20 shrink-0 truncate text-xs text-ink-2 no-underline transition-colors hover:text-ink"
+          title={label}
+          dir="auto"
+        >
+          {label}
+        </Link>
+      ) : (
+        <span
+          className={`w-20 shrink-0 truncate text-xs ${tall ? "font-semibold text-ink" : "text-ink-2"}`}
+          title={label}
+        >
+          {label}
+        </span>
+      )}
       <div className="flex-1">{bar(m, total, tall)}</div>
     </div>
   );
@@ -169,7 +189,7 @@ export function RatingMixBars({
           <div className="flex-1 flex flex-col justify-center gap-2.5">
             {row(overallLabel, overall.m, overall.total, true)}
             {rowData.map((r) => (
-              <div key={r.key}>{row(r.label, r.m, r.total, false)}</div>
+              <div key={r.key}>{row(r.label, r.m, r.total, false, r.href)}</div>
             ))}
           </div>
         )}

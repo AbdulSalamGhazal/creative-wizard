@@ -54,6 +54,11 @@ interface Props {
 
 function entityHref(row: AuditFeedRow): string | null {
   switch (row.entityType) {
+    case "campaign":
+    case "parent_campaign":
+      // An ad set / a campaign: its page as it is named TODAY (the query
+      // resolves it from the id) — null once it has been deleted.
+      return row.livePath;
     case "creative":
       // entityLabel is the creative name we stored at write time.
       return row.entityLabel

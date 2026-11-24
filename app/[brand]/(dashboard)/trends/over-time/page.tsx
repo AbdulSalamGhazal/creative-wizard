@@ -1,5 +1,5 @@
-import Link from "@/components/nav/link";
 import { Badge } from "@/components/ui/badge";
+import { ParamSwitch } from "@/components/filters/param-switch";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -30,7 +30,6 @@ import {
   STRIP_FILTER_KEYS,
 } from "@/validators/filters";
 import { PLATFORM_LABEL, ALL_PLATFORMS } from "@/lib/palette";
-import { cn } from "@/lib/utils";
 import { usd, roas } from "@/lib/format";
 import { pickFirst } from "@/lib/url";
 import { adSetPath, campaignPath } from "@/lib/campaign";
@@ -164,18 +163,6 @@ export default async function TrendsOverTimePage({
     count("low") > 0 && `${count("low")} below the spend floor`,
   ].filter(Boolean);
 
-  // Dim switcher links preserve every other filter param.
-  const dimHref = (d: ChangeDim) => {
-    const next = new URLSearchParams();
-    for (const [key, v] of Object.entries(params)) {
-      const val = pickFirst(v);
-      if (val && key !== "dim") next.set(key, val);
-    }
-    if (d !== CHANGE_DIM_DEFAULT) next.set("dim", d);
-    const qs = next.toString();
-    return qs ? `/trends/over-time?${qs}` : "/trends/over-time";
-  };
-
   return (
     <PageShell
       filterStrip={
@@ -228,23 +215,14 @@ export default async function TrendsOverTimePage({
 
       {/* Breakdown selector + tier summary */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="inline-flex rounded-md border border-line overflow-hidden text-xs">
-          {DIMS.map((d) => (
-            <Link
-              key={d.value}
-              href={dimHref(d.value)}
-              scroll={false}
-              className={cn(
-                "px-3 h-8 inline-flex items-center transition-colors",
-                d.value === dim
-                  ? "bg-brand-soft text-ink"
-                  : "text-ink-2 hover:text-ink hover:bg-surface-2",
-              )}
-            >
-              {d.label}
-            </Link>
-          ))}
-        </div>
+        {/* The house "By" switch (Funnel, Dashboard) — same word, same look. */}
+        <ParamSwitch
+          param="dim"
+          options={DIMS}
+          value={dim}
+          defaultValue={CHANGE_DIM_DEFAULT}
+          ariaLabel="Break down by platform, campaign, ad set or creative"
+        />
         {summaryParts.length > 0 && (
           <span className="text-[11px] text-ink-3">
             {summaryParts.join(" · ")}

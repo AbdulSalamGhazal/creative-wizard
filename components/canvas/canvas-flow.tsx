@@ -184,7 +184,13 @@ const CampaignNodeView = memo(function CampaignNodeView({
               the network is also what tells two same-named campaigns apart. */}
           <Chip
             className="min-w-0 shrink"
-            title={n.level === "campaign" ? `Registered ad sets · ${n.objective}` : undefined}
+            // The count is the REGISTRY's (every ad set under the campaign,
+            // spending or not); the objectives are theirs.
+            title={
+              n.level === "campaign"
+                ? `${int(n.adSets)} ad set${n.adSets === 1 ? "" : "s"} registered under this campaign · ${n.objective}`
+                : undefined
+            }
           >
             <span className="truncate tabular-nums">
               {n.level === "campaign"
@@ -918,7 +924,7 @@ function Flow({
                       className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-surface-2 hover:text-ink"
                     >
                       <span className="text-eyebrow shrink-0 text-ink-3">
-                        {n.kind === "campaign" ? (n.level === "campaign" ? "Camp" : "Ad set") : "Crtv"}
+                        {n.kind === "campaign" ? (n.level === "campaign" ? "Campaign" : "Ad set") : "Creative"}
                       </span>
                       <span className="truncate">{n.name}</span>
                       {/* Two campaigns may share a name across networks. */}

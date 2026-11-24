@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, Plus, ShieldOff, Trash2 } from "lucide-react";
+import { Plus, ShieldOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,18 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import {
   Select,
   SelectContent,
@@ -67,11 +56,7 @@ const PICKER_PLACEHOLDER: Record<Exclude<ExclusionRuleKind, "campaign_objective"
   creative: "Search creatives…",
 };
 
-interface PickerOption {
-  id: string;
-  name: string;
-  hint?: string;
-}
+type PickerOption = SearchSelectOption;
 
 /** What the confirm dialog is about to do. */
 type PendingAction =
@@ -256,7 +241,7 @@ export function ExclusionRulesAdmin({
                 </SelectContent>
               </Select>
             ) : (
-              <TargetPicker
+              <SearchSelect
                 options={picker.options}
                 value={picker.value}
                 onChange={picker.onChange}
@@ -436,73 +421,5 @@ export function ExclusionRulesAdmin({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-/** Searchable single-select over campaigns/creatives (cleanup-tool pattern). */
-function TargetPicker({
-  options,
-  value,
-  onChange,
-  placeholder,
-  hintInTrigger = false,
-}: {
-  options: PickerOption[];
-  value: string | null;
-  onChange: (id: string | null) => void;
-  placeholder: string;
-  /** Show the picked option's hint in the closed control too. */
-  hintInTrigger?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.id === value);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-line bg-surface px-3 text-sm hover:bg-surface-2"
-        >
-          <span className={cn("truncate", selected ? "text-ink" : "text-ink-3")}>
-            {selected ? selected.name : placeholder}
-          </span>
-          {hintInTrigger && selected?.hint && (
-            <span className="ml-auto shrink-0 text-[11px] text-ink-2">{selected.hint}</span>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(24rem,calc(100vw-2rem))] p-0">
-        <Command
-          filter={(v, search) => (v.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}
-        >
-          <CommandInput placeholder={placeholder} />
-          <CommandList className="max-h-72">
-            <CommandEmpty>Nothing found.</CommandEmpty>
-            {options.map((o) => (
-              <CommandItem
-                key={o.id}
-                value={`${o.name} ${o.hint ?? ""}`}
-                onSelect={() => {
-                  onChange(o.id === value ? null : o.id);
-                  setOpen(false);
-                }}
-              >
-                <Check
-                  className={cn(
-                    "h-3.5 w-3.5 shrink-0 text-brand",
-                    o.id === value ? "opacity-100" : "opacity-0",
-                  )}
-                />
-                <span className="truncate text-xs">{o.name}</span>
-                {o.hint && (
-                  <span className="ml-auto truncate text-[11px] text-ink-3">{o.hint}</span>
-                )}
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   );
 }

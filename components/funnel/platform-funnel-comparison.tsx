@@ -13,6 +13,9 @@ import { int, pct, plural, roas, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PlatformFunnelRow, PlatformCampaignRow } from "@/db/queries/funnel";
 import type { BreakdownLevel } from "@/lib/breakdown-level";
+import Link from "@/components/nav/link";
+import { adSetPath, campaignPath, type AdNetwork } from "@/lib/campaign";
+import { withDateRange } from "@/lib/url";
 
 type RateKey = "cpm" | "ctr" | "voc" | "atcRate" | "apRate" | "purchaseRate" | "cvr";
 
@@ -79,6 +82,7 @@ type Row =
       campaign: string;
       objective: PlatformCampaignRow["objective"];
       objectives?: PlatformCampaignRow["objectives"];
+      network?: AdNetwork;
     } & Metrics)
   | { kind: "none"; key: string; platform: PlatformFunnelRow["platform"] };
 
@@ -92,16 +96,26 @@ const metricOf = (r: Row, k: MetricKey): number | null =>
  * in place; the WRAPPER owns the sort (no column carries a `sortValue`) so a
  * platform's campaigns stay under it, sorted the same way. Volumes are plain
  * numbers; the funnel rates keep their magnitude bar and leader highlight.
+ *
+ * An expanded row LINKS to its own page (2026-11) — the campaign's, or the ad
+ * set's — carrying the range. And the CSV keeps the two things the first
+ * column shows APART: "Platform" is the platform on every line, and the
+ * campaign / ad-set name has its own column (blank on a platform's own line).
  */
 export function PlatformFunnelComparison({
   platforms,
   campaigns,
   level = "adset",
+  from,
+  to,
 }: {
   platforms: PlatformFunnelRow[];
   campaigns: PlatformCampaignRow[];
   /** What a platform expands into (2026-11): its campaigns, or its ad sets. */
   level?: BreakdownLevel;
+  /** The range the table ran — carried into each row's link (R-015). */
+  from?: string;
+  to?: string;
 }) {
   const noun = level === "campaign" ? "campaign" : "ad set";
   const cols = useTableColumns({
@@ -200,18 +214,31 @@ export function PlatformFunnelComparison({
       pinned: true,
       sortable: true,
       defaultSortDir: "asc",
-      csv: (r) => (r.kind === "campaign" ? `  ${r.campaign}` : r.kind === "platform" ? PLATFORM_LABEL[r.platform] : ""),
+      csvColumns: [
+        { label: "Platform", value: (r) => (r.kind === "none" ? "" : PLATFORM_LABEL[r.platform]) },
+        {
+          label: level === "campaign" ? "Campaign" : "Ad set",
+          value: (r) => (r.kind === "campaign" ? r.campaign : ""),
+        },
+      ],
       render: (r) => {
         if (r.kind === "none")
           return <span className="pl-7 text-[11px] text-ink-3">No {noun}s in this window.</span>;
         if (r.kind === "campaign")
           return (
-            <span
-              className="block max-w-[10rem] truncate pl-7 text-xs text-ink-2 sm:max-w-[22rem]"
+            // Its own page, on this range: a campaign's address is its
+            // network + name, an ad set's its stored name.
+            <Link
+              href={withDateRange(
+                r.network ? campaignPath(r.network, r.campaign) : adSetPath(r.campaign),
+                from,
+                to,
+              )}
+              className="block max-w-[10rem] truncate pl-7 text-xs text-ink-2 no-underline transition-colors hover:text-ink sm:max-w-[22rem]"
               title={r.campaign}
             >
               {r.campaign}
-            </span>
+            </Link>
           );
         const isOpen = expanded.has(r.platform);
         return (
@@ -304,7 +331,7 @@ export function PlatformFunnelComparison({
       }),
     );
     return [identity, objective, ...numbers, ...rates];
-  }, [expanded, best, maxAbs, noun]);
+  }, [expanded, best, maxAbs, noun, level, from, to]);
 
   return (
     <DataTable

@@ -1,11 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TYPE_COLOR, TYPE_LABEL, TYPE_ORDER } from "@/lib/palette";
 import type { TypeDimensionSpendRow } from "@/db/queries/performance";
-
+import Link from "@/components/nav/link";
 
 interface SeriesItem {
   key: string;
   label: string;
+  /** The row's own page (a campaign, an ad set) — a platform has none. */
+  href?: string;
 }
 
 /**
@@ -108,9 +110,20 @@ export function TypeMixBars({
             {/* Per platform / campaign */}
             {rowData.map((r) => (
               <div key={r.key} className="space-y-1">
-                <span className="block truncate text-xs text-ink-2" title={r.label}>
-                  {r.label}
-                </span>
+                {r.href ? (
+                  <Link
+                    href={r.href}
+                    className="block truncate text-xs text-ink-2 no-underline transition-colors hover:text-ink"
+                    title={r.label}
+                    dir="auto"
+                  >
+                    {r.label}
+                  </Link>
+                ) : (
+                  <span className="block truncate text-xs text-ink-2" title={r.label}>
+                    {r.label}
+                  </span>
+                )}
                 {renderBar(r.m, r.total, false)}
               </div>
             ))}

@@ -6,6 +6,7 @@ import {
   type CreativeStatus,
 } from "@/lib/creative-status";
 import { int } from "@/lib/format";
+import Link from "@/components/nav/link";
 import { PLATFORM_COLOR, PLATFORM_LABEL } from "@/lib/palette";
 import type {
   CreativeStatusTransitions,
@@ -136,11 +137,14 @@ export function StatusFlowGrid({
   scopes,
   dimension,
   breakoutNoun = "ad set",
+  hrefs,
 }: {
   scopes: StatusFlowScope[];
   dimension: "platform" | "campaign";
   /** What the pinned-platform breakout is by: "campaign" or "ad set". */
   breakoutNoun?: string;
+  /** Each breakout row's own page, by key — a platform has none. */
+  hrefs?: Record<string, string>;
 }) {
   const labelFor = (key: string) =>
     dimension === "platform"
@@ -170,13 +174,24 @@ export function StatusFlowGrid({
           <div className="grid grid-cols-1 @lg:grid-cols-2 @5xl:grid-cols-4 gap-x-4 gap-y-5">
             {scopes.map((sc) => (
               <div key={sc.key} className="min-w-0">
-                <span
-                  className="block truncate text-xs font-semibold"
-                  style={{ color: colorFor(sc.key) }}
-                  title={labelFor(sc.key)}
-                >
-                  {labelFor(sc.key)}
-                </span>
+                {hrefs?.[sc.key] ? (
+                  <Link
+                    href={hrefs[sc.key]!}
+                    className="block truncate text-xs font-semibold text-ink-2 no-underline transition-colors hover:text-ink"
+                    title={labelFor(sc.key)}
+                    dir="auto"
+                  >
+                    {labelFor(sc.key)}
+                  </Link>
+                ) : (
+                  <span
+                    className="block truncate text-xs font-semibold"
+                    style={{ color: colorFor(sc.key) }}
+                    title={labelFor(sc.key)}
+                  >
+                    {labelFor(sc.key)}
+                  </span>
+                )}
                 {sc.data.untouchedNew > 0 ? (
                   <span className="flex items-center gap-1.5 text-[10px] text-ink-2 mt-0.5 mb-1">
                     <span

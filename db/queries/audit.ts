@@ -1,6 +1,7 @@
-import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { auditEvents, users } from "@/db/schema";
+import { auditEvents, campaigns, parentCampaigns, users } from "@/db/schema";
+import { adSetPath, campaignPath } from "@/lib/campaign";
 import type { AuditAction, AuditEntityType } from "@/lib/audit";
 import { getActiveAccountId } from "@/lib/tenant";
 
@@ -27,6 +28,57 @@ export interface AuditFeedRow {
   entityLabel: string | null;
   meta: Record<string, unknown> | null;
   actor: { id: string; name: string; email: string; avatarUrl: string | null } | null;
+  /**
+   * Where the entry's campaign or ad set lives TODAY (2026-11) — resolved from
+   * the row's id, not from the label stored when the entry was written, so a
+   * rename doesn't leave a dead link and a deleted one has none. NULL for
+   * every other kind of entry (the feed derives those from the label).
+   */
+  livePath: string | null;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The current page of every campaign / ad set a page of entries names, by
+ * `<entityType>:<entityId>` — two PK lookups for the whole page, each scoped
+ * to the brand. `entity_id` is free text, so only uuid-shaped ids are asked.
+ */
+async function livePaths(
+  acct: string,
+  rows: ReadonlyArray<{ entityType: string; entityId: string | null }>,
+): Promise<Map<string, string>> {
+  const idsOf = (type: string) => [
+    ...new Set(
+      rows
+        .filter((r) => r.entityType === type && r.entityId !== null && UUID.test(r.entityId))
+        .map((r) => r.entityId as string),
+    ),
+  ];
+  const adSetIds = idsOf("campaign");
+  const parentIds = idsOf("parent_campaign");
+  const [adSets, parents] = await Promise.all([
+    adSetIds.length > 0
+      ? db
+          .select({ id: campaigns.id, name: campaigns.name })
+          .from(campaigns)
+          .where(and(eq(campaigns.accountId, acct), inArray(campaigns.id, adSetIds)))
+      : [],
+    parentIds.length > 0
+      ? db
+          .select({
+            id: parentCampaigns.id,
+            name: parentCampaigns.name,
+            network: parentCampaigns.network,
+          })
+          .from(parentCampaigns)
+          .where(and(eq(parentCampaigns.accountId, acct), inArray(parentCampaigns.id, parentIds)))
+      : [],
+  ]);
+  const out = new Map<string, string>();
+  for (const a of adSets) out.set(`campaign:${a.id}`, adSetPath(a.name));
+  for (const p of parents) out.set(`parent_campaign:${p.id}`, campaignPath(p.network, p.name));
+  return out;
 }
 
 export async function listAuditEvents(
@@ -69,6 +121,8 @@ export async function listAuditEvents(
     .orderBy(desc(auditEvents.id))
     .limit(limit);
 
+  const paths = await livePaths(acct, rows);
+
   return rows.map((r) => ({
     id: r.id,
     at: r.at,
@@ -77,6 +131,7 @@ export async function listAuditEvents(
     entityId: r.entityId,
     entityLabel: r.entityLabel,
     meta: (r.meta as Record<string, unknown> | null) ?? null,
+    livePath: paths.get(`${r.entityType}:${r.entityId}`) ?? null,
     actor: r.actorId
       ? {
           id: r.actorId,
