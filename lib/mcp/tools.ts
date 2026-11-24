@@ -345,7 +345,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_creative",
     {
-      description: `One creative in depth: fields, manual funnel stage(s), angles, per-platform status, and its per-campaign performance breakdown, each campaign with its objective (all-time unless a range is given). ${CONVENTIONS} ${ANGLES_RENAME}`,
+      description: `One creative in depth: fields, manual funnel stage(s), angles, per-platform status, and its performance breakdown per AD SET it ran in (all-time unless a range is given). ${TWO_LEVELS} So each \`byCampaign\` row is ONE AD SET: \`campaign\` is its full stored name, \`ad_set\` its own name, \`parent_campaign\` + \`network\` the CAMPAIGN it sits under (sum the rows sharing those two for a campaign's figure — sums, never an average of ratios), with the ad set's objective. ${CONVENTIONS} ${ANGLES_RENAME}`,
       inputSchema: {
         brand: brandField,
         name: z.string().describe("Exact creative name."),
@@ -384,6 +384,9 @@ export function registerMcpTools(server: McpServer): void {
           },
           byCampaign: mix.map((m) => ({
             campaign: m.campaign,
+            ad_set: adSetParts(m.campaign, m.platform).ad_set,
+            parent_campaign: m.parentCampaign,
+            network: m.network,
             objective: m.objective,
             platform: m.platform,
             spend: r2(m.spend),
@@ -461,9 +464,11 @@ export function registerMcpTools(server: McpServer): void {
           campaigns: rows.map((c) => ({
             id: c.campaignId,
             campaign: c.campaign,
-            // The two parts of the stored name: the campaign it sits under,
-            // and the ad set's own name (platform tag dropped).
-            ...adSetParts(c.campaign, c.platforms[0]),
+            // The CAMPAIGN it sits under (the registry's own row, with its
+            // network) and the ad set's own name (platform tag dropped).
+            parent_campaign: c.parentCampaign,
+            network: c.network,
+            ad_set: adSetParts(c.campaign, c.platforms[0]).ad_set,
             status: c.status,
             objective: c.objective,
             platforms: c.platforms,
@@ -536,6 +541,9 @@ export function registerMcpTools(server: McpServer): void {
             parentCampaignAdSets(parent.id, range, args.include_excluded),
             parentCampaignDailyByAdSet(parent.id, range, args.include_excluded),
           ]);
+          // A daily point is keyed by the ad set's id; its stored name is the
+          // key the `adSets` rows (and get_campaign at level "ad_set") use.
+          const storedNameOf = new Map(adSets.map((a) => [a.id, a.name]));
           return ok(brand, rangeEcho(args.from, args.to), {
             level: "campaign",
             campaign: {
@@ -572,7 +580,11 @@ export function registerMcpTools(server: McpServer): void {
             })),
             dailyByAdSet: daily.map((d) => ({
               date: d.date,
+              // The ad set's label — its own name plus the platform tag, which
+              // is what tells two Meta ad sets of one name apart — and the
+              // full stored name, the key that joins a point to `adSets`.
               ad_set: d.creativeName,
+              campaign: storedNameOf.get(d.creativeId) ?? null,
               spend: r2(d.spend),
               conversions: d.conversions,
               revenue: r2(d.conversionValue),
@@ -590,6 +602,7 @@ export function registerMcpTools(server: McpServer): void {
         ]);
         const status: string = campaignStatusFor(statusMap, meta.id);
         return ok(brand, rangeEcho(args.from, args.to), {
+          level: "ad_set",
           campaign: {
             name: meta.campaign,
             // The CAMPAIGN this ad set sits under, and the ad set's own name.
@@ -825,7 +838,7 @@ export function registerMcpTools(server: McpServer): void {
         });
         if (!input) {
           throw new McpToolError(
-            `No campaign named "${args.campaign}" in ${brand.name}. Call list_campaigns to get the exact names.`,
+            `No ad set named "${args.campaign}" in ${brand.name}. This tool reads ONE AD SET by its full stored name ("Campaign ➤ Ad set") — call list_campaigns (default level) for the exact names.`,
           );
         }
         const bundle = serializeDiagnosis(input);
@@ -1218,7 +1231,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_landing_pages",
     {
-      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. Pass \`code\` for ONE landing page in depth instead — what its detail page shows: totals, by platform, by campaign (with each campaign's objective) and by creative (all platforms, google included). ${CONVENTIONS}`,
+      description: `Ad performance per landing page for a range (defaults to the app's last 30 days). An ad name ending in " @code" sends traffic to that registered landing page; a row with landing_page null is the PRODUCT's own page (no code). Each row is one (product, landing page), optionally split by platform. Pass \`code\` for ONE landing page in depth instead — what its detail page shows: totals, by platform, by AD SET (\`by_campaign\` — ${TWO_LEVELS} Each row is ONE ad set: \`campaign\` its full stored name, \`ad_set\` its own name, \`parent_campaign\` + \`network\` the CAMPAIGN above it, with the ad set's objective) and by creative (all platforms, google included). ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -1291,8 +1304,12 @@ export function registerMcpTools(server: McpServer): void {
                 ctr: m.ctr,
                 cvr: m.cvr,
               })),
+              // One row per AD SET (the key predates the two levels).
               by_campaign: byCampaign.map((m) => ({
                 campaign: m.campaign,
+                ad_set: adSetParts(m.campaign, m.platform).ad_set,
+                parent_campaign: m.parentCampaign,
+                network: m.network,
                 objective: m.objective,
                 platform: m.platform,
                 spend: r2(m.spend),
@@ -1457,7 +1474,7 @@ export function registerMcpTools(server: McpServer): void {
   server.registerTool(
     "get_canvas_patterns",
     {
-      description: `The Canvas's campaign↔creative patterns for a range (defaults to the app's last 30 days), exactly as the Canvas insight strip shows them. A "pairing" is one creative inside one campaign; its Rate is the brand's Rate rule (Good / Decent / Bad by ROAS, N/A under the minimum spend; the campaign platform's override applies) over the pairing's own range spend and revenue. Patterns (absent when empty): no_live_creatives — campaigns where nothing is spending now; idle_active — active creatives with no spend in the range; losing_everywhere — creatives rated Bad in 2+ campaigns and Good/Decent in none; leans_on_one — campaigns with 2+ creatives where one took ≥70% of the spend; unscaled_winner — creatives in ONE campaign whose pairing is rated Good and still live; launched — creatives and campaigns whose first-ever spend falls inside the range (first_spend_day; judged under the platforms filter and include_excluded); most_shared — the creative feeding the most campaigns. Terminated creatives are left out, as on the Canvas. ${TWO_LEVELS} So at the default \`level: "ad_set"\` every "campaign" above is an AD SET (the Canvas's default); \`level: "campaign"\` reads the same patterns per CAMPAIGN — a campaign's ad sets folded into one pairing per creative (its spend and revenue summed; live when it is still spending on any of its platforms; rated by its platform's rules, or the brand default when it ran on two) — and each campaign item carries \`network\` and \`ad_sets\`. ${CONVENTIONS}`,
+      description: `The Canvas's campaign↔creative patterns for a range (defaults to the app's last 30 days), exactly as the Canvas insight strip shows them. A "pairing" is one creative inside one campaign; its Rate is the brand's Rate rule (Good / Decent / Bad by ROAS, N/A under the minimum spend; the override of the platform the pairing ran on applies) over the pairing's own range spend and revenue. Patterns (absent when empty): no_live_creatives — campaigns where nothing is spending now; idle_active — active creatives with no spend in the range; losing_everywhere — creatives rated Bad in 2+ campaigns and Good/Decent in none; leans_on_one — campaigns with 2+ creatives where one took ≥70% of the spend; unscaled_winner — creatives in ONE campaign whose pairing is rated Good and still live; launched — creatives and campaigns whose first-ever spend falls inside the range (first_spend_day; judged under the platforms filter and include_excluded); most_shared — the creative feeding the most campaigns. Terminated creatives are left out, as on the Canvas. ${TWO_LEVELS} So at the default \`level: "ad_set"\` every "campaign" above is an AD SET (the Canvas's default); \`level: "campaign"\` reads the same patterns per CAMPAIGN — a campaign's ad sets folded into one pairing per creative (its spend and revenue summed; live when it is still spending on any of its platforms; rated by its platform's rules, or the brand default when it ran on two) — and each campaign item carries \`network\` and \`ad_sets\`. ${CONVENTIONS}`,
       inputSchema: {
         brand: brandField,
         from: fromField,

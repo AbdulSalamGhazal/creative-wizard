@@ -173,11 +173,11 @@ introducing the violation and watching it fail:
 
 | invariant | status | evidence / why not |
 |---|---|---|
-| A perf row's campaign is a FK; names from campaigns.name | enforced | `tests/db/portfolio.test.ts` |
+| A perf row's ad set is a FK (`campaign_id`); names from campaigns.name | enforced | `tests/db/portfolio.test.ts` |
 | Name format only through buildCampaignName() | enforced | `lib/campaign.test.ts` |
 | Duplicates keyed (creative, platform, campaign_id, date, landing page) → E050/E051; a changed code on a live ad → E052 | enforced | `csv/pipeline.test.ts` |
 | Objective vocabulary is CAMPAIGN_OBJECTIVES; retired values never return | enforced | `lib/campaign.test.ts` |
-| Deleting a campaign keeps its creatives | enforced | `tests/db/cleanup.test.ts` |
+| Deleting an ad set or a whole campaign keeps its creatives | enforced | `tests/db/cleanup.test.ts` |
 
 ### `canvas.md`
 
@@ -214,7 +214,7 @@ introducing the violation and watching it fail:
 |---|---|---|
 | Status is derived, never stored | enforced | `lib/creative-status.test.ts`, `tests/db/status.test.ts` |
 | Each platform anchors to its own latest spend day | enforced | `tests/db/status.test.ts` |
-| Campaign status: 2-state, no override, no schema | enforced | `lib/campaign-status.test.ts` |
+| Ad-set status: 2-state, no override, no schema (a campaign is active when any ad set is) | enforced | `lib/campaign-status.test.ts` |
 | Status maps from the cached brandStatusInputs() | enforced | `tests/db/status-cache.test.ts` (round-trip count) |
 | Terminated is manual, sticky, per creative×platform | enforced | `tests/db/status.test.ts` |
 | The Library strip is a facet counted before the status filter | enforced | `lib/creative-status.test.ts` statusBreakdownOf |

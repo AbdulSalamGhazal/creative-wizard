@@ -38,8 +38,8 @@ export {
 const DASH = "—";
 const fRatio = (v: number | null) => roas(v);
 
-/** A CAMPAIGN-level row carries its network (the ad-set rows don't). */
-const isParentRow = (r: PortfolioCampaignRow): r is PortfolioParentRow => "network" in r;
+/** A CAMPAIGN-level row carries its ad-set count (an ad-set row doesn't). */
+const isParentRow = (r: PortfolioCampaignRow): r is PortfolioParentRow => "adSets" in r;
 
 /** Where a row's page is: an ad set by its stored name, a campaign by network + name. */
 const rowPath = (r: PortfolioCampaignRow): string =>
@@ -54,6 +54,7 @@ const rowPath = (r: PortfolioCampaignRow): string =>
  */
 export function PortfolioTable({
   rows,
+  creativesTotal,
   level = "adset",
   sort: serverSort = "spend",
   dir: serverDir = "desc",
@@ -61,6 +62,12 @@ export function PortfolioTable({
   order = [],
 }: {
   rows: PortfolioCampaignRow[];
+  /**
+   * The creatives that ran across ALL the rows, each counted once — the
+   * server's union. The column can't be added up: a creative in three ad sets
+   * (or campaigns) is in three rows.
+   */
+  creativesTotal: number;
   level?: PortfolioLevel;
   sort?: string;
   dir?: "asc" | "desc";
@@ -132,7 +139,6 @@ export function PortfolioTable({
         acc.lpv += r.lpv ?? 0;
         acc.orders += r.orders;
         acc.revenue += r.revenue;
-        acc.creatives += r.creatives;
         if (isParentRow(r)) acc.adSets += r.adSets;
         // NULL ≠ 0: a step only sums over the rows that report it, and VOC's
         // clicks only over rows that report LP views (the SQL guard's mirror).
@@ -151,7 +157,6 @@ export function PortfolioTable({
         lpv: 0,
         orders: 0,
         revenue: 0,
-        creatives: 0,
         adSets: 0,
         lpvReported: null as number | null,
         lpvClicks: 0,
@@ -182,6 +187,12 @@ export function PortfolioTable({
           // No width cap — the (resizable) column governs how much shows, so the
           // full name is visible by default and widening reveals the rest.
           return <span className="text-ink">{r.campaign}</span>;
+        case "parentCampaign":
+          return (
+            <span className="text-ink-2" dir="auto">
+              {r.parentCampaign}
+            </span>
+          );
         case "objective":
           return (
             <span className="inline-flex items-center gap-1">
@@ -265,7 +276,7 @@ export function PortfolioTable({
         case "adSets":
           return <span className="text-ink-3">{int(totals.adSets)}</span>;
         case "creatives":
-          return <span className="text-ink-3">{int(totals.creatives)}</span>;
+          return <span className="text-ink-3">{int(creativesTotal)}</span>;
         case "spend":
           return usd(totals.spend);
         case "impressions":
@@ -305,6 +316,7 @@ export function PortfolioTable({
     const sortVal = (r: PortfolioCampaignRow, key: string): number | string | null => {
       if (key === "campaign") return r.campaign;
       if (key === "objective") return r.objective;
+      if (key === "parentCampaign") return r.parentCampaign;
       if (key === "adSets") return isParentRow(r) ? r.adSets : null;
       if (key === "status") return CAMPAIGN_STATUS_ORDER[r.status];
       if (key === "lastDate") return r.lastDate ?? "";
@@ -326,7 +338,11 @@ export function PortfolioTable({
       href:
         m.key === "campaign"
           ? (r: PortfolioCampaignRow) => withDateRange(rowPath(r), rangeFrom, rangeTo)
-          : undefined,
+          : m.key === "parentCampaign"
+            ? // The way up: this ad set's campaign.
+              (r: PortfolioCampaignRow) =>
+                withDateRange(campaignPath(r.network, r.parentCampaign), rangeFrom, rangeTo)
+            : undefined,
       csv:
         m.key === "platforms"
           ? (r: PortfolioCampaignRow) => r.platforms.join(" | ")
@@ -334,7 +350,7 @@ export function PortfolioTable({
             ? (r: PortfolioCampaignRow) => CAMPAIGN_STATUS_LABEL[r.status]
             : undefined,
     }));
-  }, [totals, rangeFrom, rangeTo, meta]);
+  }, [totals, creativesTotal, rangeFrom, rangeTo, meta]);
 
   return (
     <DataTable

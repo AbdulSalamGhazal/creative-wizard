@@ -113,6 +113,7 @@ export async function runCleanup(input: unknown): Promise<CleanupResult> {
           productIds: f.productIds,
           creativeIds: f.creativeIds,
           campaigns: f.campaigns,
+          parentCampaignIds: f.parentCampaignIds,
         },
       },
       touches,

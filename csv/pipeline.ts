@@ -25,7 +25,12 @@ import {
   type PlatformAdapter,
 } from "@/csv/platforms/types";
 import type { ValidationError } from "@/csv/errors";
-import { buildCampaignName, parentKey, parentOfBuiltName } from "@/lib/campaign";
+import {
+  AD_NETWORK_LABEL,
+  buildCampaignName,
+  parentKey,
+  parentOfBuiltName,
+} from "@/lib/campaign";
 import { splitLandingCode, withLandingCode } from "@/lib/landing-code";
 
 type Platform = PlatformAdapter["platform"];
@@ -538,11 +543,16 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         });
         continue;
       }
-      const missing = input.registeredParents !== undefined && parent !== null ? parent.campaign : campaignName;
+      const twoLevels = input.registeredParents !== undefined && parent !== null;
+      const missing = twoLevels ? parent.campaign : campaignName;
+      // A campaign is per NETWORK, and two networks may each have a campaign
+      // of one name: say which network's is missing (2026-11-24), or "Summer
+      // is not registered" reads as false to someone who has TikTok's Summer.
+      const whose = twoLevels ? `${AD_NETWORK_LABEL[parent.network]} campaign` : "campaign";
       collected.push({
         code: "E061",
         severity: "ERROR",
-        message: `Row ${rowNumber}: campaign \`'${missing}'\` is not registered. Create it on the Campaigns page first.`,
+        message: `Row ${rowNumber}: ${whose} \`'${missing}'\` is not registered. Create it on the Campaigns page first.`,
         row: rowNumber,
         field: "campaign_name",
         value: missing,

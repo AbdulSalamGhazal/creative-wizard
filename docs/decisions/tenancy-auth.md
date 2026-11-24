@@ -63,15 +63,16 @@
   admin reset ends all of the target's. Middleware stays DB-free — never
   move this check there.
 - **Every audit write names what it touched (2026-11).** An event that
-  affects creatives, campaigns or budget months passes them through
+  affects any `auditTouchEntityEnum` entity (creative, ad set, campaign,
+  budget month, price version, landing page) passes them through
   `writeAudit({ touches })` / `logAudit({ touches })` (lib/audit.ts), which
   writes the `audit_event_entities` links on the SAME executor as the audit
   row (one transaction) — the per-entity Activity history reads nothing
   else. The writer resolves the ids INSIDE its own transaction and BEFORE any
   delete — a `DELETE … RETURNING creative_id, campaign_id, date`, a
   `TouchCollector` fed by the exclusion engine — never by re-reading after
-  the rows are gone. An event ON a creative / campaign / budget month
-  (`budget.update` with a month) links itself (`selfTouches`); `touches`
+  the rows are gone. An event ON one of those entities (a budget month:
+  `budget.update` with a month) links itself (`selfTouches`); `touches`
   carries the other side. Paths that insert or delete records also touch the
   records' MONTHS (Budget's actuals move); exclusions never do (Budget
   ignores them by design). Links are brand-stamped with the event's account.

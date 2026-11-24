@@ -58,6 +58,26 @@
 - **Currency is stated per field when a tool mixes them.** Ads money is USD;
   Store money is SAR (`get_store`, and `revenue_sar` in `get_budget`). Field
   names carry the unit (`spend_usd`, `revenue_sar`) so the model can't add them.
+- **A campaign-shaped tool STATES WHICH LEVEL it returns (2026-11).** The one
+  shared `TWO_LEVELS` sentence (lib/mcp/tools.ts) sits in the description of
+  `list_campaigns`, `get_campaign`, `get_timeseries`, `diagnose_campaign`,
+  `get_canvas_patterns` — and of `get_creative` and `get_landing_pages`,
+  whose per-ad-set breakdowns keep their old keys (`byCampaign`,
+  `by_campaign`) and say so. **An ad-set row always carries the way up:**
+  `campaign` (the full stored name), `ad_set`, and `parent_campaign` +
+  `network` from the REGISTRY (never parsed off the name) — on
+  `list_campaigns`, `get_campaign`, `get_creative` and `get_landing_pages`
+  (2026-11-24). `get_campaign` echoes `level` at both levels, and each
+  `dailyByAdSet` point carries the stored name that joins it to `adSets`. Tool NAMES and the default grain are unchanged — the
+  default is the AD SET, because callers and saved prompts rely on it; the
+  campaign is the roll-up: `level: "campaign"` on `list_campaigns`,
+  `get_campaign` and `get_canvas_patterns`, `dimension: "parent_campaign"` on
+  `get_timeseries`; `diagnose_campaign` reads ONE AD SET and has no campaign
+  level — its bundle's conventions open with a TWO LEVELS line naming the ad
+  set, its campaign and network, and telling the model to read every
+  "campaign" in the bundle as "ad set" (the bundle's field names and its
+  instructions are otherwise unchanged). Never add a tool whose rows could be
+  read as either level.
 
 ## History and rationale
 

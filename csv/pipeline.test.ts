@@ -405,6 +405,10 @@ describe("CSV pipeline — two levels: which one is missing (E061 / E062)", () =
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.errors[0]).toMatchObject({ code: "E061", value: "Spring Launch" });
+    // It says WHOSE: TikTok's "Spring Launch" exists, Meta's does not.
+    expect(res.errors[0]!.message).toContain(
+      "Meta campaign `'Spring Launch'` is not registered",
+    );
     expect(res.errors.some((e) => e.code === "E062")).toBe(false);
   });
 

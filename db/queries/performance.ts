@@ -854,8 +854,12 @@ export async function platformMix(
 }
 
 export interface CampaignMixRow extends PlatformMixRow {
-  /** Combined `Campaign ➤ Adset` (with platform suffix for IG/FB). */
+  /** The AD SET's stored name: `Campaign ➤ Adset` (with platform suffix for IG/FB). */
   campaign: string;
+  /** The CAMPAIGN that ad set sits under, and its network — the way up
+   *  (2026-11): a PK join on the row the GROUP BY already has. */
+  parentCampaign: string;
+  network: AdNetwork;
   /** The campaign's objective — a column of the row the GROUP BY's PK
    *  (`campaigns.id`) already joins, offered as a defaultHidden column. */
   objective: string;
@@ -877,6 +881,8 @@ export async function campaignMix(
     .select({
       platform: performanceRecords.platform,
       campaign: campaigns.name,
+      parentCampaign: parentCampaigns.name,
+      network: parentCampaigns.network,
       objective: campaigns.objective,
       spend: sumSpend,
       impressions: sumImpressions,
@@ -893,6 +899,8 @@ export async function campaignMix(
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    // Every ad set has its campaign (`parent_id` is NOT NULL).
+    .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
     .$dynamic();
 
   if (needsCreativeJoin || needsAngleJoin) {
@@ -907,12 +915,14 @@ export async function campaignMix(
 
   const rows = await q
     .where(and(...conditions))
-    .groupBy(performanceRecords.platform, campaigns.id)
+    .groupBy(performanceRecords.platform, campaigns.id, parentCampaigns.id)
     .orderBy(desc(sumSpend));
 
   return rows.map((r) => ({
     platform: r.platform as Platform,
     campaign: r.campaign as string,
+    parentCampaign: r.parentCampaign,
+    network: r.network,
     objective: r.objective as string,
     spend: Number(r.spend ?? 0),
     impressions: Number(r.impressions ?? 0),

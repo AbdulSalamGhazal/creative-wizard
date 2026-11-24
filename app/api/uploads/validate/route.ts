@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { can, requirePermission } from "@/lib/auth";
 import { authFailureStatus } from "@/lib/route-auth";
@@ -18,6 +18,7 @@ import { runPipeline, type ExistingRecord, type ParsedRow } from "@/csv/pipeline
 import { uploadTotals, type UploadTotals } from "@/csv/upload-totals";
 import { campaignPlatformCollisions } from "@/csv/cross-platform";
 import { resolveAdapter } from "@/db/queries/platforms";
+import { adSetNamesOnOtherPlatforms } from "@/db/queries/campaign";
 import { getActiveAccountId } from "@/lib/tenant";
 import { parentKey } from "@/lib/campaign";
 import { uploadPlatformSchema } from "@/validators/upload";
@@ -222,36 +223,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Cross-platform campaign-name guard (E060): a campaign name must belong to a
-  // single platform — the app keys a campaign by name alone, so the same name on
-  // two platforms would silently merge into one campaign. Reject if any campaign
-  // in this file already exists on a DIFFERENT platform (active batches only).
+  // Cross-platform ad-set-name guard (E060): a stored ad-set name must belong
+  // to a single platform — the app keys an ad set by that name alone, so the
+  // same name on two platforms would silently merge into one. Reject if any
+  // name in this file already lives on a DIFFERENT platform: carrying active
+  // records there, or REGISTERED there (`adSetNamesOnOtherPlatforms`).
   const fileCampaigns = [...new Set(result.rows.map((r) => r.campaignName))];
-  const onOtherPlatforms = fileCampaigns.length
-    ? await db
-        .selectDistinct({
-          campaignName: campaigns.name,
-          platform: performanceRecords.platform,
-        })
-        .from(performanceRecords)
-        .innerJoin(
-          uploadBatches,
-          eq(uploadBatches.id, performanceRecords.uploadBatchId),
-        )
-        .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-        .where(
-          and(
-            eq(performanceRecords.accountId, acct),
-            inArray(campaigns.name, fileCampaigns),
-            ne(performanceRecords.platform, platform),
-            eq(uploadBatches.status, "active"),
-          ),
-        )
-    : [];
   const collisionErrors = campaignPlatformCollisions(
     platform,
     fileCampaigns,
-    onOtherPlatforms,
+    await adSetNamesOnOtherPlatforms(acct, fileCampaigns, platform),
   );
   if (collisionErrors.length > 0) {
     return NextResponse.json(

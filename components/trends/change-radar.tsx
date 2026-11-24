@@ -23,7 +23,8 @@ export interface ChangeRadarRow {
   key: string;
   label: string;
   sub: string | null;
-  href: string;
+  /** The row's own page; null for a row that has none (a platform). */
+  href: string | null;
   /** Current-window spend as a share of the account total (0..1). */
   share: number | null;
   curSpend: number;
@@ -144,13 +145,19 @@ export function ChangeRadar({ rows }: { rows: ChangeRadarRow[] }) {
                   {TierIcon && <TierIcon />}
                   {meta.label}
                 </Chip>
-                <Link
-                  href={r.href}
-                  title={r.label}
-                  className="text-sm font-medium text-ink hover:text-brand transition-colors truncate"
-                >
-                  {r.label}
-                </Link>
+                {r.href ? (
+                  <Link
+                    href={r.href}
+                    title={r.label}
+                    className="text-sm font-medium text-ink hover:text-brand transition-colors truncate"
+                  >
+                    {r.label}
+                  </Link>
+                ) : (
+                  <span title={r.label} className="text-sm font-medium text-ink truncate">
+                    {r.label}
+                  </span>
+                )}
                 {/* What drove the warning — the single loudest deterioration. */}
                 {warned && worst && worst.change !== null && (
                   <span

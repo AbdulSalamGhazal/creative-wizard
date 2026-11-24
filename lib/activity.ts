@@ -43,8 +43,8 @@ export const ANCHOR_TYPE_LABEL: Record<CommentAnchorType, string> = {
 };
 
 /**
- * What a run's header says when the thing it was about is GONE: a creative or
- * campaign hard-deleted (comments survive — `anchor_id` has no FK), or a page
+ * What a run's header says when the thing it was about is GONE: a creative,
+ * ad set or campaign hard-deleted (comments survive — `anchor_id` has no FK), or a page
  * the nav no longer offers. A budget month always labels; its entry exists so
  * the record stays exhaustive.
  */

@@ -37,6 +37,7 @@ import {
   MAX_DIAGNOSIS_WEEKS,
 } from "@/lib/diagnosis";
 import type { Account } from "@/lib/tenant";
+import { AD_NETWORK_LABEL, isAdNetwork } from "@/lib/campaign";
 
 /**
  * Assembly for the AI campaign diagnosis bundle. Every number here comes from a
@@ -257,6 +258,12 @@ export async function campaignDiagnosisInput(
     brand: { id: brand.id, name: brand.name },
     campaign: {
       name: meta.campaign,
+      adSet: meta.adsetName,
+      parentCampaign: meta.parent?.name ?? null,
+      network:
+        meta.parent && isAdNetwork(meta.parent.network)
+          ? AD_NETWORK_LABEL[meta.parent.network]
+          : null,
       objective: meta.objective,
       platform,
       platforms: meta.platforms,

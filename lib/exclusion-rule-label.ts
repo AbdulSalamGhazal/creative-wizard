@@ -10,6 +10,19 @@ import type { ExclusionRuleKind } from "@/lib/enums";
  */
 export type ExclusionRuleKindLike = ExclusionRuleKind;
 
+/**
+ * A rule KIND in the UI's words — one map for the rules admin's picker and
+ * the audit log's summary line, so a stored key (`campaign` = ONE ad set,
+ * `parent_campaign` = a whole campaign) never reaches the screen raw. The key
+ * order is the picker's order: widest net first.
+ */
+export const EXCLUSION_RULE_KIND_LABEL: Record<ExclusionRuleKind, string> = {
+  campaign_objective: "Ad set objective",
+  parent_campaign: "Whole campaign",
+  campaign: "Specific ad set",
+  creative: "Specific creative",
+};
+
 export function exclusionRuleLabel(
   rule: { kind: ExclusionRuleKindLike | null; objective: string | null },
   ctx: {

@@ -431,8 +431,10 @@ describe("the parent_campaigns_reconcile migration reads a name exactly as parse
     for (const s of statements) await db.execute(sql.raw(s));
   };
 
-  // Every shape a stored name can take, as rows the old code left behind
-  // (no campaign, no ad-set name).
+  // Every shape a stored name can take. The two columns are REQUIRED now, so
+  // a row can no longer lack them — each is filed under the WRONG campaign
+  // with a placeholder ad-set name, which is the state the reconcile exists
+  // to repair (derived ≠ stored).
   const LEGACY: Array<[string, "instagram" | "facebook" | "tiktok" | "snapchat" | "google"]> = [
     ["Holiday ➤ Broad (IG)", "instagram"],
     ["Holiday ➤ Broad (FB)", "facebook"],
@@ -444,10 +446,11 @@ describe("the parent_campaigns_reconcile migration reads a name exactly as parse
     ["Trailing  ➤ x", "tiktok"], // nothing is trimmed
   ];
 
-  it("gives every legacy row its campaign and ad-set name", async () => {
+  it("gives every mis-filed row its campaign and ad-set name", async () => {
     await db.insert(campaigns).values(
       LEGACY.map(([name, platform]) => ({
         accountId: ACCOUNT_A, name, platform, objective: "Sales" as const, createdByUserId: USER,
+        parentId: PARENT_NEW, adsetName: "?",
       })),
     );
     await reconcile();
@@ -460,7 +463,7 @@ describe("the parent_campaigns_reconcile migration reads a name exactly as parse
         network: parentCampaigns.network,
       })
       .from(campaigns)
-      .leftJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+      .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
       .where(eq(campaigns.accountId, ACCOUNT_A));
     for (const [name, platform] of LEGACY) {
       const row = rows.find((r) => r.name === name)!;

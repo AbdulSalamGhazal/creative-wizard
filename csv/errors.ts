@@ -32,23 +32,25 @@ export const errorCodes = {
   E040: "ERROR",
   E041: "ERROR",
   E042: "ERROR",
-  // E050: duplicate within the uploaded file (same creative + campaign + date).
-  // E051: row matches (creative, platform, campaign, date) already imported.
-  // Campaign name is part of the key, so legitimate multi-campaign rows are
-  // distinct and allowed; only true duplicates are rejected.
+  // E050: duplicate within the uploaded file (same creative + ad set + date).
+  // E051: row matches (creative, platform, ad set, date) already imported.
+  // The AD SET (the stored `Campaign ➤ Ad set` name) is part of the key, so
+  // one creative in several ad sets is distinct rows and allowed; only true
+  // duplicates are rejected.
   E050: "ERROR",
   E051: "ERROR",
-  // E052: the same (creative, platform, campaign, date) is stored under a
+  // E052: the same (creative, platform, ad set, date) is stored under a
   // DIFFERENT landing page that this file doesn't also carry — the ad was
   // renamed on the platform, and importing would count that day twice.
   E052: "ERROR",
-  // E060: a campaign name in this file already exists on a DIFFERENT platform.
-  // A campaign name must belong to one platform — the app treats the same name
-  // as one campaign, so allowing it on two platforms would silently merge them.
+  // E060: an AD SET's stored name in this file already exists on a DIFFERENT
+  // platform — registered there (2026-11-24) or carrying records there. A
+  // stored name belongs to one platform: the app treats the same name as one
+  // ad set, so allowing it on two platforms would silently merge them.
   E060: "ERROR",
-  // E061: the campaign isn't registered. Like creatives (E020), a campaign must
-  // be created in the system before an upload can reference it — otherwise a
-  // rename at the source would silently spawn a new campaign.
+  // E061: the CAMPAIGN isn't registered on this file's network. Like creatives
+  // (E020), a campaign must be created in the system before an upload can
+  // reference it — otherwise a rename at the source would silently spawn one.
   E061: "ERROR",
   // E062 (2026-11): the CAMPAIGN is registered, but this AD SET under it is
   // not. Two levels, both registered by hand — the fix is "Add ad set" on that

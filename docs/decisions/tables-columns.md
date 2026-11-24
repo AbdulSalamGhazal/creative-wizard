@@ -28,7 +28,7 @@
   the row is reachable by keyboard and opens in a new tab (R-008, R-015).
 - **Long tables reveal progressively** (`pageSize`, opt-in, R-029): the first
   N sorted rows render with a "Show N more · total" button under the frame;
-  sort, totals and CSV still use every row. Creative and campaign records use
+  sort, totals and CSV still use every row. Creative and ad-set records use
   200.
 - **A totals row is labelled "Total"** — `TotalLabel`
   (components/ui/total-label.tsx), with the weighting rule as its ⓘ (R-098).
@@ -76,21 +76,34 @@
 - The consumer may keep the sort when the comparator is composite, when nulls
   must not sink, or when a CSV must export in the on-screen order — then no
   column carries a `sortValue`.
-- **URL-backed tables (Campaigns, Ads) follow the catalog rule too (2026-11-20).**
+- **The stored table keys keep the old words (2026-11).** `campaigns`,
+  `campaign-records` and `campaign-creatives` belong to the AD SET screens
+  (the Ad sets list, an ad set's records and its creatives);
+  `parent-campaigns`, `parent-campaign-ad-sets` and
+  `parent-campaign-creatives` to the CAMPAIGN screens (the Campaigns list, a
+  campaign's ad sets and its creatives). The keys are stored — never rename
+  one to tidy it (`TABLE_KEYS`, lib/table-columns.ts).
+- **An ad-set table carries a Campaign column, shown by default
+  (2026-11-24)** — the Ad sets list (`parentCampaign` in
+  `portfolio-columns.ts`, sortable, absent from the Campaigns list where the
+  identity column already is the campaign) and the by-ad-set mode of the
+  creative / landing-page table (`creative-campaigns-table.tsx`). The cell
+  links to the campaign's page and is `truncate`d under the phone cap.
+- **URL-backed tables (Campaigns, Ad sets, Ads) follow the catalog rule too (2026-11-20).**
   A new column there is `defaultHidden`, and opening it is written into the
   URL with the same `!key` marker (`hide=cpm,!lpv`; Ads: `hideIdentity=!angles`,
   `hideMetrics=!revenue`). A URL or saved view that never names a new column
   keeps it hidden, so every stored query string renders exactly as before;
   `resolveColumnPrefs` takes the table's `defaultHidden` for this.
 - **Presentation-only params are SHALLOW (D12, 2026-10).** A sort (Ads,
-  Library, Campaigns) and the Ads column toggles rewrite the URL with the
+  Library, Campaigns, Ad sets) and the Ads column toggles rewrite the URL with the
   native history API (`lib/shallow-url.ts`) — no server render — and the
   table re-arranges the rows it holds, reading the URL live. The ORDER is one
   pure function per table that the server ALSO sorts with
   (`sortSummaryRows` lib/summary-sort.ts, `sortCreativeRows`
-  lib/creative-sort.ts; Campaigns' `sortValue`s run in the same DataTable on
+  lib/creative-sort.ts; Campaigns' and Ad sets' `sortValue`s run in the same DataTable on
   both sides), so a fresh load and a click can't disagree. A sort click on
-  Ads/Campaigns is a history entry (`push`); the Library's sort and the Ads
+  Ads/Campaigns/Ad sets is a history entry (`push`); the Library's sort and the Ads
   columns `replace`, as their navigations did. Precedence is unchanged: what
   the URL states → a toggle made in this tab → the server's resolution
   (view → preference → config).

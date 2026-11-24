@@ -98,7 +98,8 @@ export interface DiagnosisCreativeInput {
     spend: number;
     revenue: number;
     roas: number | null;
-    /** Distinct campaigns it ran in during the window, INCLUDING this one. */
+    /** Distinct AD SETS it ran in during the window, INCLUDING this one (the
+     *  key predates the two levels — the conventions block says so). */
     campaigns: number;
   };
 }
@@ -106,8 +107,15 @@ export interface DiagnosisCreativeInput {
 export interface DiagnosisInput {
   generatedAt: string;
   brand: { id: string; name: string };
+  /** The AD SET being diagnosed (the key predates the two levels). */
   campaign: {
+    /** Its full stored name, `Campaign ➤ Ad set` (+ platform tag). */
     name: string;
+    /** The two levels (2026-11): the ad set's own name, the CAMPAIGN it sits
+     *  under and that campaign's ad network. */
+    adSet?: string | null;
+    parentCampaign?: string | null;
+    network?: string | null;
     objective: string;
     platform: Platform | null;
     platforms: Platform[];
@@ -330,6 +338,8 @@ export interface ConventionsInput {
   platform: Platform | null;
   coverage: Record<string, string | null>;
   excludedRecords: "hidden" | "included";
+  /** The diagnosed ad set and the campaign above it — names the level. */
+  level?: { storedName: string; parentCampaign: string | null; network: string | null };
 }
 
 /**
@@ -349,6 +359,11 @@ export function diagnosisConventions(i: ConventionsInput): string {
     .join("; ");
   return [
     "HOW TO READ THESE NUMBERS (house conventions — do not substitute your own):",
+    ...(i.level
+      ? [
+          `· TWO LEVELS: the app has CAMPAIGNS that hold AD SETS. What this bundle calls "this campaign" is ONE AD SET — stored as "${i.level.storedName}"${i.level.parentCampaign ? ` — under the campaign "${i.level.parentCampaign}"${i.level.network ? ` on ${i.level.network}` : ""}` : ""}. Every number here is that ad set alone; its sibling ad sets are NOT in this bundle. Wherever a field or a sentence says "campaign" (inCampaign, elsewhere.campaigns, campaignShareOfPlatformSpend), read "ad set". Call it an ad set in your report, and name its campaign.`,
+        ]
+      : []),
     "· Money is USD unless a field says SAR. Dates are YYYY-MM-DD.",
     `· The brand's USD→SAR rate is ${i.rate}. Revenue figures sourced from the store are SAR; ad-platform revenue is USD.`,
     "· Every blended metric (CTR, CvR, ROAS, CPA, CPM, VOC, hook/hold/complete) is WEIGHTED — component sums divided by component sums, never the mean of per-row ratios. Do not average the daily ratios to get a period ratio; recompute from the sums.",
@@ -500,6 +515,11 @@ export function serializeDiagnosis(input: DiagnosisInput): DiagnosisBundle {
         Object.entries(input.coverage).map(([p, d]) => [p, d ?? null]),
       ),
       excludedRecords: input.excludedRecords,
+      level: {
+        storedName: input.campaign.name,
+        parentCampaign: input.campaign.parentCampaign ?? null,
+        network: input.campaign.network ?? null,
+      },
     }),
     instructions: DIAGNOSIS_INSTRUCTIONS,
   };

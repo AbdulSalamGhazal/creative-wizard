@@ -39,6 +39,9 @@ export const CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = [
   // "campaign" is the UI's ad set (lib/campaign.ts, "TWO LEVELS"). The KEY is
   // stored in saved views and preferences, so it keeps its name.
   { key: "campaign", label: "Ad set", align: "left", sortable: true, pinned: true, defaultSortDir: "asc" },
+  // The way UP (2026-11): the campaign this ad set sits under, a link to its
+  // page. Ad-set level only — a campaign row IS the campaign.
+  { key: "parentCampaign", label: "Campaign", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "objective", label: "Objective", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "status", label: "Status", align: "left", sortable: true, defaultSortDir: "asc" },
   { key: "platforms", label: "Platform", align: "left", sortable: false },
@@ -91,6 +94,8 @@ export type PortfolioLevel = "adset" | "campaign";
 export const PARENT_CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = CAMPAIGN_COLS_META.flatMap(
   (c): CampaignColumnMeta[] => {
     if (c.key === "campaign") return [{ ...c, label: "Campaign" }];
+    // Its own name is the identity column already.
+    if (c.key === "parentCampaign") return [];
     // The ad sets it holds, right after where it runs.
     if (c.key === "platforms") {
       return [c, { key: "adSets", label: "Ad sets", align: "right", sortable: true }];
@@ -100,7 +105,15 @@ export const PARENT_CAMPAIGN_COLS_META: readonly CampaignColumnMeta[] = CAMPAIGN
 );
 
 /** Columns that are NOT a number — everything else reads "—" on a never-run campaign. */
-const NON_NUMERIC = new Set(["campaign", "objective", "status", "platforms", "adSets", "createdAt"]);
+const NON_NUMERIC = new Set([
+  "campaign",
+  "parentCampaign",
+  "objective",
+  "status",
+  "platforms",
+  "adSets",
+  "createdAt",
+]);
 
 export interface PortfolioLevelMeta {
   cols: readonly CampaignColumnMeta[];

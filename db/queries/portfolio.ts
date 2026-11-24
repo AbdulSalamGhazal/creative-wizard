@@ -62,10 +62,19 @@ export interface PortfolioFilters {
   includeExcluded?: boolean;
 }
 
+/**
+ * `search` says what `q` SELECTS (2026-11). On the Ad sets list it narrows to
+ * the matching ad sets. On the Campaigns list it only decides WHICH campaigns
+ * are listed — a campaign whose name, any ad set's name or any creative it
+ * ran matches — and every listed campaign keeps its WHOLE total (user
+ * decision: a found campaign must not show a slice of itself under its own
+ * name). Platform and objective still narrow the records at both levels.
+ */
 function baseConds(
   f: PortfolioFilters,
   range: { from: string; to: string },
   acct: string,
+  search: "adset" | "campaign" = "adset",
 ): SQL[] {
   const c: SQL[] = [
     eq(performanceRecords.accountId, acct),
@@ -87,6 +96,27 @@ function baseConds(
     // Match on the campaign name OR on a creative name — and when a creative
     // matches, keep the WHOLE campaign (every campaign that runs that creative),
     // not just that creative's rows. So the second arm is a campaign-level IN.
+    if (search === "campaign") {
+      // A stored ad-set name carries its campaign's name, so one ILIKE covers
+      // both; the creative arm is the same ad-set-level IN as below.
+      c.push(
+        sql`${campaigns.parentId} IN (
+          SELECT c2.parent_id
+          FROM campaigns c2
+          WHERE c2.account_id = ${acct}
+            AND (
+              c2.name ILIKE ${like}
+              OR c2.id IN (
+                SELECT DISTINCT pr2.campaign_id
+                FROM performance_records pr2
+                JOIN creatives cr2 ON cr2.id = pr2.creative_id
+                WHERE pr2.account_id = ${acct} AND cr2.name ILIKE ${like}
+              )
+            )
+        )`,
+      );
+      return c;
+    }
     c.push(
       or(
         ilike(campaigns.name, like),
@@ -102,6 +132,23 @@ function baseConds(
   return c;
 }
 
+/**
+ * A list's rows plus the ONE figure its total row cannot add up from them:
+ * the creatives that ran, each counted ONCE. A creative in three ad sets (or
+ * three campaigns) is three rows' worth of `creatives`, so summing the column
+ * over-counts it — the total is the size of the union instead.
+ */
+export interface PortfolioList<Row> {
+  rows: Row[];
+  creativesTotal: number;
+}
+
+const unionSize = (sets: ReadonlyArray<readonly string[] | null>): number => {
+  const all = new Set<string>();
+  for (const ids of sets) for (const id of ids ?? []) all.add(id);
+  return all.size;
+};
+
 // =====================================================================
 // Per-campaign rows — power the campaigns table
 // =====================================================================
@@ -109,6 +156,9 @@ function baseConds(
 export interface PortfolioCampaignRow {
   campaignId: string;
   campaign: string;
+  /** The CAMPAIGN this ad set sits under, and its network — the way up. */
+  parentCampaign: string;
+  network: AdNetwork;
   objective: CampaignObjective;
   /** Dynamic liveness (spend-derived), computed over all data — not the range. */
   status: CampaignStatus;
@@ -145,12 +195,23 @@ export async function portfolioCampaigns(
   f: PortfolioFilters,
   range?: { from: string; to: string },
 ): Promise<PortfolioCampaignRow[]> {
+  return (await portfolioCampaignList(f, range)).rows;
+}
+
+/** The Ad sets list: its rows, and its creatives counted once. */
+export async function portfolioCampaignList(
+  f: PortfolioFilters,
+  range?: { from: string; to: string },
+): Promise<PortfolioList<PortfolioCampaignRow>> {
   const acct = await getActiveAccountId();
   const r = range ?? { from: f.from, to: f.to };
   const rows = await db
     .select({
       campaignId: campaigns.id,
       campaign: campaigns.name,
+      parentCampaign: parentCampaigns.name,
+      network: parentCampaigns.network,
+      creativeIds: sql<string[] | null>`array_agg(DISTINCT ${performanceRecords.creativeId})`,
       objective: campaigns.objective,
       platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
       creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
@@ -176,12 +237,18 @@ export async function portfolioCampaigns(
     })
     .from(performanceRecords)
     .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    // Every ad set has its campaign (`parent_id` is NOT NULL since the
+    // contract migration) — a PK join, grouped with the ad set.
+    .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
     .where(and(...baseConds(f, r, acct)))
-    .groupBy(campaigns.id)
+    .groupBy(campaigns.id, parentCampaigns.id)
     .orderBy(desc(sumSpend));
+  const creativeIdsOf = new Map(rows.map((row) => [row.campaignId, row.creativeIds]));
   const base = rows.map((row) => ({
     campaignId: row.campaignId,
     campaign: row.campaign,
+    parentCampaign: row.parentCampaign,
+    network: row.network,
     objective: row.objective,
     platforms: row.platforms ?? [],
     creatives: num(row.creatives),
@@ -214,11 +281,12 @@ export async function portfolioCampaigns(
     ...b,
     status: campaignStatusFor(statusMap, b.campaignId),
   }));
-  if (f.statuses && f.statuses.length > 0) {
-    const want = new Set(f.statuses);
-    return rowsWithStatus.filter((row) => want.has(row.status));
-  }
-  return rowsWithStatus;
+  const want = f.statuses && f.statuses.length > 0 ? new Set(f.statuses) : null;
+  const kept = want ? rowsWithStatus.filter((row) => want.has(row.status)) : rowsWithStatus;
+  return {
+    rows: kept,
+    creativesTotal: unionSize(kept.map((row) => creativeIdsOf.get(row.campaignId) ?? null)),
+  };
 }
 
 // =====================================================================
@@ -252,12 +320,21 @@ export async function portfolioParentCampaigns(
   f: PortfolioFilters,
   range?: { from: string; to: string },
 ): Promise<PortfolioParentRow[]> {
+  return (await portfolioParentCampaignList(f, range)).rows;
+}
+
+/** The Campaigns list: its rows, and its creatives counted once. */
+export async function portfolioParentCampaignList(
+  f: PortfolioFilters,
+  range?: { from: string; to: string },
+): Promise<PortfolioList<PortfolioParentRow>> {
   const acct = await getActiveAccountId();
   const r = range ?? { from: f.from, to: f.to };
   const [metricRows, registry, statusMap] = await Promise.all([
     db
       .select({
         parentId: campaigns.parentId,
+        creativeIds: sql<string[] | null>`array_agg(DISTINCT ${performanceRecords.creativeId})`,
         platforms: sql<Platform[]>`array_agg(DISTINCT ${performanceRecords.platform})`,
         creatives: sql<number>`COUNT(DISTINCT ${performanceRecords.creativeId})::int`,
         spend: sumSpend,
@@ -281,7 +358,7 @@ export async function portfolioParentCampaigns(
       })
       .from(performanceRecords)
       .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
-      .where(and(...baseConds(f, r, acct)))
+      .where(and(...baseConds(f, r, acct, "campaign")))
       .groupBy(campaigns.parentId),
     // The registry: every campaign with its ad sets, and whether each ad set
     // has ever had a record (an index probe per ad set, never a scan).
@@ -354,6 +431,8 @@ export async function portfolioParentCampaigns(
     return {
       campaignId: parentId,
       campaign: entry.name,
+      // A campaign row IS the campaign — the ad-set rows' "way up" field.
+      parentCampaign: entry.name,
       network: entry.network,
       adSets: entry.adSets.length,
       objectives,
@@ -365,13 +444,12 @@ export async function portfolioParentCampaigns(
 
   const out: PortfolioParentRow[] = [];
   const seen = new Set<string>();
+  const creativeIdsOf = new Map<string, string[] | null>();
   for (const row of metricRows) {
-    // An ad set the reconcile hasn't reached has no campaign yet — it shows
-    // on the Ad sets list, and here once it has one.
-    if (row.parentId === null) continue;
     const entry = reg.get(row.parentId);
     if (!entry) continue;
     seen.add(row.parentId);
+    creativeIdsOf.set(row.parentId, row.creativeIds);
     out.push({
       ...facts(row.parentId, entry),
       hasData: true,
@@ -451,10 +529,11 @@ export async function portfolioParentCampaigns(
   }
   never.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  const rows = [...out, ...never];
-  if (f.statuses && f.statuses.length > 0) {
-    const want = new Set(f.statuses);
-    return rows.filter((row) => want.has(row.status));
-  }
-  return rows;
+  const all = [...out, ...never];
+  const want = f.statuses && f.statuses.length > 0 ? new Set(f.statuses) : null;
+  const rows = want ? all.filter((row) => want.has(row.status)) : all;
+  return {
+    rows,
+    creativesTotal: unionSize(rows.map((row) => creativeIdsOf.get(row.campaignId) ?? null)),
+  };
 }

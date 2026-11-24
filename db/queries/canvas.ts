@@ -184,8 +184,9 @@ export async function canvasGraph(f: CanvasFilters): Promise<CanvasGraph> {
         campaignName: campaigns.name,
         objective: campaigns.objective,
         campaignPlatform: campaigns.platform,
-        // The ad set's CAMPAIGN — LEFT JOINed: `parent_id` is nullable until
-        // the contract migration, and an ad set without one still draws.
+        // The ad set's CAMPAIGN. `parent_id` is NOT NULL since the contract
+        // migration; the join stays LEFT so the row type keeps its nulls for
+        // the fold below (nothing reads a null there any more).
         parentId: parentCampaigns.id,
         parentName: parentCampaigns.name,
         parentNetwork: parentCampaigns.network,

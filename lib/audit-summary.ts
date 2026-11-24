@@ -1,6 +1,7 @@
 import { roas, usd0 } from "@/lib/format";
 import { PLATFORM_LABEL } from "@/lib/palette";
 import { AD_NETWORK_LABEL, isAdNetwork } from "@/lib/campaign";
+import { EXCLUSION_RULE_KIND_LABEL } from "@/lib/exclusion-rule-label";
 
 /**
  * One muted line per audit event — what the `meta` jsonb says, in words.
@@ -149,8 +150,13 @@ export function metaSummary(row: AuditSummaryInput): string | null {
     case "exclusion.rule_create": {
       const n = m.excluded as number | undefined;
       const note = m.note as string | null | undefined;
+      // The stored kind is a key (`campaign` = one ad set): say it in the
+      // UI's words; a kind this build doesn't know prints as stored.
+      const kind = m.kind as string | undefined;
       return join([
-        m.kind as string | undefined,
+        kind && kind in EXCLUSION_RULE_KIND_LABEL
+          ? EXCLUSION_RULE_KIND_LABEL[kind as keyof typeof EXCLUSION_RULE_KIND_LABEL]
+          : kind,
         n !== undefined ? `excluded ${plural(n, "record")}` : null,
         note ? `note: ${note}` : null,
       ]);

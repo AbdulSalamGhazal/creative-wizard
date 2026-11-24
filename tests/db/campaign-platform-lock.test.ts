@@ -27,15 +27,16 @@ import { db } from "@/lib/db";
 import { campaigns } from "@/db/schema";
 import { updateCampaign } from "@/app/actions/campaign";
 import { CAMPAIGN_PLATFORM_LOCKED } from "@/lib/campaign";
-import { CAMPAIGN_1, resetAndSeed } from "./fixtures";
+import { CAMPAIGN_1, resetAndSeed, seedAdSet } from "./fixtures";
 
 const EMPTY = "44444444-4444-4444-4444-4444444440e1";
 
 beforeEach(async () => {
   await resetAndSeed();
-  await db.insert(campaigns).values({
-    id: EMPTY, accountId: ACCOUNT_A, name: "Fresh ➤ Broad (IG)", platform: "instagram",
-    objective: "Sales", createdByUserId: USER,
+  // "Fresh ➤ Broad (IG)", under the Meta campaign "Fresh" — no records yet.
+  await seedAdSet({
+    id: EMPTY, accountId: ACCOUNT_A, campaign: "Fresh", adset: "Broad", platform: "instagram",
+    userId: USER,
   });
 });
 

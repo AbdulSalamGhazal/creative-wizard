@@ -41,21 +41,31 @@ export const ENTITY_ACTIVITY_ACTIONS: Record<EntityActivityType, readonly AuditA
     AUDIT_ACTIONS.CREATIVE_DELETE,
     ...EXCLUSION_ACTIONS,
   ],
+  // An AD SET (the stored key `campaign`): its own edits and exclusions — and
+  // its campaign's RENAME, which rewrote this ad set's stored name and URL
+  // (2026-11-24: the rename links every ad set it renamed).
   campaign: [
     AUDIT_ACTIONS.CAMPAIGN_CREATE,
     AUDIT_ACTIONS.CAMPAIGN_UPDATE,
+    AUDIT_ACTIONS.PARENT_CAMPAIGN_UPDATE,
     AUDIT_ACTIONS.CAMPAIGN_DELETE,
     ...EXCLUSION_ACTIONS,
   ],
-  // A CAMPAIGN: its own register / rename / delete, and the ad sets added to
-  // it or removed from it. An ad set's own edit or exclusion is the AD SET's
-  // history, not the campaign's.
+  // A CAMPAIGN: its own register / rename / delete, the ad sets added to it
+  // or removed from it, and the exclusion RULES on the whole campaign (a rule
+  // links its target — `targetTouches`). An ad set's own edit, its own rule
+  // or a manual exclusion on its records is the AD SET's history: none of
+  // those links the campaign, so the three rule actions here can only ever
+  // be whole-campaign rules.
   parent_campaign: [
     AUDIT_ACTIONS.PARENT_CAMPAIGN_CREATE,
     AUDIT_ACTIONS.PARENT_CAMPAIGN_UPDATE,
     AUDIT_ACTIONS.PARENT_CAMPAIGN_DELETE,
     AUDIT_ACTIONS.CAMPAIGN_CREATE,
     AUDIT_ACTIONS.CAMPAIGN_DELETE,
+    AUDIT_ACTIONS.EXCLUSION_RULE_CREATE,
+    AUDIT_ACTIONS.EXCLUSION_RULE_TOGGLE,
+    AUDIT_ACTIONS.EXCLUSION_RULE_DELETE,
   ],
   budget_month: [AUDIT_ACTIONS.BUDGET_UPDATE],
   ps_version: [
@@ -137,7 +147,7 @@ export async function entityActivityPage(
 }
 
 /**
- * "Went live" / "stopped" per platform for a creative, campaign or landing page — derived,
+ * "Went live" / "stopped" per platform for a creative, ad set or landing page — derived,
  * never stored, by the status badge's own rule (`statusEvents`). One bounded
  * scan of the entity's spend days (spend > 0, not excluded — the same inputs
  * as `brandStatusInputs`) plus the cached per-platform freshness. A budget

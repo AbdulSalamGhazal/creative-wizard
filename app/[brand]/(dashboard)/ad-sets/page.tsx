@@ -2,7 +2,7 @@ import { brandRedirect } from "@/lib/brand-redirect";
 import { Suspense } from "react";
 import { int } from "@/lib/format";
 import {
-  portfolioCampaigns,
+  portfolioCampaignList,
   type PortfolioFilters,
 } from "@/db/queries/portfolio";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
@@ -134,8 +134,8 @@ export default async function AdSetsPage({
     includeExcluded,
   };
 
-  const [campaigns, views] = await Promise.all([
-    portfolioCampaigns(filters),
+  const [{ rows: campaigns, creativesTotal }, views] = await Promise.all([
+    portfolioCampaignList(filters),
     listSummaryViews(user.id, "campaigns"),
   ]);
 
@@ -175,6 +175,7 @@ export default async function AdSetsPage({
       <AdDataGate>
         <PortfolioTable
           rows={campaigns}
+          creativesTotal={creativesTotal}
           sort={parsed.sort}
           dir={parsed.dir}
           hidden={columns.hidden}

@@ -1,14 +1,16 @@
 /**
- * Cross-platform campaign-name guard (error code E060).
+ * Cross-platform AD-SET-name guard (error code E060).
  *
- * A campaign name must belong to a SINGLE platform. The app keys a campaign by
- * its name alone (the /campaigns/[name] route, the campaigns table grouping,
- * every campaign-detail query) — so the same name appearing on two platforms is
- * silently treated as one campaign and its metrics get merged. We reject such an
- * upload at validate time with a clear, actionable message instead.
+ * An ad set's stored name (`Campaign ➤ Ad set`, the upload-matching key) must
+ * belong to a SINGLE platform. The app keys an ad set by that name alone (the
+ * /ad-sets/[adset] route, the ad-sets table grouping, every ad-set detail
+ * query) — so the same name on two platforms would silently be one ad set and
+ * its metrics would merge. We reject such an upload at validate time with a
+ * clear, actionable message instead.
  *
  * This is the PURE part (so it's unit-tested); the route supplies the existing
- * (name, platform) pairs via a DB query.
+ * (name, platform) pairs: the platforms the name has active RECORDS on, and
+ * the platform it is REGISTERED on.
  */
 
 import { PLATFORM_LABEL } from "@/lib/palette";

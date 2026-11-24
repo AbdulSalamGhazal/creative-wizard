@@ -267,7 +267,7 @@ and as-you-type name validation.
 
 **Navigation, states, touch**
 - **⌘K opens at every width** (a Search icon below md) and lists pages,
-  creatives, campaigns and the user's saved views (R-001, R-027).
+  creatives, campaigns, ad sets and the user's saved views (R-001, R-027).
 - **Both navs show "you are here" the same way:** `surface-2` plus a 2px
   `bg-brand` bar; `bg-brand-soft` means only "filter applied". Hub items are
   headings in the mobile nav; collapsed-rail tooltips use

@@ -5,6 +5,8 @@ import {
   between,
   desc,
   eq,
+  inArray,
+  ne,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -19,6 +21,7 @@ import {
   products,
   exclusionRules,
   landingPages,
+  uploadBatches,
 } from "@/db/schema";
 import { creativeStatusMap, statusFor } from "@/db/queries/creative-status";
 import type { CreativeStatus } from "@/lib/creative-status";
@@ -217,6 +220,59 @@ export async function campaignRegistry(
 }
 
 /**
+ * E060's facts: which of these stored AD-SET names already live on a platform
+ * OTHER than `platform` — the upload validate route's cross-platform guard
+ * (csv/cross-platform.ts turns the pairs into errors). Two sources, and both
+ * matter:
+ *
+ *  - RECORDS (active batches only): the platforms the name has stored rows on.
+ *  - the REGISTRY (2026-11-24): the platform the ad set is registered on. Only
+ *    Instagram and Facebook names carry a tag, so a TikTok ad set's stored
+ *    name is exactly what a Snapchat or Google file builds from the same
+ *    cells — and the records check sees nothing while that ad set has no
+ *    active records (just registered, or rolled back). Without it the file
+ *    would attach Snapchat records to a TikTok ad set, in a TikTok campaign.
+ *
+ * `acct` is a parameter: the route has already resolved the active account.
+ */
+export async function adSetNamesOnOtherPlatforms(
+  acct: string,
+  names: string[],
+  platform: Platform,
+): Promise<Array<{ campaignName: string; platform: Platform }>> {
+  if (names.length === 0) return [];
+  const [withRecords, registered] = await Promise.all([
+    db
+      .selectDistinct({
+        campaignName: campaigns.name,
+        platform: performanceRecords.platform,
+      })
+      .from(performanceRecords)
+      .innerJoin(uploadBatches, eq(uploadBatches.id, performanceRecords.uploadBatchId))
+      .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+      .where(
+        and(
+          eq(performanceRecords.accountId, acct),
+          inArray(campaigns.name, names),
+          ne(performanceRecords.platform, platform),
+          eq(uploadBatches.status, "active"),
+        ),
+      ),
+    db
+      .select({ campaignName: campaigns.name, platform: campaigns.platform })
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.accountId, acct),
+          inArray(campaigns.name, names),
+          ne(campaigns.platform, platform),
+        ),
+      ),
+  ]);
+  return [...withRecords, ...registered];
+}
+
+/**
  * One AD SET: its registry row, the campaign it sits under, and its all-time
  * facts. REGISTRY-FIRST (2026-11): null only when the name isn't registered —
  * an ad set with no records yet still has a page (it must be reachable to fix
@@ -241,7 +297,8 @@ export const campaignMeta = cache(async (
       parentNetwork: parentCampaigns.network,
     })
     .from(campaigns)
-    // LEFT: `parent_id` is nullable until the contract migration.
+    // `parent_id` is NOT NULL since the contract migration; LEFT only keeps
+    // `CampaignMeta`'s nullable parent fields as its callers were written.
     .leftJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
     .where(and(eq(campaigns.accountId, acct), eq(campaigns.name, name)))
     .limit(1);

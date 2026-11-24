@@ -16,7 +16,7 @@
   remaining active rules.
 - **Manual un-exclude REFUSES a rule-excluded row** — restore it by
   deactivating the rule.
-- Any edit path that can change a campaign's OBJECTIVE must release stale
+- Any edit path that can change an AD SET's OBJECTIVE must release stale
   stamps and re-sweep, in the same transaction as the write.
 - Rules are account-GLOBAL; the Excluded toggle is per-user.
 - **FOUR KINDS, one target each (the schema CHECKs it):** `campaign_objective`,
@@ -30,9 +30,11 @@
   It needs no "release stale stamps" step ONLY because an ad set cannot move
   between campaigns; the day one can, that edit path must release and
   re-sweep in its transaction, exactly as an objective edit does.
-- Deleting a campaign deletes the rule that targets it, in the same
-  transaction, AFTER its ad sets' records (`deleteRulesTargetingParentCampaign`
-  — the FK has no cascade, like its siblings).
+- Deleting a campaign deletes the rule that targets it AND the rules on its
+  ad sets, in the same transaction, AFTER its ad sets' records
+  (`deleteRulesTargetingCampaigns`, then `deleteRulesTargetingParentCampaign`
+  — the FK has no cascade, like its siblings). Deleting one ad set deletes
+  that ad set's rule (`deleteRulesTargeting`).
 
 ## History and rationale
 

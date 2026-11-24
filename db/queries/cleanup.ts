@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import {
   campaigns,
   creatives,
+  parentCampaigns,
   performanceRecords,
   platformEnum,
 } from "@/db/schema";
+import type { AdNetwork } from "@/lib/campaign";
 import { getActiveAccountId } from "@/lib/tenant";
 import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
 import { touchesFromRecords, type AuditTouches } from "@/lib/audit-touches";
@@ -18,7 +20,10 @@ export interface CleanupMatch {
   to?: string;
   productIds?: string[];
   creativeIds?: string[];
+  /** AD SETS, by stored name (the key predates the two levels). */
   campaigns?: string[];
+  /** Whole CAMPAIGNS, by id (2026-11): every ad set under each. */
+  parentCampaignIds?: string[];
 }
 
 export interface CleanupPreview {
@@ -69,6 +74,27 @@ async function buildConditions(
       ),
     );
   }
+  if (f.parentCampaignIds && f.parentCampaignIds.length > 0) {
+    // A whole campaign = the records of every ad set under it. Resolved to
+    // ad-set ids scoped to the active account (never trust a caller's id),
+    // then matched by campaign_id like the ad-set picker above — so picking
+    // a campaign AND one of its ad sets narrows to that ad set (AND).
+    const adSetIds = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.accountId, acct),
+          inArray(campaigns.parentId, f.parentCampaignIds),
+        ),
+      );
+    conds.push(
+      inArray(
+        performanceRecords.campaignId,
+        adSetIds.map((c) => c.id),
+      ),
+    );
+  }
   if (f.productIds && f.productIds.length > 0) {
     // performance_records has no product_id; match creatives under the selected
     // products via a subquery. Scope the subquery to the active account too —
@@ -104,7 +130,8 @@ function hasAnyFilter(f: CleanupMatch): boolean {
       (f.from && f.to) ||
       (f.creativeIds && f.creativeIds.length > 0) ||
       (f.productIds && f.productIds.length > 0) ||
-      (f.campaigns && f.campaigns.length > 0),
+      (f.campaigns && f.campaigns.length > 0) ||
+      (f.parentCampaignIds && f.parentCampaignIds.length > 0),
   );
 }
 
@@ -123,6 +150,34 @@ export async function listAccountCampaigns(): Promise<string[]> {
     .where(eq(performanceRecords.accountId, acct))
     .orderBy(asc(campaigns.name));
   return rows.map((r) => r.name);
+}
+
+/** One campaign as the cleanup picker lists it. */
+export interface CleanupCampaignOption {
+  id: string;
+  name: string;
+  network: AdNetwork;
+}
+
+/**
+ * The active account's CAMPAIGNS that have ever stored a record, for the
+ * cleanup tool's Campaigns picker — date-unbounded for the same reason as the
+ * ad-set list above. Two campaigns may share a name across networks, so each
+ * carries its network.
+ */
+export async function listAccountParentCampaigns(): Promise<CleanupCampaignOption[]> {
+  const acct = await getActiveAccountId();
+  return db
+    .selectDistinct({
+      id: parentCampaigns.id,
+      name: parentCampaigns.name,
+      network: parentCampaigns.network,
+    })
+    .from(performanceRecords)
+    .innerJoin(campaigns, eq(campaigns.id, performanceRecords.campaignId))
+    .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+    .where(eq(performanceRecords.accountId, acct))
+    .orderBy(asc(parentCampaigns.name), asc(parentCampaigns.network));
 }
 
 /** Count + summarize what a cleanup selection would affect. Read-only. */

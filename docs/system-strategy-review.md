@@ -6,6 +6,8 @@
 
 ## Part 1 — The system as it is today
 
+*The data-model description below is a snapshot: `campaign_id` has been a FK since migrations 0023/0024, and campaigns sit above ad sets since 2026-11 — see `docs/decisions/campaigns.md`.*
+
 ### What it is
 A **multi-tenant creative-performance analytics tool** for paid social (Instagram, Facebook, TikTok, Snapchat), fed by **manual CSV upload**. Strong analytical core: weighted-metric aggregation, a creative library with products/tags/dynamic status, ratings, record exclusion + audit trail, and a rich set of dashboards (Summary, Trends ×5, Funnel, Compare, Campaigns, Creative detail). *(A planned campaign-diagnosis page was cancelled in 2026-07 — its spec was deleted; references to it in this review describe the analytical direction, not a shipped page.)*
 

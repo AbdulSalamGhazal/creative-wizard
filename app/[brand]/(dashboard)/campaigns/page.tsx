@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { int } from "@/lib/format";
-import { portfolioParentCampaigns, type PortfolioFilters } from "@/db/queries/portfolio";
+import { portfolioParentCampaignList, type PortfolioFilters } from "@/db/queries/portfolio";
 import { portfolioFiltersSchema } from "@/validators/portfolio";
 import {
   resolvePreferredRange,
@@ -122,14 +122,15 @@ export default async function CampaignsPage({
     includeExcluded,
   };
 
-  const [campaigns, views] = await Promise.all([
-    portfolioParentCampaigns(filters),
+  const [{ rows: campaigns, creativesTotal }, views] = await Promise.all([
+    portfolioParentCampaignList(filters),
     listSummaryViews(user.id, PARENT_CAMPAIGNS_VIEW_PAGE),
   ]);
   const table = (
     <PortfolioTable
       level="campaign"
       rows={campaigns}
+      creativesTotal={creativesTotal}
       sort={parsed.sort}
       dir={parsed.dir}
       hidden={columns.hidden}

@@ -571,27 +571,20 @@ export async function updateCampaign(input: unknown): Promise<CampaignMutationRe
         parentNetwork: parentCampaigns.network,
       })
       .from(campaigns)
-      // LEFT: `parent_id` is nullable until the contract migration.
-      .leftJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
+      // Every ad set has its campaign (`parent_id` is NOT NULL).
+      .innerJoin(parentCampaigns, eq(parentCampaigns.id, campaigns.parentId))
       .where(and(eq(campaigns.id, id), eq(campaigns.accountId, acct)))
       .limit(1);
     if (!current) {
       return { ok: false, error: "Ad set not found." };
     }
-    // The campaign part: its campaign's name — or, for a row the reconcile
-    // hasn't reached, the part its own stored name carries.
-    const campaignPart =
-      current.parentName ?? parseCampaignName(current.name, current.platform).campaign;
-    const name = buildCampaignName(campaignPart, adset, platform);
+    // The campaign part is its campaign's name — never the caller's.
+    const name = buildCampaignName(current.parentName, adset, platform);
     if (!name) {
       return { ok: false, error: "Ad set name is empty.", fieldErrors: { adset: "Required" } };
     }
     const platformChanged = platform !== current.platform;
-    if (
-      platformChanged &&
-      current.parentNetwork !== null &&
-      !networkPlatforms(current.parentNetwork).includes(platform)
-    ) {
+    if (platformChanged && !networkPlatforms(current.parentNetwork).includes(platform)) {
       return {
         ok: false,
         error: `${platformLabel(platform)} isn't part of a ${AD_NETWORK_LABEL[current.parentNetwork]} campaign.`,

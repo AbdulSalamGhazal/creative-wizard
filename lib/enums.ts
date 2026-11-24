@@ -50,8 +50,9 @@ export const adNetworkEnum = AD_NETWORKS;
 
 /**
  * What an audit event can be LINKED to (`audit_event_entities.entity_type`,
- * 2026-11): the three things that carry a per-entity Activity history. A
- * creative or campaign is named by its uuid, a budget month by `YYYY-MM`.
+ * 2026-11): the things that carry a per-entity Activity history. A creative,
+ * ad set, campaign or landing page is named by its uuid, a budget month by
+ * `YYYY-MM`.
  * `campaign` is the UI's AD SET; `parent_campaign` is the UI's CAMPAIGN
  * (lib/campaign.ts, "TWO LEVELS").
  */

@@ -60,11 +60,12 @@ export const updateParentCampaignSchema = z.object({
 /**
  * Edit an AD SET: its own name, platform and objective. The campaign part of
  * the stored name comes from its parent — renaming THAT is the campaign's
- * edit. An empty ad-set name stays legal here for rows that predate the split.
+ * edit. The ad-set name is REQUIRED, as it is on create (2026-11-24: every
+ * row has one since the contract migration).
  */
 export const updateCampaignSchema = z.object({
   id: z.string().uuid(),
-  adset: z.string().trim().max(400).optional().default(""),
+  adset: z.string().trim().min(1, "Required").max(400),
   platform: z.enum(platformEnum),
   objective: z.enum(campaignObjectiveEnum),
 });

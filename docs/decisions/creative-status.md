@@ -13,7 +13,9 @@
   `creatives_status_idx`, was dropped in migration 0061).
 - Per-platform status anchors to **each platform's OWN latest spend day**,
   never a global "today". General status is a roll-up.
-- Campaign status is the same rule, 2-state, with NO override and NO schema.
+- Ad-set (`campaigns` row) status is the same rule, 2-state, with NO override
+  and NO schema. A campaign is active when ANY of its ad sets is — rolled up
+  from the one `campaignStatusMap()`, no new scan.
 - **Status maps derive from the request's cached `brandStatusInputs()` — never
   add another status scan**, and don't narrow a shared scan with a big `IN`.
   The `asOf` point-in-time variant is the one sanctioned exception — for its

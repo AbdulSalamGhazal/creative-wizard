@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   accounts,
@@ -12,6 +12,7 @@ import {
   users,
 } from "@/db/schema";
 import { ACCOUNT_A, ACCOUNT_B } from "./config";
+import { adNetwork, buildCampaignName } from "@/lib/campaign";
 
 /**
  * Programmatic fixtures for the DB harness. Values are chosen so the expected
@@ -141,4 +142,53 @@ export async function resetAndSeed() {
     // Account B — isolation sentinel (spend 777)
     perf({ accountId: ACCOUNT_B, batchId: BATCH_B, creativeId: CREATIVE_B, platform: "instagram", campaignId: CAMPAIGN_B, date: "2026-01-01", spend: 777, impressions: 7000, clicks: 70, conversions: 7, conversionValue: 700, landingPageViews: 70 }),
   ]);
+}
+
+/**
+ * Register one AD SET under its CAMPAIGN, as the app does: the campaign
+ * (`parent_campaigns`, by network + name) is created if it isn't there yet,
+ * and the ad set's stored name is built by `buildCampaignName`. For tests that
+ * need an ad set beyond the three seeded ones — `campaigns.parent_id` is
+ * required, so a bare insert no longer works.
+ */
+export async function seedAdSet(input: {
+  id: string;
+  accountId: string;
+  campaign: string;
+  adset: string;
+  platform: (typeof platformEnum)[number];
+  objective?: (typeof campaigns.$inferInsert)["objective"];
+  userId?: string;
+}): Promise<{ parentId: string; name: string }> {
+  const userId = input.userId ?? USER;
+  const network = adNetwork(input.platform)!;
+  await db
+    .insert(parentCampaigns)
+    .values({ accountId: input.accountId, name: input.campaign, network, createdByUserId: userId })
+    .onConflictDoNothing({
+      target: [parentCampaigns.accountId, parentCampaigns.network, parentCampaigns.name],
+    });
+  const [parent] = await db
+    .select({ id: parentCampaigns.id })
+    .from(parentCampaigns)
+    .where(
+      and(
+        eq(parentCampaigns.accountId, input.accountId),
+        eq(parentCampaigns.network, network),
+        eq(parentCampaigns.name, input.campaign),
+      ),
+    )
+    .limit(1);
+  const name = buildCampaignName(input.campaign, input.adset, input.platform);
+  await db.insert(campaigns).values({
+    id: input.id,
+    accountId: input.accountId,
+    parentId: parent!.id,
+    adsetName: input.adset,
+    name,
+    platform: input.platform,
+    objective: input.objective ?? "Sales",
+    createdByUserId: userId,
+  });
+  return { parentId: parent!.id, name };
 }

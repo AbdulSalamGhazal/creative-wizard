@@ -25,7 +25,7 @@ import { campaignFunnel, funnelOverview } from "@/db/queries/funnel";
 import { kpis, compareDimensions } from "@/db/queries/performance";
 import { listCreativeSummary } from "@/db/queries/summary";
 import { campaignRecordsByDay } from "@/db/queries/campaign";
-import { resetAndSeed, CREATIVE_1, CREATIVE_2 } from "./fixtures";
+import { resetAndSeed, seedAdSet, CREATIVE_1, CREATIVE_2 } from "./fixtures";
 
 const setAccount = (id: string) => vi.mocked(getActiveAccountId).mockResolvedValue(id);
 
@@ -59,13 +59,14 @@ describe("blended funnel rates with google in the data", () => {
   const TO = "2026-03-31";
 
   beforeAll(async () => {
-    await db.insert(campaigns).values({
+    // Stored as "Search Brand ➤ All", under the Google campaign "Search Brand".
+    await seedAdSet({
       id: GOOGLE_CAMPAIGN,
       accountId: ACCOUNT_A,
-      name: "Search Brand ➤ All",
+      campaign: "Search Brand",
+      adset: "All",
       platform: "google",
-      objective: "Sales",
-      createdByUserId: USER,
+      userId: USER,
     });
     await db.insert(uploadBatches).values({
       id: GOOGLE_BATCH,
@@ -233,9 +234,10 @@ describe("a google campaign's records grouped by day keep NULL as NULL (2026-10-
   const NAME = "Search Only ➤ All";
 
   beforeAll(async () => {
-    await db.insert(campaigns).values({
-      id: CAMPAIGN, accountId: ACCOUNT_A, name: NAME, platform: "google", objective: "Sales",
-      createdByUserId: USER,
+    // NAME = "Search Only ➤ All", under the Google campaign "Search Only".
+    await seedAdSet({
+      id: CAMPAIGN, accountId: ACCOUNT_A, campaign: "Search Only", adset: "All",
+      platform: "google", userId: USER,
     });
     await db.insert(performanceRecords).values({
       accountId: ACCOUNT_A, creativeId: GOOGLE_ONLY_CREATIVE, platform: "google",

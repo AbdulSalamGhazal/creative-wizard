@@ -54,10 +54,12 @@ type SearchParams = Record<string, string | string[] | undefined>;
 function entityHref(
   dim: ChangeDim,
   row: { key: string; label: string; network: string | null },
-): string {
+): string | null {
   switch (dim) {
     case "platform":
-      return `/platforms/${row.key}`;
+      // A platform has no page of its own (the old `/platforms/<key>` link
+      // led nowhere) — its row is a label.
+      return null;
     case "parent_campaign":
       // A campaign's address is its network + name; the key is its id.
       return row.network ? campaignPath(row.network, row.label) : "/campaigns";

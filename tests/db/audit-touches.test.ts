@@ -71,6 +71,7 @@ import {
   CREATIVE_2,
   CREATIVE_B,
   resetAndSeed,
+  seedAdSet,
 } from "./fixtures";
 
 // Fixture records (account A, RESTART IDENTITY):
@@ -269,9 +270,9 @@ describe("entity writers record the other side", () => {
     expect([l.campaign, l.creative]).toEqual([[CAMPAIGN_2], [CREATIVE_1]]);
 
     const EMPTY = "44444444-4444-4444-4444-4444444440e1";
-    await db.insert(campaigns).values({
-      id: EMPTY, accountId: ACCOUNT_A, name: "Fresh ➤ Broad (IG)", platform: "instagram",
-      objective: "Sales", createdByUserId: ADMIN,
+    await seedAdSet({
+      id: EMPTY, accountId: ACCOUNT_A, campaign: "Fresh", adset: "Broad", platform: "instagram",
+      userId: ADMIN,
     });
     await updateCampaign({ id: EMPTY, campaign: "Fresh", adset: "Broad", platform: "facebook", objective: "Sales" });
     l = await latest(AUDIT_ACTIONS.CAMPAIGN_UPDATE);

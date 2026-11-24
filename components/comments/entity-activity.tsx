@@ -47,7 +47,7 @@ const ACTIVITY_REFETCH_DELAY_MS = 2000;
 const EMPTY_HINT: Record<string, string> = {
   creative: "Edits and exclusions show here.",
   campaign: "Edits and exclusions show here.",
-  parent_campaign: "Renames and ad sets added or removed show here.",
+  parent_campaign: "Renames, exclusion rules and ad sets added or removed show here.",
   budget_month: "Changes to this month’s plan show here.",
   ps_version: "Edits to this version show here.",
   landing_page: "Edits to this landing page show here.",

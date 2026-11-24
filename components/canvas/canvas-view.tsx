@@ -308,8 +308,12 @@ export function CanvasView({
     (node: CanvasNode) => {
       const href =
         node.kind === "campaign"
-          ? node.level === "campaign" && node.network
-            ? campaignPath(node.network, node.name)
+          ? node.level === "campaign"
+            ? // A campaign's address needs its network; without one, its
+              // list — never an ad-set address built from a campaign's name.
+              node.network
+              ? campaignPath(node.network, node.name)
+              : "/campaigns"
             : adSetPath(node.name)
           : `/library/${encodeURIComponent(node.name)}`;
       startNav(() => router.push(href));

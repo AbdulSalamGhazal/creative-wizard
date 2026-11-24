@@ -24,7 +24,7 @@
 - **Stage has THREE states** — unassigned `[]`, the declaration `["N/A"]`, or
   real stages — and an absence must never look like a declaration. N/A is
   EXCLUSIVE and creative-side only; **never widen `FUNNEL_STAGES`**.
-- Stage is NEVER auto-derived, and its mismatch with a campaign's objective is
+- Stage is NEVER auto-derived, and its mismatch with an ad set's objective is
   INFORMATION, not an error.
 - Deleting a creative removes its `performance_records` first, in a
   transaction, because that FK has no cascade.

@@ -23,8 +23,9 @@
   restore the `fitView` prop.
 - **THE LENS RECOLOURS, IT NEVER RESTATES.** `?lens=rate` colours each pairing
   by its RATE — `pairRate` = the system's one rule (`rateBlock`) over the
-  pair's own RANGE sums (Σrevenue ÷ Σspend), judged by the campaign platform's
-  rules (`rulesForScope`: override, else the brand default), same min spend as
+  pair's own RANGE sums (Σrevenue ÷ Σspend), judged by the AD SET's platform
+  rules (`rulesForScope`: override, else the brand default; a folded campaign
+  pairing per platform — `pairVerdict`, below), same min spend as
   Summary. No new scale, no CPA lens (no CPA thresholds exist). Width, dash
   and opacity keep their meaning in both lenses; liveness stays the window
   clock. A chip's `roas`/`rate` are its edge's, copied — never re-derived.

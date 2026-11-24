@@ -55,7 +55,7 @@
   `useDebouncedSearchParam` (components/filters, R-056): instant typing, our
   own writes echo-guarded so a late navigation can't eat characters, and an
   external change (Clear, a saved view, Back/Forward) adopted. Ads, Library,
-  Campaigns and Store orders use it; never hand-roll another.
+  Campaigns, Ad sets and Store orders use it; never hand-roll another.
 - **Compare's shared window resolves like every range page** (R-067,
   2026-11-07): URL → saved range → last 7 days, and a pick is remembered.
   Its per-side windows are tool ranges (`pageRange={false}`), never saved.

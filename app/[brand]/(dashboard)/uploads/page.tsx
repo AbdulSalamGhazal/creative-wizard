@@ -6,7 +6,10 @@ import { auth, can } from "@/lib/auth";
 import { getActiveAccountId } from "@/lib/tenant";
 import { RollbackButton } from "@/components/upload/rollback-button";
 import { CleanupTool } from "@/components/cleanup/cleanup-tool";
-import { listAccountCampaigns } from "@/db/queries/cleanup";
+import {
+  listAccountCampaigns,
+  listAccountParentCampaigns,
+} from "@/db/queries/cleanup";
 import { listCreativeOptions } from "@/db/queries/creatives";
 import { listAllProductOptions } from "@/db/queries/products";
 import { listUploadBatches } from "@/db/queries/uploads";
@@ -97,13 +100,15 @@ export default async function UploadsPage({
   );
 
   // Filter options for the cleanup tool (fetched for editors + admins).
-  const [cleanupProducts, cleanupCreatives, cleanupCampaigns] = canCleanup
-    ? await Promise.all([
-        listAllProductOptions(),
-        listCreativeOptions(),
-        listAccountCampaigns(),
-      ])
-    : [[], [], []];
+  const [cleanupProducts, cleanupCreatives, cleanupCampaigns, cleanupParentCampaigns] =
+    canCleanup
+      ? await Promise.all([
+          listAllProductOptions(),
+          listCreativeOptions(),
+          listAccountCampaigns(),
+          listAccountParentCampaigns(),
+        ])
+      : [[], [], [], []];
 
   return (
     <PageShell>
@@ -179,6 +184,7 @@ export default async function UploadsPage({
           products={cleanupProducts}
           creatives={cleanupCreatives}
           campaigns={cleanupCampaigns}
+          parentCampaigns={cleanupParentCampaigns}
         />
       )}
     </PageShell>

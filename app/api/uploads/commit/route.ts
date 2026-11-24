@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
   if (missingCampaigns.length > 0) {
     return NextResponse.json(
       {
-        error: "Some campaigns were removed since validation.",
+        error: "Some ad sets were removed since validation.",
         missing: missingCampaigns,
       },
       { status: 422 },

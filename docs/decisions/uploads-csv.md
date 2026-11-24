@@ -112,6 +112,13 @@
   (`lib/cleanup-guard.ts`). After a delete the range resets to the picker's
   default, never null ("Last 7 days" on the pill, all time on the server).
   The store order-cleanup tool follows the same rule.
+- **The cleanup tool picks at BOTH levels (2026-11-24).** "Ad sets" matches
+  by stored name (`CleanupMatch.campaigns`, the key that predates the split);
+  "Campaigns" matches a whole campaign by id (`parentCampaignIds`) — every ad
+  set under it at the time of the preview, resolved to ad-set ids scoped to
+  the active brand BEFORE the delete's transaction. The pickers AND together
+  like every filter there, so a campaign plus one of its ad sets is that ad
+  set. Both are recorded in the audit event's `filters`.
 
 ## History and rationale
 

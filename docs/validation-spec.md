@@ -34,7 +34,7 @@ The validation layer obeys these rules without exception:
 1. **All-or-nothing.** A single error rejects the entire file. No partial imports, no "import what you can."
 2. **Collect all errors.** Validation does not stop at the first row-level error. Every problem in the file is surfaced in one report.
 3. **Deterministic.** The same input file produces the same result every time.
-4. **Idempotent.** A record is uniquely keyed by `(creative, platform, campaign, date, landing page)`, where the campaign is resolved through the campaigns **registry** (stored as a `campaign_id` FK — see §4.1) and the landing page through the landing-page registry (NULL = the product's own page — see §4.2). The same creative can run in multiple campaigns, or to multiple landing pages, on the same day (distinct keys → allowed), but re-uploading the *same* campaign's day is rejected as a duplicate — no silent double-counting. (Upsert mode deliberately relaxes this — see §8.1.)
+4. **Idempotent.** A record is uniquely keyed by `(creative, platform, ad set, date, landing page)`, where the ad set is resolved through the `campaigns` **registry** (one row per ad set, stored as a `campaign_id` FK — see §4.1) and the landing page through the landing-page registry (NULL = the product's own page — see §4.2). The same creative can run in multiple ad sets, or to multiple landing pages, on the same day (distinct keys → allowed), but re-uploading the *same* ad set's day is rejected as a duplicate — no silent double-counting. (Upsert mode deliberately relaxes this — see §8.1.)
 5. **Read-only until success.** Nothing is written to the database until validation passes end-to-end and the user confirms import.
 6. **Never modifies the input.** The original CSV file is preserved as uploaded; transformations happen on parsed in-memory data.
 
@@ -109,13 +109,16 @@ For each row, the following are checked **independently** (one row can produce m
   must exist before an upload can reference them, otherwise a rename at the
   source would silently spawn a new one
 - The ad set's stored name must not already belong to a **different
-  platform** (E060) — one stored name = one platform; allowing the same name
+  platform** (E060) — registered there, or carrying records there (the
+  registry is checked as well as the stored records, 2026-11-24, so a name
+  registered elsewhere that has never run is refused too) — one stored name =
+  one platform; allowing the same name
   on two platforms would silently merge them (Instagram/Facebook stay
   distinct via the name tag, §4.1)
 
 ### 3.4 Stage 4 — Intra-file duplicates
 
-Rows are keyed by `(creative_name, campaign_name, date, landing_code)` (platform is constant per file; no code = the product's own page). Two rows that share a key are a duplicate within the file → **E050** (reported once, listing the row numbers). Different campaigns — or different landing pages — are distinct keys, so a creative running in several campaigns, or to several landing pages in one ad set, on the same day is allowed.
+Rows are keyed by `(creative_name, campaign_name, date, landing_code)` (platform is constant per file; no code = the product's own page). Two rows that share a key are a duplicate within the file → **E050** (reported once, listing the row numbers). Different ad sets — or different landing pages — are distinct keys, so a creative running in several ad sets, or to several landing pages in one ad set, on the same day is allowed.
 
 ### 3.5 Stage 5 — Database duplicates
 
@@ -268,10 +271,10 @@ Every error carries a stable code, a severity, a template, and an example. Codes
 | E041  | ERROR    | Row {n}: `'{field}'` must be non-negative (got `{value}`).                                                | "Row 88: `'Spend'` must be non-negative (got `-12.45`)."                                                      |
 | E042  | ERROR    | Row {n}: required field `'{field}'` is missing. *(Identity fields only — `date`, `campaign_name`, `adset_name`. A blank numeric cell is `0`, never E042; a missing required column is E010.)* | "Row 88: required field `'campaign_name'` is missing." |
 | E050  | ERROR    | Rows {rows}: duplicate within file — same creative `'{name}'`, ad set `'{ad set}'`, platform `{platform}`, date `{date}`. | — |
-| E051  | ERROR    | Row(s) {rows}: `'{name}'` / ad set `'{ad set}'` on `{platform}` for `{date}` was already imported (batch {id}).             | — |
+| E051  | ERROR    | Row(s) {rows}: `'{name}'` / ad set `'{ad set}'` on `{platform}` for `{date}` was already imported (batch {id}). Roll back that batch to re-import. | — |
 | E052  | ERROR    | Row(s) {rows}: `'{name}'` / ad set `'{ad set}'` on `{platform}` for `{date}` was already imported under a different landing page (`'{stored}'`, batch {id}). The ad was renamed on the platform after that day was imported — upload only the days after the rename. | — |
 | E060  | ERROR    | Ad set “{name}” already exists on {platforms}, but this file is for {platform}. An ad set name must belong to a single platform — … Rename this ad set for {platform} and upload again. | "Ad set “Summer ➤ Broad” already exists on TikTok, but this file is for Snapchat. …" |
-| E061  | ERROR    | Row {n}: campaign `'{campaign}'` is not registered. Create it on the Campaigns page first. *(The CAMPAIGN is missing — the report links to New campaign.)* | "Row 12: campaign `'Summer'` is not registered. Create it on the Campaigns page first." |
+| E061  | ERROR    | Row {n}: {network} campaign `'{campaign}'` is not registered. Create it on the Campaigns page first. *(The CAMPAIGN is missing on the file's ad network — named, because another network may have a campaign of that name. The report links to New campaign.)* | "Row 12: Meta campaign `'Summer'` is not registered. Create it on the Campaigns page first." |
 | E062  | ERROR    | Row {n}: ad set `'{ad set}'` is not registered in campaign `'{campaign}'`. Add it on that campaign's page first. *(2026-11 — the campaign IS registered; the report links to that campaign with "Add ad set" open on the name.)* | "Row 12: ad set `'Broad'` is not registered in campaign `'Summer'`. Add it on that campaign's page first." |
 | W001  | WARNING  | *(reserved — the Windows-1256 fallback was never implemented; see §3.1)*                                  | —                                                                                                             |
 | W002  | WARNING  | Unknown column ignored: `{column}`.                                                                       | "Unknown column ignored: `Custom note`."                                                                      |
@@ -302,7 +305,7 @@ late-attributed conversions, the newest day is inserted):
 - Runs the **same full validation pipeline**, but **skips the E051 check**
   (the landing-page rename guard, E052, still applies).
 - Validated rows are partitioned against the unique identity
-  `(creative, platform, campaign, date, landing page)`: **new** rows are inserted under a
+  `(creative, platform, ad set, date, landing page)`: **new** rows are inserted under a
   fresh batch; **existing** rows are UPDATEd in place (full row,
   last-value-wins on every metric column; identity, batch ownership and
   exclusion flags untouched).

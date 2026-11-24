@@ -66,13 +66,21 @@
   to the entity?"). `ENTITY_ACTIVITY_ACTIONS` (db/queries/entity-activity.ts,
   derived from `AUDIT_ACTIONS`) is the list: a creative — its own edits
   (`creative.*`) and the exclusions on its records (`exclusion.*`, manual and
-  by rule); a campaign — `campaign.*` and `exclusion.*`; a budget month — its
+  by rule); an ad set — `campaign.*` (the stored word), `exclusion.*`, and
+  its campaign's RENAME (`parent_campaign.update`, which rewrote its stored
+  name — 2026-11-24); a
+  campaign — `parent_campaign.*`, its ad sets added or removed
+  (`campaign.create` / `campaign.delete`) and the exclusion RULES on the
+  whole campaign (`exclusion.rule_*` — a rule links its target), never an ad
+  set's own edit, its own rule or a manual exclusion; a budget month — its
   plan (`budget.update`); a Price Structure version — created, imported,
-  edited (one line per person per section per sitting), deleted. Uploads, rollbacks, cleanups, the other side's
+  edited (one line per person per section per sitting), deleted; a landing
+  page — `landing_page.*`. Uploads, rollbacks, cleanups, the other side's
   delete and an angle renamed on the Angles page are LINKED
   (`audit_event_entities` records every touch) but not shown. Plus two
-  DERIVED lines per platform for a creative or campaign — went live / stopped
-  — by the status badge's own rule (`statusEvents`, lib/entity-activity.ts).
+  DERIVED lines per platform for a creative, an ad set or a landing page —
+  went live / stopped — by the status badge's own rule (`statusEvents`,
+  lib/entity-activity.ts); a campaign has none (they are its ad sets').
   Comments are NOT in it (they have their own face). Anyone who can open the
   page sees it (user decision) — the read is brand-scoped, no extra
   permission. `GET /api/entity-activity` phrases each row on the SERVER
@@ -195,8 +203,9 @@
   SIDEBAR's question and would hide the upload pages every member can open.
   Deleted comments never appear (the thread is the only surface that keeps a
   deleted row's place); a comment whose thing is gone — a hard-deleted
-  creative or campaign, a page the nav retired — stays listed under "Deleted
-  creative" / "Deleted campaign" / "Retired page" and is INERT. Everyone |
+  creative, ad set or campaign, a page the nav retired — stays listed under
+  "Deleted creative" / "Deleted ad set" / "Deleted campaign" / "Retired
+  page" (`ANCHOR_FALLBACK_LABEL`) and is INERT. Everyone |
   Mine is `?who=me`, the type chips `?types=`, the search `?q=`: the URL is
   the state (`activityHref`, lib/activity.ts), a change resets the page, and
   only what differs from the default is written. A row opens the comment

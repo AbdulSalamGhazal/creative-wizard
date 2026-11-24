@@ -233,7 +233,7 @@ export function CampaignCreativeChart({
   // The lines drawn + tooltip rows: one combined line when grouped, else the
   // shown creatives. (Grouped, the legend still picks which creatives sum in.)
   const lineSpecs = group
-    ? [{ creativeId: "all", name: "All creatives", color: "var(--brand)" }]
+    ? [{ creativeId: "all", name: `All ${seriesNoun}s`, color: "var(--brand)" }]
     : visible;
 
   // Robust axis fit — cap a lone spike, with a toggle to show the full range.

@@ -39,6 +39,7 @@ import { int, isoDate, plural } from "@/lib/format";
 import { useNavTransition } from "@/lib/nav-progress";
 import { AD_NETWORK_LABEL, CAMPAIGN_OBJECTIVES } from "@/lib/campaign";
 import type { ExclusionRuleKind } from "@/lib/exclusion-rules";
+import { EXCLUSION_RULE_KIND_LABEL } from "@/lib/exclusion-rule-label";
 import {
   previewExclusionRule,
   previewExclusionRuleRemoval,
@@ -56,13 +57,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import { panelClass } from "@/components/ui/panel";
 
-// The picker's order: widest net first.
-const KIND_LABEL: Record<ExclusionRuleKind, string> = {
-  campaign_objective: "Ad set objective",
-  parent_campaign: "Whole campaign",
-  campaign: "Specific ad set",
-  creative: "Specific creative",
-};
+// The picker's order: widest net first (the shared map's key order).
+const KIND_LABEL = EXCLUSION_RULE_KIND_LABEL;
 
 /** The search picker's own words, per kind that uses one. */
 const PICKER_PLACEHOLDER: Record<Exclude<ExclusionRuleKind, "campaign_objective">, string> = {

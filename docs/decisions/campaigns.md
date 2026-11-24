@@ -27,7 +27,9 @@
 - **An ad set's stored name is ALWAYS `buildCampaignName(campaign, ad set,
   platform)`** and stays the upload-matching key, unique per BRAND — so the
   same `Campaign ➤ Ad set` cannot exist under two networks (the action names
-  the platform that has it; E060 covers uploads). Which campaign a built name
+  the platform that has it; E060 covers uploads — against the REGISTRY as
+  well as stored records, so a name registered elsewhere and never run is
+  refused too). Which campaign a built name
   belongs to is ALWAYS `parentOfBuiltName` — never a raw cell.
 - **Renaming a campaign rebuilds every ad set's name in the SAME transaction**
   (`updateParentCampaign`), refused on a collision. An ad set's own edit
@@ -47,9 +49,9 @@
   figures are component sums at every surface. Three shapes, never a fourth:
   the breakdown dimension `parent_campaign` (`breakdownDim`,
   db/queries/performance.ts), the filter `KpiFilters.parentCampaignIds`
-  (Compare), and the Canvas fold (`canvasPairs`). An ad set the reconcile
-  hasn't given a campaign is LEFT OUT of a campaign-level surface (it shows at
-  ad-set level) — the Campaigns list's rule, not a new one.
+  (Compare), and the Canvas fold (`canvasPairs`). Every ad set HAS a
+  campaign (the link is NOT NULL), so nothing is left out of a campaign-level
+  surface.
 - **Which level a screen opens on is the user's decision, per screen:** the
   Canvas opens on AD SETS (`?level=campaign` switches; old links keep their
   meaning); Funnel, Trends › Changes and the one-platform Dashboard open on
@@ -74,27 +76,44 @@
 - **Addresses:** a campaign is `/campaigns/<network>/<name>`, an ad set
   `/ad-sets/<stored name>`; a single segment under `/campaigns` is an old
   ad-set link and redirects. Build them only with `campaignPath` / `adSetPath`.
-- `campaigns.parent_id` / `adset_name` are written by the app on every row but
-  stay NULLABLE until a later contract migration — reads LEFT JOIN the
-  campaign, and the `parent_campaigns_reconcile` migration is safe to re-run
-  at any time.
-- A perf row's campaign is a **FK to the `campaigns` registry**; display names
-  come from `campaigns.name`, never a text column.
+- **Every ad set has a campaign: `campaigns.parent_id` and `adset_name` are
+  NOT NULL** (the contract migration `campaigns_parent_not_null`, 2026-11-24,
+  which re-runs the reconcile first — `campaigns_parent_reconcile_final` — so
+  no row can fail it). An ad set is never written without both; tests seed
+  one through `seedAdSet` (tests/db/fixtures.ts), never a bare insert.
+- **THE WAY UP: an ad-set row names its campaign.** The Ad sets list and the
+  ad-set tables on a creative's and a landing page's page carry a **Campaign**
+  column linking to the campaign's page (`PortfolioCampaignRow.parentCampaign`
+  / `CampaignMixRow.parentCampaign` + `network` — a PK join on the row the
+  GROUP BY already has, never a parse of the stored name).
+- **Searching the Campaigns list FINDS a campaign and keeps its WHOLE
+  totals** (user decision, 2026-11-24): a campaign matches when any of its ad
+  sets' stored names or creatives matches, and its row is then the sum over
+  ALL its ad sets (`baseConds(…, "campaign")`) — never a partial campaign
+  that looks like a whole one. The Ad sets list's search still narrows to the
+  matching ad sets.
+- **A list's Creatives total is a UNION, never a sum of its rows**
+  (`PortfolioList.creativesTotal`): one creative in three ad sets is one
+  creative in the footer.
+- A perf row's AD SET is a **FK** (`campaign_id` → the `campaigns` registry);
+  display names come from `campaigns.name`, never a text column.
 - The registry name format is built ONLY through `buildCampaignName()`.
 - Duplicates are keyed on (creative, platform, campaign_id, date, landing page)
   (the landing page joined the key in 2026-10 — see uploads-csv.md) — E050 intra
   file, E051 already-imported.
 - The objective vocabulary is `CAMPAIGN_OBJECTIVES`; retired values never
   return, and a rename must sweep saved views.
-- Deleting a campaign removes its records in a transaction and KEEPS the
-  creatives that ran in it.
-- **A campaign's platform is LOCKED once it has records (D9, 2026-10-23).**
-  Each record carries its own platform; re-tagging the campaign made the two
+- Deleting an ad set (`deleteCampaign`) removes its records in a transaction
+  and KEEPS the creatives that ran in it — as the campaign delete above does.
+- **An AD SET's platform is LOCKED once it has records (D9, 2026-10-23).**
+  Each record carries its own platform; re-tagging the ad set made the two
   disagree and the old name's next upload hit E061. `updateCampaign` refuses
-  inside its transaction ("This campaign already has records, so its
+  inside its transaction ("This ad set already has records, so its
   platform can't change."); the edit dialog disables the select with an ⓘ
   saying why (`CAMPAIGN_PLATFORM_LOCKED` / `_TIP` in `lib/campaign.ts`).
-  Name and objective stay editable.
+  Before its first record it can move only inside its campaign's network.
+  Its ad-set name and objective stay editable; the ad-set name is REQUIRED on
+  edit as on create.
 
 ## History and rationale
 
@@ -184,6 +203,40 @@ no per-campaign rows at either level).
 
 *The entries below were moved verbatim from CLAUDE.md (2026-10). Line
 references are to the file as it stood before the restructure.*
+
+### The sweep after the split (2026-11-24)
+
+Once both deliveries were live the user asked for one more pass over the whole
+system. Production was checked read-only first: 260 ad sets, 113 campaigns,
+25,860 records — none without a campaign or an ad-set name, none on the wrong
+network, no stored name that `buildCampaignName` would not rebuild. So the
+contract step could land: `campaigns_parent_reconcile_final` re-runs the
+reconcile and `campaigns_parent_not_null` sets `parent_id` and `adset_name`
+NOT NULL.
+
+What the sweep found and fixed, beyond wording:
+
+- **E060 only looked at stored records.** A stored name registered on another
+  platform that had never run was accepted by validation and then failed (or
+  mis-filed) later. The validate route now also asks the registry.
+- **The lists' Creatives footer summed its rows**, so a creative in three ad
+  sets counted three times. It is a union now, computed in the query.
+- **Nothing led from an ad set UP to its campaign** except its own page. The
+  user chose where: a Campaign column on the Ad sets list and on the ad-set
+  tables of the creative and landing-page pages (not the audit log).
+- **Searching the Campaigns list returned partial campaigns** — only the
+  matching ad sets' numbers under the campaign's name. The user chose full
+  totals.
+- **The cleanup tool could not pick a campaign**, only ad sets one by one. It
+  has a Campaigns picker now: a campaign is every ad set under it at the time
+  of the delete (`CleanupMatch.parentCampaignIds`), ANDed with the other
+  filters like every picker there.
+- **Activity:** a whole-campaign exclusion rule now shows in that campaign's
+  Activity, and a campaign's rename shows in each ad set it renamed.
+- **E061 names the network** ("Meta campaign 'Summer' is not registered"),
+  because TikTok's Summer may well exist.
+- A dead `/platforms/<key>` link on Trends › Changes (older than the split)
+  was removed while there.
 
 ### Campaign identity = campaign_id FK
 

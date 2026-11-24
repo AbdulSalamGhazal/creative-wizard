@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "@/lib/brand-nav";
 import { useNavTransition } from "@/lib/nav-progress";
 import { withDateRange } from "@/lib/url";
-import { adSetPath } from "@/lib/campaign";
+import { adSetPath, campaignPath } from "@/lib/campaign";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useTableColumns } from "@/components/ui/use-table-columns";
 import { TABLE_KEYS } from "@/lib/table-columns";
@@ -247,8 +247,29 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
         ),
         total: () => <TotalLabel className="text-ink-3" />,
       },
-      // ── Offered, hidden by default: the campaign's own objective, a column
-      // of the row the query already groups by. By-campaign mode only. ──
+      // The way UP (2026-11): the campaign this ad set sits under, a link to
+      // its page. By-ad-set mode only — a platform row spans several.
+      {
+        key: "parentCampaign",
+        label: "Campaign",
+        align: "left",
+        sortable: true,
+        defaultSortDir: "asc",
+        sortValue: (r) => r.parentCampaign,
+        csv: (r) => r.parentCampaign,
+        href: (r) => withDateRange(campaignPath(r.network, r.parentCampaign), from, to),
+        render: (r) => (
+          <span
+            className="block max-w-[9rem] truncate text-ink-2 sm:max-w-[16rem]"
+            title={r.parentCampaign}
+            dir="auto"
+          >
+            {r.parentCampaign}
+          </span>
+        ),
+      },
+      // ── Offered, hidden by default: the ad set's own objective, a column
+      // of the row the query already groups by. By-ad-set mode only. ──
       {
         key: "objective",
         label: "Objective",
@@ -261,7 +282,7 @@ export function CreativeCampaignsTable({ campaigns, platforms, subject = "creati
       },
       ...metricColumns<CampaignMixRow>(totals),
     ],
-    [totals, campaignHref],
+    [totals, campaignHref, from, to],
   );
 
   const platformColumns = useMemo<DataColumn<PlatformMixRow>[]>(

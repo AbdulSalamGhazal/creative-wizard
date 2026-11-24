@@ -16,7 +16,10 @@ export const cleanupFiltersSchema = z
     to: z.string().date().optional(),
     productIds: z.array(z.string().uuid()).default([]),
     creativeIds: z.array(z.string().uuid()).default([]),
+    // AD SETS by stored name (the key predates the two levels)…
     campaigns: z.array(z.string().min(1)).default([]),
+    // …and whole CAMPAIGNS by id: every ad set under each (2026-11).
+    parentCampaignIds: z.array(z.string().uuid()).default([]),
   })
   .refine(
     (f) =>
@@ -24,7 +27,8 @@ export const cleanupFiltersSchema = z
       (!!f.from && !!f.to) ||
       f.productIds.length > 0 ||
       f.creativeIds.length > 0 ||
-      f.campaigns.length > 0,
+      f.campaigns.length > 0 ||
+      f.parentCampaignIds.length > 0,
     { message: "Select at least one filter before previewing or deleting." },
   );
 

@@ -83,8 +83,8 @@ export function parseCampaignName(
 }
 
 /**
- * A campaign's platform is LOCKED once it has records (D9, 2026-10-23): each
- * record carries its own platform, so re-tagging the campaign made the two
+ * An AD SET's platform is LOCKED once it has records (D9, 2026-10-23): each
+ * record carries its own platform, so re-tagging the ad set made the two
  * disagree and the old name's next upload hit E061. The edit dialog shows the
  * tip; the action refuses with the sentence.
  */

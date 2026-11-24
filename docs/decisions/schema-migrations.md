@@ -21,8 +21,12 @@
   Like every migration it does not run on deploy — run it by hand against the
   direct URL (CLAUDE.md, Deployment).
 - **A column the OLD code doesn't write goes in as EXPAND → CONTRACT**
-  (0023 / 0024; `parent_campaigns` + `parent_campaigns_reconcile`, then a
-  later contract, 2026-11). `drizzle-kit migrate` applies
+  (0023 / 0024; `parent_campaigns` + `parent_campaigns_reconcile`, then the
+  contract `campaigns_parent_reconcile_final` + `campaigns_parent_not_null`
+  one day later, 2026-11-24 — the reconcile re-run FIRST, in its own
+  migration, so `SET NOT NULL` cannot meet a row the old code wrote in the
+  gap; had one existed the migration would have failed whole and changed
+  nothing). `drizzle-kit migrate` applies
   EVERY pending migration, and the code deployed before a migration keeps
   running until the deploy lands — so the expand step (nullable column + a
   backfill) ships with the code, and `SET NOT NULL` is its OWN later series,

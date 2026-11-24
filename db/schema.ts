@@ -524,15 +524,17 @@ export const campaigns = pgTable(
     name: text("name").notNull(),
     /**
      * The campaign this ad set belongs to, and the ad set's own name (the part
-     * of `name` after the first " ➤ ", without the platform tag). Both are
-     * always written by the app and backfilled by the
-     * `parent_campaigns_reconcile` migration; they are NULLABLE in the column
-     * only until a later contract migration (`SET NOT NULL`) lands, so the
-     * code deployed before it could keep inserting. NO cascade — a
-     * campaign is deleted through `deleteParentCampaign`, records first.
+     * of `name` after the first " ➤ ", without the platform tag). REQUIRED
+     * since the contract migration (`campaigns_parent_not_null`, 2026-11-24):
+     * an ad set without a campaign cannot exist. Backfilled by
+     * `parent_campaigns_reconcile`, written by every app path since. NO
+     * cascade — a campaign is deleted through `deleteParentCampaign`, records
+     * first.
      */
-    parentId: uuid("parent_id").references(() => parentCampaigns.id),
-    adsetName: text("adset_name"),
+    parentId: uuid("parent_id")
+      .notNull()
+      .references(() => parentCampaigns.id),
+    adsetName: text("adset_name").notNull(),
     platform: varchar("platform", { length: 16, enum: platformEnum }).notNull(),
     objective: varchar("objective", { length: 16, enum: campaignObjectiveEnum })
       .notNull()

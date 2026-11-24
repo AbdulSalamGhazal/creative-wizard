@@ -50,6 +50,7 @@ describe("the keyboard shortcut map (user-approved 2026-11-22)", () => {
     expect(map).toMatchObject({
       gd: "/",
       gc: "/campaigns",
+      gs: "/ad-sets",
       bt: "/budget",
       bp: "/budget/plan",
       so: "/store/orders",

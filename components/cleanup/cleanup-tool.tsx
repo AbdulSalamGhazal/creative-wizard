@@ -34,6 +34,7 @@ import { defaultDateRange } from "@/lib/date-presets";
 import { cn } from "@/lib/utils";
 import { pillClass } from "@/components/filters/filter-pill";
 import { ALL_PLATFORMS, PLATFORM_LABEL } from "@/lib/palette";
+import { AD_NETWORK_LABEL, type AdNetwork } from "@/lib/campaign";
 import { TypeToConfirm, confirmMatches } from "@/components/ui/type-to-confirm";
 
 type Platform = (typeof ALL_PLATFORMS)[number];
@@ -46,16 +47,19 @@ const PLATFORMS: Array<{ value: Platform; label: string }> = ALL_PLATFORMS.map(
 interface Props {
   products: Array<{ id: string; name: string }>;
   creatives: Array<{ id: string; name: string; productName: string }>;
+  /** AD SETS, by stored name. */
   campaigns: string[];
+  /** CAMPAIGNS: picking one selects every ad set under it. */
+  parentCampaigns: Array<{ id: string; name: string; network: AdNetwork }>;
 }
 
 /**
  * Admin record-cleanup tool. Build a selection (platform / date range /
- * product / creative / campaign — combined with AND), preview the exact impact,
+ * product / creative / campaign / ad set — combined with AND), preview the exact impact,
  * then permanently delete after a typed confirmation. Hard delete is a
  * sanctioned, audit-logged exit path for performance_records.
  */
-export function CleanupTool({ products, creatives, campaigns }: Props) {
+export function CleanupTool({ products, creatives, campaigns, parentCampaigns }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -66,6 +70,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
   const [productIds, setProductIds] = useState<string[]>([]);
   const [creativeIds, setCreativeIds] = useState<string[]>([]);
   const [campaignNames, setCampaignNames] = useState<string[]>([]);
+  const [parentCampaignIds, setParentCampaignIds] = useState<string[]>([]);
 
   /**
    * The preview AND the exact filters it counted (W1-7). The delete sends
@@ -84,7 +89,8 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
     (!!from && !!to) ||
     productIds.length > 0 ||
     creativeIds.length > 0 ||
-    campaignNames.length > 0;
+    campaignNames.length > 0 ||
+    parentCampaignIds.length > 0;
 
   // Any filter change invalidates a stale preview — and one still in flight.
   const resetPreview = () => {
@@ -101,8 +107,9 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
       productIds,
       creativeIds,
       campaigns: campaignNames,
+      parentCampaignIds,
     }),
-    [platforms, from, to, productIds, creativeIds, campaignNames],
+    [platforms, from, to, productIds, creativeIds, campaignNames, parentCampaignIds],
   );
 
   const toggle = <T,>(arr: T[], v: T, set: (x: T[]) => void) => {
@@ -146,6 +153,7 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
       setProductIds([]);
       setCreativeIds([]);
       setCampaignNames([]);
+      setParentCampaignIds([]);
       setPreview(null);
       setConfirmText("");
       // runCleanup revalidated: this page arrived re-rendered in its response.
@@ -162,6 +170,12 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
     creativeIds.length === 0
       ? "Any"
       : `${creativeIds.length} selected`;
+  const parentCampaignLabel =
+    parentCampaignIds.length === 0
+      ? "Any"
+      : parentCampaignIds.length === 1
+        ? (parentCampaigns.find((p) => p.id === parentCampaignIds[0])?.name ?? "1")
+        : `${parentCampaignIds.length} selected`;
   const campaignLabel =
     campaignNames.length === 0
       ? "Any"
@@ -297,7 +311,57 @@ export function CleanupTool({ products, creatives, campaigns }: Props) {
           </PopoverContent>
         </Popover>
 
-        {/* Campaigns (searchable) */}
+        {/* Campaigns (searchable): a whole campaign = every ad set under it */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className={pillClass(parentCampaignIds.length > 0)}>
+              <span className="text-ink-3">Campaigns</span>
+              <span className="text-ink max-w-[160px] truncate" dir="auto">
+                {parentCampaignLabel}
+              </span>
+              <ChevronDown className="w-3 h-3 text-ink-3 shrink-0" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="p-0 w-96">
+            <Command
+              filter={(value, search) =>
+                value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+              }
+            >
+              <CommandInput placeholder="Search campaigns…" />
+              <CommandList className="max-h-72">
+                <CommandEmpty>No campaigns found.</CommandEmpty>
+                {parentCampaigns.map((p) => {
+                  const checked = parentCampaignIds.includes(p.id);
+                  return (
+                    <CommandItem
+                      key={p.id}
+                      // The network is part of the value: two campaigns may
+                      // share a name, and typing "meta" finds Meta's.
+                      value={`${p.name} ${AD_NETWORK_LABEL[p.network]} ${p.id}`}
+                      onSelect={() => toggle(parentCampaignIds, p.id, setParentCampaignIds)}
+                    >
+                      <Check
+                        className={cn(
+                          "w-3.5 h-3.5 shrink-0 text-brand",
+                          checked ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="text-xs truncate" dir="auto">
+                        {p.name}
+                      </span>
+                      <span className="ml-auto shrink-0 text-[11px] text-ink-2">
+                        {AD_NETWORK_LABEL[p.network]}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {/* Ad sets (searchable) */}
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className={pillClass(campaignNames.length > 0)}>
