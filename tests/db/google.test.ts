@@ -20,7 +20,7 @@ vi.mock("@/lib/auth", () => ({
 
 import { getActiveAccountId } from "@/lib/tenant";
 import { db } from "@/lib/db";
-import { campaigns, performanceRecords, uploadBatches } from "@/db/schema";
+import { performanceRecords, uploadBatches } from "@/db/schema";
 import { campaignFunnel, funnelOverview } from "@/db/queries/funnel";
 import { kpis, compareDimensions } from "@/db/queries/performance";
 import { listCreativeSummary } from "@/db/queries/summary";

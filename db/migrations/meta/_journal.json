@@ -603,6 +603,20 @@
       "when": 1795467840563,
       "tag": "0085_exclusion_rules_parent_campaign",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795513154539,
+      "tag": "0086_campaigns_parent_reconcile_final",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1795513716516,
+      "tag": "0087_campaigns_parent_not_null",
+      "breakpoints": true
     }
   ]
 }

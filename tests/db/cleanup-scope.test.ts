@@ -39,7 +39,7 @@ import { previewStoreCleanupAction, runStoreCleanup } from "@/app/actions/store-
 import { deleteRecords } from "@/db/queries/cleanup";
 import { deleteStoreOrders, writeStoreBatch } from "@/db/queries/store";
 import { CLEANUP_SCOPE_CHANGED, CleanupScopeChangedError } from "@/lib/cleanup-guard";
-import { CAMPAIGN_1, CREATIVE_1, resetAndSeed } from "./fixtures";
+import { CAMPAIGN_1, CAMPAIGN_2, CREATIVE_1, PARENT_1, resetAndSeed } from "./fixtures";
 
 const IG = { platforms: ["instagram"] };
 const igRows = async () => {
@@ -72,6 +72,21 @@ describe("ads record cleanup", () => {
     expect(rows).toBeGreaterThan(0);
     expect(await runCleanup({ ...IG, expectedRows: rows })).toEqual({ ok: true, deleted: rows });
     expect(await igRows()).toBe(0);
+  });
+
+  it("deletes a WHOLE CAMPAIGN — every ad set under it, and nothing else", async () => {
+    const pick = { parentCampaignIds: [PARENT_1] };
+    const left = async (campaignId: string) =>
+      (await db.select({ id: performanceRecords.id }).from(performanceRecords)
+        .where(eq(performanceRecords.campaignId, campaignId))).length;
+    const others = await left(CAMPAIGN_2);
+    const rows = (await previewCleanupAction(pick)).preview!.rows;
+    expect(rows).toBe(await left(CAMPAIGN_1));
+    expect(await runCleanup({ ...pick, expectedRows: rows })).toEqual({ ok: true, deleted: rows });
+    expect(await left(CAMPAIGN_1)).toBe(0);
+    expect(await left(CAMPAIGN_2)).toBe(others); // Camp Two is untouched
+    // A campaign alone is a filter: the "pick at least one" gate accepts it.
+    expect((await previewCleanupAction({})).ok).toBe(false);
   });
 
   it("refuses — and deletes nothing — when the scope grew after the preview", async () => {

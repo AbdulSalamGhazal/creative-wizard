@@ -43,7 +43,6 @@ import {
   angles,
   auditEventEntities,
   auditEvents,
-  campaigns,
   creativeAngles,
   exclusionRules,
   uploadBatches,
