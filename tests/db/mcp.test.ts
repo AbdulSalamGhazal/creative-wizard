@@ -6,7 +6,9 @@ import { ACCOUNT_A, ACCOUNT_B } from "./config";
 // `getActiveAccountId`), which is the whole point of the MCP tenant path.
 
 import { db } from "@/lib/db";
-import { users, userAccounts, apiTokens, creatives } from "@/db/schema";
+import { users, userAccounts, apiTokens, creatives, storeOrders } from "@/db/schema";
+import { insertVersion } from "@/db/queries/price-structure";
+import { sampleVersionData } from "@/price-structure/engine/sample";
 import { eq } from "drizzle-orm";
 import {
   runWithTenant,
@@ -475,5 +477,56 @@ describe("MCP tools — brand scoping for a restricted user", () => {
   it("allowedAccountsForUser mirrors the scoping (belt-and-braces)", async () => {
     const brands = await allowedAccountsForUser(restricted);
     expect(brands.map((b) => b.id)).toEqual([ACCOUNT_A]);
+  });
+});
+
+describe("get_actual_cml — Pricing · Actual on the MCP (2026-11-27)", () => {
+  const call = (user: SessionUser, args: Record<string, unknown>) =>
+    runWithMcpActor({ user, tokenId: "t" }, () => loadTools().get("get_actual_cml")!(args, {}));
+  const viewer: SessionUser = { ...restricted, permissions: ["price_structure.view"] };
+  const noPricing: SessionUser = { ...restricted, permissions: [] };
+
+  it("refuses a member without price_structure.view, and a brand with no version", async () => {
+    const refused = await call(noPricing, {});
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0]!.text).toContain("price_structure.view");
+    const none = await call(viewer, {});
+    expect(none.isError).toBe(true);
+    expect(none.content[0]!.text).toContain("no Pricing version");
+  });
+
+  it("reads the page's own computation: CML withheld while incomplete, the version by name", async () => {
+    const data = sampleVersionData();
+    await insertVersion(db, ACCOUNT_A, RESTRICTED_ID, { name: "Base", notes: "", data });
+    await insertVersion(db, ACCOUNT_A, RESTRICTED_ID, { name: "Second", notes: "", data });
+    // An uploaded order with no products: the totals foot, CML is withheld.
+    await db.insert(storeOrders).values({
+      accountId: ACCOUNT_A,
+      orderId: "MCP-ACT-1",
+      orderDate: "2026-06-04",
+      totalAmount: "230.00",
+      attributes: {},
+    });
+    const out = parse(await call(viewer, { from: "2026-06-01", to: "2026-06-30", version: "base" }));
+    expect(out.brand.id).toBe(ACCOUNT_A);
+    expect(out.range).toEqual({ from: "2026-06-01", to: "2026-06-30" });
+    expect(out.version.name).toBe("Base");
+    expect(out.plan?.id).toBe(data.activePlanId);
+    expect(out.complete).toBe(false);
+    expect(out.cml).toBeNull();
+    expect(out.waterfall.cml).toBeNull();
+    expect(out.incomplete_because.orders_without_products).toBe(1);
+    expect(out.waterfall.store_total_incl_vat).toBe(230);
+    const w = out.waterfall;
+    expect(w.store_total_incl_vat - w.vat - w.lost - w.open_expected_to_fail - w.uploaded_expected_to_fail).toBeCloseTo(
+      out.net_revenue,
+      1,
+    );
+    expect(out.orders.uploaded).toBe(1);
+    expect(out.plan_bridge).toBeNull();
+
+    const unknown = await call(viewer, { version: "nope" });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.content[0]!.text).toContain("Base");
   });
 });

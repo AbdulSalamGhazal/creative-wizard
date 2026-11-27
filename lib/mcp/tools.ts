@@ -98,6 +98,11 @@ import { reconDelta, reconDeltaPct, reconMatchRate, sumPlatformDays } from "@/li
 import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
 import { UNATTRIBUTED } from "@/store/sources";
 import { serializeDiagnosis } from "@/lib/diagnosis";
+import { priceStructureAccess, VIEW_PERM as PS_VIEW_PERM } from "@/lib/price-structure-access";
+import { getLastVersionId, listVersions } from "@/db/queries/price-structure";
+import { actualFacts, actualMappings, RATE_WINDOW_DAYS } from "@/db/queries/price-structure-actual";
+import { computeActual } from "@/price-structure/actual/engine";
+import { actualCmlPayload } from "@/lib/mcp/price-structure-actual";
 import {
   currentActor,
   withBrand,
@@ -1634,6 +1639,63 @@ export function registerMcpTools(server: McpServer): void {
           },
           excludedEcho(args.include_excluded),
         );
+      }),
+  );
+
+  // ── Pricing · Actual CML (2026-11-27, user decision) ─────────────────────
+  // The ONE Pricing surface the MCP reads: the SAME facts, mappings and
+  // `computeActual` the Actual page runs, against a version's active plan.
+  // Gated on `price_structure.view` like the page — the module's three grants
+  // are the only door into it, on the MCP as in the app.
+  server.registerTool(
+    "get_actual_cml",
+    {
+      description:
+        "Pricing · Actual: the REAL contribution margin left (CML) for a range (defaults to the app's last 30 days), from the Store's orders, Store → Product costs and the Ads uploads' spend. MONEY IS SAR BEFORE VAT here (ad spend is converted from USD at the version's rate; `ad_spend_usd` keeps the raw figure). CML = net revenue − COGS − ad spend. Net revenue = what customers paid for products after coupons and offers, plus shipping and COD fees, before VAT; the real shipping cost is NOT deducted. Delivered orders count in full; lost orders (cancelled, deleted, refunded) count for nothing but their ad spend still counts; open orders count at their payment method's delivery rate over the last 90 days of closed orders (`rate_from`: method — 20+ closed orders; brand — the brand's overall rate; version — the version's setting); uploaded orders with no status count at the brand's rate. `cml_settled` = delivered orders minus all ad spend; `cml_expected` = what open and uploaded orders are expected to add. COGS = units × the cost in force on the order's day. CML is WITHHELD (null, `complete: false`, see `incomplete_because`) while a delivered or open unit has no cost or an order carries no products — never guess it. `products` groups SKUs by the Pricing product they are mapped to (per brand), each with its offers by quantity; `skus_not_mapped` and `ad_spend_not_mapped` still count in every total. `plan_bridge` walks the version's ACTIVE plan × the range's days to the actual CML (plan, volume, mix, delivery, price, cogs, ads, not_in_plan, actual; the steps sum to the gap). `version` picks the Pricing version by name or id; omitted = the one you opened last in the app, else the most recently opened. Requires the price_structure.view permission.",
+      inputSchema: {
+        brand: brandField,
+        from: fromField,
+        to: toField,
+        version: z
+          .string()
+          .optional()
+          .describe("Pricing version name or id. Omit for the one you opened last in the app."),
+      },
+    },
+    async (args) =>
+      withBrand(args.brand, async (brand) => {
+        const { user } = currentActor();
+        if (!priceStructureAccess(user)) {
+          throw new McpToolError(`Pricing needs the ${PS_VIEW_PERM} permission. Ask an admin to grant it.`);
+        }
+        const versions = await listVersions(brand.id);
+        if (versions.length === 0) {
+          throw new McpToolError("This brand has no Pricing version yet — open Pricing in the app to create one.");
+        }
+        let version = versions[0]!;
+        if (args.version) {
+          const needle = args.version.trim().toLowerCase();
+          const match = versions.find((v) => v.id === args.version || v.name.trim().toLowerCase() === needle);
+          if (!match) {
+            throw new McpToolError(
+              `Unknown Pricing version "${args.version}". Versions: ${versions.map((v) => v.name).join(", ")}.`,
+            );
+          }
+          version = match;
+        } else {
+          const last = await getLastVersionId(user.id, brand.id);
+          version = versions.find((v) => v.id === last) ?? version;
+        }
+        const range = defaultRange(args.from, args.to);
+        const ratesFrom = shiftIso(range.to, -(RATE_WINDOW_DAYS - 1));
+        const facts = await actualFacts(range.from, range.to, ratesFrom);
+        const mappings = await actualMappings();
+        const plan = version.data.plans.find((p) => p.id === version.data.activePlanId) ?? null;
+        const result = computeActual(facts, mappings, version.data, plan);
+        return ok(brand, rangeEcho(range.from, range.to), {
+          ...actualCmlPayload(result, version, plan),
+          delivery_rates_from: { from: facts.ratesFrom, to: facts.ratesTo },
+        });
       }),
   );
 }

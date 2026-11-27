@@ -168,7 +168,8 @@ as it stood before the restructure.*
   the coverage register + test above, and a Workflow rule in CLAUDE.md.
 - **Added, all read-only:** `list_products`, `get_budget`, `get_store`,
   `get_landing_pages`, `get_trends`. **Declined by the user:** Pricing (Price
-  Structure) — costs and margins stay off the MCP.
+  Structure) — costs and margins stay off the MCP (reopened 2026-11-27 for
+  Actual CML alone — see "Actual CML" below).
 - **Budget restructure (2026-11-14).** Budget became Today · Daily · Analysis
   · Review · Plan on one math path, and the MCP followed in the same commit
   series. `get_budget` now reads `buildRangeModel` — the keys it already
@@ -255,3 +256,17 @@ Later the same day (Canvas C7) the strip gained **launched** — creatives and
 campaigns whose first-ever real spend falls in the range — and so did the tool:
 a `launched` pattern whose items carry `first_spend_day`. Same function, no new
 tool (user decision).
+
+### Actual CML (2026-11-27)
+
+The user reopened the 2026-11-11 "Pricing stays off" decision for ONE thing:
+the real CML that Pricing · Actual computes. **New, read-only:
+`get_actual_cml`** — for a range (default the app's last 30 days) and an
+optional `version` (name or id; omitted = the one the user opened last, else
+the most recently opened): the page's own `actualFacts` + `actualMappings` +
+`computeActual` against the version's active plan, projected by
+`lib/mcp/price-structure-actual.ts` (rounding only). SAR before VAT; CML is
+null while the page says "Incomplete". The ONE tool that checks a grant:
+`price_structure.view`, because the module's three grants are its only door
+in the app. `coverage.ts`: `price-structure` and `price-structure-actual` →
+`get_actual_cml`. Pinned by `tests/db/mcp.test.ts`.

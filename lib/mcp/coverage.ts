@@ -52,16 +52,14 @@ export const MCP_COVERAGE: Record<string, McpCoverage> = {
   "store-costs": { mcp: "tools", tools: ["get_store"] },
   "landing-page-performance": { mcp: "tools", tools: ["get_landing_pages"] },
   trends: { mcp: "tools", tools: ["get_trends"] },
+  // Pricing · Actual (user decision 2026-11-27, reopening 2026-11-11): the real
+  // CML, against the version's active plan. get_actual_cml reads a version's
+  // document only to run the page's computation; the versions themselves
+  // (products, offers, targets, plans) are not a tool.
+  "price-structure-actual": { mcp: "tools", tools: ["get_actual_cml"] },
+  "price-structure": { mcp: "tools", tools: ["get_actual_cml"] },
 
   // ── Deliberately not on the MCP ───────────────────────────────────────────
-  "price-structure": {
-    mcp: "no",
-    why: "User decision 2026-11-11: costs and margins are sensitive; the user's Claude does not read Pricing.",
-  },
-  "price-structure-actual": {
-    mcp: "no",
-    why: "Pricing · Actual is Pricing (2026-11-27): the 2026-11-11 decision keeps CML off the MCP until the user reopens it.",
-  },
   "store-utms": {
     mcp: "no",
     why: "UTM hygiene is a cleanup surface; get_store already carries the platform split the UTMs map to.",

@@ -122,8 +122,13 @@ module.
   sold · unit costs · ad spend · not in the plan → actual CML, by sequential
   substitution over the MAPPED offers; "not in the plan" carries fees,
   unmapped SKUs, no-offer quantities and orders without products.
-- **The MCP does not read it** (the 2026-11-11 decision stands until the user
-  reopens it; `lib/mcp/coverage.ts`).
+- **The MCP reads Actual CML, and only that** (user decision 2026-11-27,
+  reopening 2026-11-11): `get_actual_cml` runs the page's own facts, mappings
+  and `computeActual` against a version's active plan (named, else the one
+  the user opened last), gated on `price_structure.view`, and withholds CML
+  exactly when the page says "Incomplete". Versions, offers, targets and
+  plans are not a tool; `lib/mcp/price-structure-actual.ts` is a projection,
+  never new math.
 - **Three grants, and the SERVER decides per action** (2026-11-06):
   `price_structure.view` opens every page read-only; `price_structure.edit`
   changes the open version's document; `price_structure.versions` creates,
