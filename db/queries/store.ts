@@ -139,6 +139,8 @@ export interface StoreOrdersFilters {
   skus?: readonly string[];
   coupons?: readonly string[];
   offers?: readonly string[];
+  /** The shipping country, as Salla sends it. */
+  countries?: readonly string[];
 }
 
 /** One product line of an order, as the Salla feed last delivered it. */
@@ -193,6 +195,7 @@ function orderConds(
   inAttr("payment_method", f.payments);
   inAttr("payment_type", f.paymentTypes);
   inAttr("coupon_code", f.coupons);
+  inAttr("country", f.countries);
   if (f.offers && f.offers.length > 0) {
     // Several offers on one order arrive joined with ", " — match any of them.
     c.push(
@@ -385,6 +388,7 @@ export interface StoreOrderFilterOptions {
   paymentTypes: string[];
   coupons: string[];
   offers: string[];
+  countries: string[];
   products: Array<{ key: string; name: string | null }>;
 }
 
@@ -410,6 +414,7 @@ export async function storeOrderFilterOptions(): Promise<StoreOrderFilterOptions
             ${lens("payments", attr("payment_method"))}
             UNION ALL ${lens("paymentTypes", attr("payment_type"))}
             UNION ALL ${lens("coupons", attr("coupon_code"))}
+            UNION ALL ${lens("countries", attr("country"))}
             UNION ALL ${lens(
               "offers",
               sql`unnest(string_to_array(${attr("offers")}, ', '))`,
@@ -434,6 +439,7 @@ export async function storeOrderFilterOptions(): Promise<StoreOrderFilterOptions
     paymentTypes: [],
     coupons: [],
     offers: [],
+    countries: [],
     products: productRows
       .filter((p) => p.key !== null && !p.key.includes(","))
       .map((p) => ({ key: p.key, name: p.name })),

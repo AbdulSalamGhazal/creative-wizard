@@ -12,6 +12,7 @@ import {
   HandCoins,
   Layers,
   LayoutDashboard,
+  MapPin,
   Package,
   Reply,
   Share2,
@@ -61,6 +62,7 @@ export const FILTER_KEY_ICONS: Readonly<Record<string, LucideIcon>> = {
   skus: Package,
   coupons: Ticket,
   offers: Gift,
+  countries: MapPin,
 };
 
 /** A def's icon: its own if it declared one, else the one its KEY implies. */

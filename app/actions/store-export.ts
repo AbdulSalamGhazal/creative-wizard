@@ -50,6 +50,7 @@ export async function exportStoreOrders(
         skus: f.skus,
         coupons: f.coupons,
         offers: f.offers,
+        countries: f.countries,
       }),
       storeConnectionStatus(),
     ]);

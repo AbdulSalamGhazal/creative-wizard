@@ -64,7 +64,16 @@ const PAGES = {
   // row, not a def).
   storeOrders: {
     file: "components/store/store-filter-bar.tsx",
-    defs: ["payments", "paymentTypes", "platforms", "channels", "skus", "coupons", "offers"],
+    defs: [
+      "payments",
+      "paymentTypes",
+      "platforms",
+      "channels",
+      "skus",
+      "coupons",
+      "offers",
+      "countries",
+    ],
   },
   // Zero-def page: the same bar with no Filters button and no chips row.
   reconciliation: { file: "components/store/reconciliation-view.tsx", defs: [] },

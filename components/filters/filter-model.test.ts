@@ -71,6 +71,23 @@ describe("the filter model derives everything from one entry", () => {
     expect(defaultChipLabel(many.defs[0] as never)).toBe("Type: Video +2");
   });
 
+  it("an Arabic value is isolated, so its +N stays after it", () => {
+    const def = {
+      key: "countries",
+      label: "Country",
+      type: "multi" as const,
+      options: [
+        { value: "qa", label: "قطر" },
+        { value: "kw", label: "الكويت" },
+      ],
+      values: ["qa", "kw"],
+      onChange: () => {},
+    };
+    expect(defaultChipLabel(def)).toBe("Country: \u2068قطر\u2069 +1");
+    // one value needs no isolate — nothing follows it
+    expect(defaultChipLabel({ ...def, values: ["qa"] })).toBe("Country: قطر");
+  });
+
   it("a custom filter contributes its OWN chips (one per rule)", () => {
     const { defs } = config({ types: ["video"], metrics: true });
     expect(filterChips(defs).map((c) => c.label)).toEqual([

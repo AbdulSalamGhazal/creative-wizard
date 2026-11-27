@@ -65,15 +65,16 @@ beforeAll(async () => {
       utm_source: "tt",
       coupon_code: "SAVE10",
       offers: "Buy 2 get 1, Free ship",
+      country: "السعودية",
     },
     ACCOUNT_A,
     "2148830",
   );
-  await order({ customer_name: "Fahad", order_status: "canceled", payment_method: "mada", tracking_number: "TRK_9_99" });
+  await order({ customer_name: "Fahad", order_status: "canceled", payment_method: "mada", tracking_number: "TRK_9_99", country: "الإمارات" });
   await order({ order_status: "shipped", payment_method: "tamara_installment", offers: "Free ship" });
   await order({ order_status: "payment_pending" });
   await order({}); // an uploaded order — no status
-  await order({ customer_name: "Sara Other", phone: "+966509999999" }, ACCOUNT_B);
+  await order({ customer_name: "Sara Other", phone: "+966509999999", country: "الكويت" }, ACCOUNT_B);
   await db.insert(storeOrderItems).values([
     { accountId: ACCOUNT_A, storeOrderId: a, position: 0, sku: "SKU-A", name: "Watch", quantity: 1, lineTotalSar: "100.00" },
   ]);
@@ -150,6 +151,8 @@ describe("filters", () => {
     expect(await ids({ coupons: ["SAVE10"] })).toEqual(["2148830"]);
     // one offer of several joined with ", "
     expect(await ids({ offers: ["Free ship"] })).toHaveLength(2);
+    expect(await ids({ countries: ["السعودية"] })).toEqual(["2148830"]);
+    expect(await ids({ countries: ["السعودية", "الإمارات"] })).toHaveLength(2);
   });
 
   it("narrow the export the same way", async () => {
@@ -164,6 +167,8 @@ describe("storeOrderFilterOptions", () => {
     expect(o.payments.sort()).toEqual(["cod", "mada", "tamara_installment"]);
     expect(o.coupons).toEqual(["SAVE10"]);
     expect(o.offers.sort()).toEqual(["Buy 2 get 1", "Free ship"]);
+    // another brand's country is not offered
+    expect(o.countries.sort()).toEqual(["الإمارات", "السعودية"].sort());
     expect(o.products).toEqual([{ key: "SKU-A", name: "Watch" }]);
   });
 });

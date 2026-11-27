@@ -19,6 +19,7 @@ export const STORE_ORDER_FILTER_KEYS = [
   "skus",
   "coupons",
   "offers",
+  "countries",
 ] as const;
 
 /**

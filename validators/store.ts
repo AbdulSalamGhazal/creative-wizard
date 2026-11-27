@@ -35,6 +35,8 @@ export const storeOrdersFiltersSchema = z.object({
   skus: csvList(),
   coupons: csvList(),
   offers: csvList(),
+  /** The shipping country as Salla sends it (2026-11-27). */
+  countries: csvList(),
 });
 
 /**

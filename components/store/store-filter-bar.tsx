@@ -25,7 +25,7 @@ function paymentTypeLabel(v: string): string {
 /**
  * Store orders filters (2026-11-27, user decision): the range, a search over
  * the order AND its customer, and a Filters dialog — payment method, COD or
- * prepaid, platform, channel, product, coupon, offer. Status is NOT here: it
+ * prepaid, platform, channel, product, coupon, offer, country. Status is NOT here: it
  * is the tab row under this bar. Every option list is the brand's own values
  * (`storeOrderFilterOptions`), most-used first. URL-backed and remembered per
  * user per brand like every standard filter; a search is debounced 250ms; any
@@ -149,6 +149,14 @@ export function StoreFilterBar({
       options: options.offers.map((v) => ({ value: v, label: v })),
       emptyHint: "No special offer has been applied yet.",
       ...wire("offers"),
+    },
+    {
+      key: "countries",
+      label: "Country",
+      type: "multi",
+      options: options.countries.map((v) => ({ value: v, label: v })),
+      emptyHint: "Not reported yet — it comes with orders from the Salla feed.",
+      ...wire("countries"),
     },
   ];
 

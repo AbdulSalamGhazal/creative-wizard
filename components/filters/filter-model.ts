@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { isolate } from "@/lib/bidi";
+
+/** Hebrew, Arabic and their supplements — a right-to-left strong character. */
+const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
 
 /**
  * The declarative filter model behind `FilterShell` — PURE, no React, no DOM,
@@ -165,7 +169,11 @@ export function filterValueSummary(def: MultiFilterDef | SingleFilterDef): strin
   if (def.chipFormat) return def.chipFormat(def.values, def.options);
   const [first, ...rest] = def.values;
   const head = optionLabel(def.options, first!);
-  return rest.length === 0 ? head : `${head} +${rest.length}`;
+  if (rest.length === 0) return head;
+  // An Arabic value (a country, an offer) would pull the " +N" into its own
+  // right-to-left run and print "قطر 1+" — isolate it, so the count stays
+  // after it. Latin values are left byte-identical.
+  return `${RTL_CHAR.test(head) ? isolate(head) : head} +${rest.length}`;
 }
 
 /** "Label: A" for one value, "Label: A +2" for more — the house chip text. */

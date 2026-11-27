@@ -39,7 +39,8 @@
   stripped). The Filters dialog: payment method, COD or prepaid, platform,
   channel (the SAME keys and buckets as Insights), product (`skus` — never
   `products`, which holds the ads pages' product ids), coupon, offer (one
-  of several joined with ", "). Options are the brand's own values, all
+  of several joined with ", "), country (`countries`, the feed's shipping
+  country as Salla sends it — added on request the same day). Options are the brand's own values, all
   time, most-used first, capped at `ORDER_FILTER_OPTION_CAP`; a value with a
   comma can't ride the URL and isn't offered. Filters are remembered per user
   per brand, so the page AND the CSV resolve them through ONE function,
