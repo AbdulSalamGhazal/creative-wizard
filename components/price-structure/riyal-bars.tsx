@@ -19,7 +19,7 @@ export interface RiyalRow {
 
 /**
  * "Where each riyal goes" (brief §6.1, §6.4): one horizontal 100%-stacked bar
- * per row made of CML, COGS, Marketing and Undelivered — or, in SAR mode,
+ * per row made of CML, COGS and Marketing — or, in SAR mode,
  * absolute stacked bars on one scale. CSS, like the house rating-mix bars;
  * each segment carries its "% · SAR" as its title.
  */

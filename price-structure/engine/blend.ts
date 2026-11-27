@@ -30,7 +30,6 @@ export interface Blend {
   netRevenue: number;
   /** SAR per day: the lines' CPA/ROAS spend, or the actuals override. */
   adSpend: number;
-  undelivered: number;
   cogs: number;
   contribution: number;
   /** CML. */
@@ -39,7 +38,6 @@ export interface Blend {
   margin: number;
   cogsPct: number;
   marketingPct: number;
-  undeliveredPct: number;
   platformRoas: number;
   accountantRoas: number;
   cpaUsd: number;
@@ -56,7 +54,6 @@ export function blend(
   let gross = 0;
   let netRevenue = 0;
   let spend = 0;
-  let undelivered = 0;
   let cogs = 0;
   let contribution = 0;
   for (const line of lines) {
@@ -70,7 +67,6 @@ export function blend(
     gross += n * r.paidGross;
     netRevenue += d * r.netRevenue;
     spend += n * r.adSpend;
-    undelivered += d * r.undelivered;
     cogs += d * r.cogs;
     contribution += d * r.contribution;
   }
@@ -84,16 +80,14 @@ export function blend(
     gross,
     netRevenue,
     adSpend,
-    undelivered,
     cogs,
     contribution,
     profit,
     margin: share(profit),
     cogsPct: share(cogs),
     marketingPct: share(adSpend),
-    undeliveredPct: share(undelivered),
     platformRoas: adSpend > 0 ? gross / adSpend : Infinity,
-    accountantRoas: adSpend + undelivered > 0 ? netRevenue / (adSpend + undelivered) : Infinity,
+    accountantRoas: adSpend > 0 ? netRevenue / adSpend : Infinity,
     cpaUsd: orders > 0 ? adSpend / orders / settings.usdToSar : 0,
   };
 }

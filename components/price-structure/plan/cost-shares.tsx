@@ -14,7 +14,7 @@ interface Column {
 
 /**
  * "Cost shares" (brief §6.4): the blended cost structure as a share of net
- * revenue — Net revenue 100%, COGS, Marketing, Undelivered, CML — with a SAR
+ * revenue — Net revenue 100%, COGS, Marketing, CML — with a SAR
  * column per blend. Plan mode shows one blend; the Actual page shows
  * "Actual" beside "At baked-in ROAS".
  */
@@ -23,9 +23,6 @@ export function CostShares({ title = "Cost shares", subtitle, info, columns, sar
     { key: "net", label: "Net revenue", color: null, pct: () => 1, sar: (b: Blend) => b.netRevenue },
     { key: "cogs", label: "COGS", color: PART_COLOR.cogs, pct: (b: Blend) => b.cogsPct, sar: (b: Blend) => b.cogs },
     { key: "marketing", label: "Marketing (ad spend)", color: PART_COLOR.marketing, pct: (b: Blend) => b.marketingPct, sar: (b: Blend) => b.adSpend },
-    ...(columns.some((c) => c.blend.undelivered > 0)
-      ? [{ key: "undelivered", label: "Undelivered", color: PART_COLOR.undelivered, pct: (b: Blend) => b.undeliveredPct, sar: (b: Blend) => b.undelivered }]
-      : []),
     { key: "cml", label: "Clean Money Left (CML)", color: PART_COLOR.cml, pct: (b: Blend) => b.margin, sar: (b: Blend) => b.profit, bold: true },
   ];
   const gridCols = `minmax(0,1fr) ${columns.map(() => "auto auto").join(" ")}`;

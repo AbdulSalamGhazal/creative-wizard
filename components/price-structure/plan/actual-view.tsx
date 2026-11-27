@@ -54,7 +54,7 @@ export function ActualView({ data, period, plan, onChangePeriod }: { data: Versi
     key: label,
     label,
     netRevenue: b.netRevenue,
-    parts: { cml: b.profit, cogs: b.cogs, marketing: b.adSpend, undelivered: b.undelivered },
+    parts: { cml: b.profit, cogs: b.cogs, marketing: b.adSpend },
     emphasis: true,
   });
 

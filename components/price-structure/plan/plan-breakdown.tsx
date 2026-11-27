@@ -27,8 +27,6 @@ const BREAKDOWN_DEFAULT_HIDDEN = [
   "units",
   "netRevenue",
   "cogs",
-  "undelivered",
-  "undeliveredPct",
   "contribution",
   "cpa",
 ] as const;
@@ -80,8 +78,6 @@ export function PlanBreakdown({ lines, total, products, settings, mult, perLabel
       { key: "units", label: "Units", align: "right", render: (r) => <span className="tabular-nums">{num2(r.b.units * mult)}</span>, total: () => <span className="tabular-nums">{num2(total.units * mult)}</span> },
       { key: "netRevenue", label: "Net revenue (SAR)", align: "right", render: (r) => <span className="tabular-nums">{money0(r.b.netRevenue * mult)}</span>, total: () => <span className="tabular-nums">{money0(total.netRevenue * mult)}</span> },
       { key: "cogs", label: "COGS (SAR)", align: "right", render: (r) => <span className="tabular-nums">{money0(r.b.cogs * mult)}</span>, total: () => <span className="tabular-nums">{money0(total.cogs * mult)}</span> },
-      { key: "undelivered", label: "Undelivered (SAR)", align: "right", render: (r) => <span className="tabular-nums">{money0(r.b.undelivered * mult)}</span>, total: () => <span className="tabular-nums">{money0(total.undelivered * mult)}</span> },
-      { key: "undeliveredPct", label: "Undelivered %", align: "right", render: (r) => <span className="tabular-nums">{pct2(r.b.undeliveredPct)}</span>, total: () => <span className="tabular-nums">{pct2(total.undeliveredPct)}</span> },
       { key: "contribution", label: "Contribution (SAR)", align: "right", render: (r) => <Num value={r.b.contribution * mult} kind="money0" />, total: () => <Num value={total.contribution * mult} kind="money0" /> },
       { key: "cpa", label: "CPA $", align: "right", render: (r) => <Num value={r.b.cpaUsd} kind="usd2" red={false} />, total: () => <Num value={total.cpaUsd} kind="usd2" red={false} /> },
     ],

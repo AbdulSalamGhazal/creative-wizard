@@ -77,7 +77,6 @@ export function PriceStructureTable({
   const v = useSearchParams().get("v");
   const [, startNav] = useNavTransition();
   const { rows: offers, roasTarget } = evaluated;
-  const hasUndelivered = offers.some((o) => o.r.undelivered > 0);
   const pctMode = costView === "pct";
 
   const rows = useMemo<Row[]>(() => {
@@ -151,16 +150,13 @@ export function PriceStructureTable({
       { key: "cogs", label: "COGS", align: "right", render: only((o) => cost(o.r.cogs, o.r.cogsPct, "Product cost per delivered order")) },
       { key: "marketing", label: "Marketing", align: "right", render: only((o) => cost(o.r.marketing, o.r.marketingPct, "Ad spend per placed order ÷ delivery rate")) },
     ];
-    if (hasUndelivered) {
-      cols.push({ key: "undelivered", label: "Undelivered", align: "right", render: only((o) => cost(o.r.undelivered, o.r.undeliveredPct, "Undelivered-order cost carried by each delivered order")) });
-    }
     cols.push(
       { key: "cmlPct", label: "CML %", align: "right", render: only((o) => <Num value={o.r.margin} kind="pct2" title="CML ÷ net revenue" />) },
       { key: "cml", label: "CML", align: "right", render: only((o) => <Num value={o.r.profit} kind="money2" title="Clean Money Left: net revenue − COGS − marketing" />) },
       { key: "cmlUnit", label: "CML / unit", align: "right", render: only((o) => <Num value={o.r.profitPerUnit} kind="money2" title="CML ÷ units in the order" />) },
       { key: "cpa", label: "CPA $", align: "right", render: only((o) => <Num value={o.r.cpaUsd} kind="usd2" title="Ad spend per placed order" />) },
       { key: "platformRoas", label: "Platform ROAS", align: "right", render: only((o) => <Num value={o.r.platformRoas} kind="roas" title="What the ad platform shows" />) },
-      { key: "acctRoas", label: "Acct. ROAS", align: "right", render: only((o) => <Num value={o.r.accountantRoas} kind="roas" title="Net revenue ex VAT from delivered orders ÷ (ad spend + undelivered cost)" />) },
+      { key: "acctRoas", label: "Acct. ROAS", align: "right", render: only((o) => <Num value={o.r.accountantRoas} kind="roas" title="Net revenue ex VAT from delivered orders ÷ ad spend" />) },
     );
     if (roasTarget) {
       cols.push(
@@ -176,8 +172,8 @@ export function PriceStructureTable({
       { key: "vat", label: "VAT", align: "right", render: only((o) => <Num value={o.r.vat} kind="money2" title="VAT in what the customer pays" red={false} />) },
       { key: "discountValue", label: "Discount SAR", align: "right", render: only((o) => <Num value={o.r.discountValue} kind="money2" title="List − paid" red={false} />) },
       { key: "deliveryRate", label: "Delivery rate", align: "right", render: only((o) => <Num value={o.r.deliveryRate} kind="pct1" title="Share of placed orders delivered" red={false} />) },
-      { key: "contribution", label: "Contribution", align: "right", render: only((o) => <Num value={o.r.contribution} kind="money2" title="Net revenue − COGS − undelivered: what is left before ads" />) },
-      { key: "adCostPct", label: "Ad cost %", align: "right", render: only((o) => <Num value={o.r.adCostPct} kind="pct2" title="(Marketing + undelivered) ÷ net revenue" red={false} />) },
+      { key: "contribution", label: "Contribution", align: "right", render: only((o) => <Num value={o.r.contribution} kind="money2" title="Net revenue − COGS: what is left before ads" />) },
+      { key: "adCostPct", label: "Ad cost %", align: "right", render: only((o) => <Num value={o.r.adCostPct} kind="pct2" title="Marketing ÷ net revenue" red={false} />) },
       { key: "mPlaced", label: "Monthly placed", align: "right", render: only((o) => <Num value={o.r.monthly.placed} kind="money0" title="Orders placed per month" red={false} />) },
       { key: "mDelivered", label: "Monthly delivered", align: "right", render: only((o) => <Num value={o.r.monthly.delivered} kind="money0" title="Orders delivered per month" red={false} />) },
       { key: "mRevenue", label: "Monthly revenue", align: "right", render: only((o) => <Num value={o.r.monthly.revenue} kind="money0" title="Net revenue per month, SAR" />) },
@@ -192,7 +188,7 @@ export function PriceStructureTable({
     });
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grouping, hasUndelivered, roasTarget, pctMode, targetA, targetB, v]);
+  }, [grouping, roasTarget, pctMode, targetA, targetB, v]);
 
   const hideable = columns.filter((c) => !c.pinned).map((c) => c.key);
   const cols = useTableColumns({
@@ -215,7 +211,7 @@ export function PriceStructureTable({
               <li><b>List price</b>: list price of the units in the order.</li>
               <li><b>CML</b>: Clean Money Left — net revenue − COGS − marketing.</li>
               <li><b>Platform ROAS</b>: what the ad platform shows.</li>
-              <li><b>Acct. ROAS</b>: net revenue ex VAT from delivered orders ÷ (ad spend + undelivered cost).</li>
+              <li><b>Acct. ROAS</b>: net revenue ex VAT from delivered orders ÷ ad spend.</li>
               {roasTarget && <li><b>ROAS for A / B</b>: platform ROAS needed for {targetA} / {targetB}.</li>}
             </ul>
           </InfoTip>

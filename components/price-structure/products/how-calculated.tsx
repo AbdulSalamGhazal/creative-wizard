@@ -36,15 +36,10 @@ export function HowCalculated({ product, offer, data }: { product: Product; offe
       value: <Num value={r.adSpend} kind="money2" />,
     },
     { name: "Marketing / delivered", expr: `ad spend ÷ ${ratePct} delivered`, value: <Num value={r.marketing} kind="money2" /> },
-    {
-      name: "Undelivered cost",
-      expr: `(1 − ${ratePct}) ÷ ${ratePct} × ${money2(s.undeliveredCost)}`,
-      value: <Num value={r.undelivered} kind="money2" />,
-    },
-    { name: "CML", expr: "net revenue − COGS − marketing − undelivered", value: <Num value={r.profit} kind="money2" /> },
+    { name: "CML", expr: "net revenue − COGS − marketing", value: <Num value={r.profit} kind="money2" /> },
     { name: "CML %", expr: "CML ÷ net revenue", value: <Num value={r.margin} kind="pct2" /> },
     { name: "Platform ROAS", expr: "customer pays ÷ ad spend", value: <Num value={r.platformRoas} kind="roas" /> },
-    { name: "Accountant ROAS", expr: "net revenue ÷ (marketing + undelivered)", value: <Num value={r.accountantRoas} kind="roas" /> },
+    { name: "Accountant ROAS", expr: "net revenue ÷ marketing", value: <Num value={r.accountantRoas} kind="roas" /> },
   ];
 
   if (roasTarget && isRoasTargetMetric(roasTarget.metric)) {
@@ -54,7 +49,7 @@ export function HowCalculated({ product, offer, data }: { product: Product; offe
       const v = roasTarget[level];
       rows.push({
         name: `ROAS for ${level.toUpperCase()}`,
-        expr: `customer pays ÷ (delivery rate × (net revenue − COGS − undelivered − ${kept(v)}))`,
+        expr: `customer pays ÷ (delivery rate × (net revenue − COGS − ${kept(v)}))`,
         value: (
           <span title={`Platform ROAS needed for ${targetText(roasTarget.metric, v)}`}>
             <Num value={roasNeeded(r, roasTarget.metric, v, s.usdToSar).roas} kind="roas" />

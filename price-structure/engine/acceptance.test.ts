@@ -95,14 +95,6 @@ describe("§11.1 single offers on Ultra 3 (cost 90, price 350)", () => {
 
 describe("§11.2 variants of 15% off on Ultra 3", () => {
   const o = offer(ultra, "15% off");
-  it("undelivered cost 25 SAR", () => {
-    const r = evaluateOffer(ultra, o, { ...S, undeliveredCost: 25 });
-    close(r.undelivered, 4.41);
-    close(r.profit, 66.78);
-    closePct(r.margin, 25.82);
-    close(r.accountantRoas, 2.54);
-    closePct(r.adCostPct, 39.39);
-  });
   it("adMode ROAS, platform ROAS 4.0", () => {
     const r = evaluateOffer(ultra, { ...o, adMode: "roas", platformRoas: 4 }, S);
     close(r.adSpend, 74.375);
@@ -174,7 +166,7 @@ describe("§11.3 plan: sample data, 100 orders/day, even split", () => {
     closePct(b.margin, 30.94);
     closePct(b.cogsPct, 42.99);
     closePct(b.marketingPct, 26.07);
-    close(b.margin + b.cogsPct + b.marketingPct + b.undeliveredPct, 1, 1e-9);
+    close(b.margin + b.cogsPct + b.marketingPct, 1, 1e-9);
   });
   it("ROAS for targets", () => {
     close(roasFor(b, "margin", 0.25), 4.23);

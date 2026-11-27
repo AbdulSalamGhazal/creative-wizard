@@ -20,8 +20,6 @@ export interface Settings {
   usdToSar: number;
   /** Share of placed orders that get delivered, 0.01–1. Default 0.85. */
   deliveryRate: number;
-  /** SAR lost per undelivered order (shipping out + back, handling). Default 0. */
-  undeliveredCost: number;
 }
 
 export type Mechanic =
@@ -144,7 +142,6 @@ export const DEFAULT_SETTINGS: Settings = {
   pricesIncludeVat: true,
   usdToSar: 3.75,
   deliveryRate: 0.85,
-  undeliveredCost: 0,
 };
 
 /** The three target levels a status can land on. Ordered worst → best. */

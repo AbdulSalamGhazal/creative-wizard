@@ -29,6 +29,20 @@ describe("export (§9.1)", () => {
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data).toEqual(data);
   });
+  it("a stored document that still carries the retired undelivered cost reads without it", () => {
+    const data = sampleVersionData();
+    const stored = { ...data, settings: { ...data.settings, undeliveredCost: 25 } };
+    const parsed = versionDataSchema.safeParse(JSON.parse(JSON.stringify(stored)));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect("undeliveredCost" in parsed.data.settings).toBe(false);
+  });
+  it("our own export with a non-zero undelivered cost imports without it and says so", () => {
+    const data = sampleVersionData();
+    const out = toExport("Main", data, NOW);
+    const res = importDocument(JSON.parse(JSON.stringify({ ...out, settings: { ...out.settings, undeliveredCost: 25 } })));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.warnings).toEqual(["The undelivered-order cost in this file was not imported; the module no longer uses it."]);
+  });
 });
 
 describe("import from the old tool (§9.3)", () => {
@@ -60,11 +74,12 @@ describe("import from the old tool (§9.3)", () => {
     expect(res.name).toBeNull();
     expect(res.warnings).toEqual([
       "Scenario adjustments (price change, ad cost change) were not imported; the module has no scenarios.",
+      "The undelivered-order cost in this file was not imported; the module no longer uses it.",
     ]);
     const parsed = versionDataSchema.safeParse(res.candidate);
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
-    expect(parsed.data.settings).toEqual({ vatRate: 0.15, pricesIncludeVat: false, usdToSar: 3.75, deliveryRate: 0.8, undeliveredCost: 25 });
+    expect(parsed.data.settings).toEqual({ vatRate: 0.15, pricesIncludeVat: false, usdToSar: 3.75, deliveryRate: 0.8 });
     expect(parsed.data.targets.map((t) => t.metric)).toEqual(["margin", "profit"]);
     expect(parsed.data.roasTargetId).toBe("");
     expect(parsed.data.plans).toHaveLength(1);

@@ -20,7 +20,7 @@ import { useVersion } from "./version-provider";
  */
 export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { open: version, updateData, access } = useVersion();
-  const ids = { vat: useId(), incl: useId(), fx: useId(), delivery: useId(), undelivered: useId() };
+  const ids = { vat: useId(), incl: useId(), fx: useId(), delivery: useId() };
   const s = version?.data.settings;
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     updateData("data.settings", (d) => ({ ...d, settings: { ...d.settings, [key]: value } }));
@@ -47,9 +47,6 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
             </Field>
             <Field label="Delivery rate" hint="Placed orders that get delivered" htmlFor={ids.delivery}>
               <NumberField id={ids.delivery} value={s.deliveryRate} pct unit="%" min={1} max={100} onChange={(v) => set("deliveryRate", v)} />
-            </Field>
-            <Field label="Cost per undelivered order" hint="Shipping out and back, handling" htmlFor={ids.undelivered}>
-              <NumberField id={ids.undelivered} value={s.undeliveredCost} unit="SAR" min={0} onChange={(v) => set("undeliveredCost", v)} />
             </Field>
             {!access.edit && <p className="text-[11px] text-ink-3">Read-only: changing settings needs the Edit permission.</p>}
           </fieldset>

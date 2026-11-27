@@ -39,10 +39,6 @@ export function OfferWaterfall({ product, offer, data }: { product: Product; off
     running -= r.cogs;
     minus("Marketing", r.marketing, running, PART_COLOR.marketing);
     running -= r.marketing;
-    if (r.undelivered > 0) {
-      minus("Undelivered", r.undelivered, running, PART_COLOR.undelivered);
-      running -= r.undelivered;
-    }
     total("CML", r.profit, r.profit < 0 ? "var(--neg)" : PART_COLOR.cml);
     return out;
   }, [r]);

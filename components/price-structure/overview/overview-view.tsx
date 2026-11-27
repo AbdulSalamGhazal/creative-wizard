@@ -57,7 +57,7 @@ export function OverviewView() {
     sublabel: row.product.name,
     color: productColor(row.product.colorSlot),
     netRevenue: row.r.netRevenue,
-    parts: { cml: row.r.profit, cogs: row.r.cogs, marketing: row.r.marketing, undelivered: row.r.undelivered },
+    parts: { cml: row.r.profit, cogs: row.r.cogs, marketing: row.r.marketing },
   }));
 
   // Two abreast on a phone or a tablet (the labels are long), four or six on a desktop.

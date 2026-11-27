@@ -168,7 +168,7 @@ export function PlanView() {
     { key: "baked", label: "Baked-in", value: b.platformRoas, color: LADDER_COLOR.baked },
   ];
   const riyalRows: RiyalRow[] = [
-    { key: "all", label: "Whole plan", netRevenue: b.netRevenue, parts: { cml: b.profit, cogs: b.cogs, marketing: b.adSpend, undelivered: b.undelivered }, emphasis: true },
+    { key: "all", label: "Whole plan", netRevenue: b.netRevenue, parts: { cml: b.profit, cogs: b.cogs, marketing: b.adSpend }, emphasis: true },
     ...products
       .map((p) => ({ p, pb: blend(lines.filter((l) => l.product.id === p.id), s) }))
       .filter(({ pb }) => pb.orders > 0)
@@ -177,7 +177,7 @@ export function PlanView() {
         label: p.name,
         color: productColor(p.colorSlot),
         netRevenue: pb.netRevenue,
-        parts: { cml: pb.profit, cogs: pb.cogs, marketing: pb.adSpend, undelivered: pb.undelivered },
+        parts: { cml: pb.profit, cogs: pb.cogs, marketing: pb.adSpend },
       })),
   ];
 

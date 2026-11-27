@@ -50,7 +50,6 @@ const SETTINGS_KEYS: ReadonlyArray<keyof Settings> = [
   "pricesIncludeVat",
   "usdToSar",
   "deliveryRate",
-  "undeliveredCost",
 ];
 
 const LEVER_LABELS: Record<string, string> = {
@@ -66,6 +65,14 @@ function pickSettings(src: Record<string, unknown>): Record<string, unknown> | n
 }
 
 /**
+ * The module dropped its undelivered-order cost (2026-11-27). An export that
+ * still carries a non-zero one is imported without it, and says so.
+ */
+function droppedUndeliveredCost(src: Record<string, unknown>): boolean {
+  return typeof src.undeliveredCost === "number" && src.undeliveredCost !== 0;
+}
+
+/**
  * Shape an uploaded JSON document into a VersionData candidate. Accepts the
  * module's own export (settings at the top level) and the old tool's v4 export
  * (settings inside the active scenario's `assumptions`).
@@ -75,12 +82,17 @@ export function importDocument(raw: unknown): ImportResult {
   const warnings: string[] = [];
 
   let settings: Record<string, unknown> | null = null;
-  if (isRecord(raw.settings)) settings = pickSettings(raw.settings);
+  let settingsSource: Record<string, unknown> | null = null;
+  if (isRecord(raw.settings)) {
+    settings = pickSettings(raw.settings);
+    settingsSource = raw.settings;
+  }
   if (!settings && Array.isArray(raw.scenarios)) {
     const scenarios = raw.scenarios.filter(isRecord);
     const active = scenarios.find((s) => s.id === raw.activeScenarioId) ?? scenarios[0];
     if (active && isRecord(active.assumptions)) {
       settings = pickSettings(active.assumptions);
+      settingsSource = active.assumptions;
       const levers = Object.keys(LEVER_LABELS).filter((k) => {
         const v = active.assumptions && isRecord(active.assumptions) ? active.assumptions[k] : 0;
         return typeof v === "number" && v !== 0;
@@ -93,6 +105,9 @@ export function importDocument(raw: unknown): ImportResult {
     }
   }
   if (!settings) return { ok: false, error: IMPORT_ERROR };
+  if (settingsSource && droppedUndeliveredCost(settingsSource)) {
+    warnings.push("The undelivered-order cost in this file was not imported; the module no longer uses it.");
+  }
 
   const targets = Array.isArray(raw.targets) ? raw.targets.filter((t) => isRecord(t) && isMetricKey(t.metric)) : [];
 

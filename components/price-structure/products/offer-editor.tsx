@@ -274,13 +274,13 @@ export function OfferEditor({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 self-start rounded-md border border-line bg-surface p-3 text-xs @6xl/editor:grid-cols-3">
           <Result label="Customer pays" title="What the customer pays for the order, incl. VAT, after all discounts."><Num value={r.paidGross} kind="money2" /></Result>
           <Result label="Net revenue" title="Customer pays minus VAT."><Num value={r.netRevenue} kind="money2" /></Result>
-          <Result label="CML" title="Clean Money Left: net revenue − COGS − marketing − undelivered cost."><Num value={r.profit} kind="money2" /></Result>
+          <Result label="CML" title="Clean Money Left: net revenue − COGS − marketing."><Num value={r.profit} kind="money2" /></Result>
           <Result label="CML %" title="CML ÷ net revenue."><Num value={r.margin} kind="pct2" /></Result>
           <Result label="CML / unit" title="CML ÷ units in the order."><Num value={r.profitPerUnit} kind="money2" /></Result>
           <Result label="Effective discount" title="List price − customer pays, as a share of list."><Num value={r.discount} kind="pct1" /></Result>
           <Result label="Platform ROAS" title="What the ad platform shows: customer pays ÷ ad spend per placed order."><Num value={r.platformRoas} kind="roas" /></Result>
-          <Result label="Accountant ROAS" title="Net revenue (ex VAT, delivered) ÷ (marketing + undelivered cost)."><Num value={r.accountantRoas} kind="roas" /></Result>
-          <Result label="Ad cost %" title="(marketing + undelivered cost) ÷ net revenue = 1 ÷ accountant ROAS."><Num value={r.adCostPct} kind="pct2" /></Result>
+          <Result label="Accountant ROAS" title="Net revenue (ex VAT, delivered) ÷ marketing."><Num value={r.accountantRoas} kind="roas" /></Result>
+          <Result label="Ad cost %" title="marketing ÷ net revenue = 1 ÷ accountant ROAS."><Num value={r.adCostPct} kind="pct2" /></Result>
           <Result
             label="ROAS for A / B"
             title={needed ? `Platform ROAS needed for ${needed.text}` : "Set a CML target on the Targets page"}

@@ -36,9 +36,7 @@ export interface OfferResult {
   deliveryRate: number;
   /** Ad spend carried by each delivered order: adSpend ÷ deliveryRate. */
   marketing: number;
-  /** Undelivered-order cost carried by each delivered order. */
-  undelivered: number;
-  /** netRevenue − cogs − undelivered: what is left before ads. */
+  /** netRevenue − cogs: what is left before ads. */
   contribution: number;
   /** CML (Clean Money Left): contribution − marketing. */
   profit: number;
@@ -48,11 +46,10 @@ export interface OfferResult {
   profitPerUnit: number;
   cogsPct: number;
   marketingPct: number;
-  undeliveredPct: number;
   cpaUsd: number;
   platformRoas: number;
   accountantRoas: number;
-  /** (marketing + undelivered) ÷ netRevenue = 1 ÷ accountantRoas. */
+  /** marketing ÷ netRevenue = 1 ÷ accountantRoas. */
   adCostPct: number;
   monthly: {
     placed: number;
@@ -111,8 +108,7 @@ export function evaluateOffer(
     1,
   );
   const marketing = adSpend / deliveryRate;
-  const undelivered = ((1 - deliveryRate) / deliveryRate) * settings.undeliveredCost;
-  const contribution = netRevenue - cogs - undelivered;
+  const contribution = netRevenue - cogs;
   const profit = contribution - marketing;
 
   const placed = offer.ordersPerMonth;
@@ -130,18 +126,16 @@ export function evaluateOffer(
     adSpend,
     deliveryRate,
     marketing,
-    undelivered,
     contribution,
     profit,
     margin: safeDiv(profit, netRevenue),
     profitPerUnit: units > 0 ? profit / units : 0,
     cogsPct: safeDiv(cogs, netRevenue),
     marketingPct: safeDiv(marketing, netRevenue),
-    undeliveredPct: safeDiv(undelivered, netRevenue),
     cpaUsd: adSpend / settings.usdToSar,
     platformRoas: safeDiv(paidGross, adSpend),
-    accountantRoas: safeDiv(netRevenue, marketing + undelivered),
-    adCostPct: safeDiv(marketing + undelivered, netRevenue),
+    accountantRoas: safeDiv(netRevenue, marketing),
+    adCostPct: safeDiv(marketing, netRevenue),
     monthly: {
       placed,
       delivered,

@@ -39,6 +39,13 @@ module.
   targets on CML %, CML per order or CML per unit; the chosen `roasTargetId`,
   else the first CML % target, else the first eligible). There is no
   break-even ROAS anywhere in the module, and no OPEX.
+- **No undelivered-order cost (2026-11-27, user decision: "never used, and
+  won't be").** CML = net revenue − COGS − marketing, nothing else; the
+  delivery rate only spreads each placed order's ad spend over the delivered
+  ones. A stored document or an export that still carries `undeliveredCost`
+  reads without it (the schema strips the key); an import with a non-zero one
+  says it was dropped. Shipping costs, when the module meets them, are
+  deducted outside CML, never as a per-order setting.
 - **A version is one jsonb document** (`ps_versions.data`), validated by
   `price-structure/schema.ts` on every write AND every read; a stored row the
   schema rejects is skipped with a log line, never handed to the engine.
@@ -100,6 +107,15 @@ module.
   don't label). The module records no exception.
 
 ## History and rationale
+
+- **2026-11-27 — the undelivered-order cost removed.** Planning the Store
+  integration (real-money actual CML) raised whether actual CML should
+  deduct it; the user had never used the setting and asked for it to be
+  wiped from the system. Gone from the settings sheet, the engine
+  (`OfferResult.undelivered`, `Blend.undelivered`, their `%`), every table,
+  chart and waterfall, and the "how calculated" rows. The §11.2 acceptance
+  case "undelivered cost 25 SAR" went with it; every other §11 number is
+  unchanged because the brief's base settings had it at 0.
 
 - **2026-11-06 — access split in three** (user request after the first day in
   production: "more than one option"). The single `price_structure.access`

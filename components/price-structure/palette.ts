@@ -3,25 +3,23 @@ import type { Status } from "@/price-structure/engine/types";
 /**
  * The module's colours and status chips — constants over the house CSS
  * variables, never new ones. A product's colour comes from its `colorSlot`
- * (0–7) through the house 8-colour categorical palette; the four parts of a
+ * (0–7) through the house 8-colour categorical palette; the three parts of a
  * riyal keep ONE colour each across every chart and table (brief §8.2).
  */
-export type Part = "cml" | "cogs" | "marketing" | "undelivered";
+export type Part = "cml" | "cogs" | "marketing";
 
-export const PARTS: readonly Part[] = ["cml", "cogs", "marketing", "undelivered"];
+export const PARTS: readonly Part[] = ["cml", "cogs", "marketing"];
 
 export const PART_LABEL: Record<Part, string> = {
   cml: "CML",
   cogs: "COGS",
   marketing: "Marketing",
-  undelivered: "Undelivered",
 };
 
 export const PART_COLOR: Record<Part, string> = {
   cml: "var(--series-1)",
   cogs: "var(--series-3)",
   marketing: "var(--series-2)",
-  undelivered: "var(--ink-3)",
 };
 
 export function productColor(slot: number): string {

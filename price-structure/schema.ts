@@ -34,7 +34,6 @@ export const settingsSchema = z.object({
   pricesIncludeVat: z.boolean(),
   usdToSar: num.min(0.0001),
   deliveryRate: num.min(0.01).max(1),
-  undeliveredCost: nonNeg,
 });
 
 export const offerSchema = z.object({

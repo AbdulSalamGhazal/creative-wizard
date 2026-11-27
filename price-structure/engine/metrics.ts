@@ -55,7 +55,7 @@ export const METRICS: Record<MetricKey, MetricMeta> = {
     unit: "x",
     higherIsBetter: true,
     description:
-      "Net revenue (ex VAT, delivered only) ÷ (all ad spend + undelivered cost).",
+      "Net revenue (ex VAT, delivered only) ÷ all ad spend.",
     monthly: false,
   },
   platformRoas: {
@@ -75,7 +75,7 @@ export const METRICS: Record<MetricKey, MetricMeta> = {
     unit: "pct",
     higherIsBetter: false,
     description:
-      "1 ÷ accountant ROAS. Share of net revenue spent on ads and undelivered orders.",
+      "1 ÷ accountant ROAS. Share of net revenue spent on ads.",
     monthly: false,
   },
   netRevenue: {
