@@ -233,7 +233,7 @@ function filteredOrders(
 }
 
 /** A numeric attribute, or NULL when absent or not a plain number. */
-function attrNum(key: string): SQL {
+export function attrNum(key: string): SQL {
   const v = sql`(${storeOrders.attributes} ->> ${key})`;
   return sql`CASE WHEN ${v} ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN ${v}::numeric END`;
 }
@@ -246,7 +246,7 @@ function attrNum(key: string): SQL {
 const statusSlug = sql`LOWER(COALESCE(${storeOrders.attributes} ->> ${ORDER_STATUS_FIELD_KEY}, ''))`;
 export const IS_CANCELLED_SQL = sql`(${statusSlug} LIKE '%cancel%' OR ${statusSlug} = 'deleted')`;
 export const IS_REFUNDED_SQL = sql`(NOT ${IS_CANCELLED_SQL} AND (${statusSlug} LIKE '%refund%' OR ${statusSlug} LIKE '%restor%'))`;
-const IS_LOST_SQL = sql`(${IS_CANCELLED_SQL} OR ${IS_REFUNDED_SQL})`;
+export const IS_LOST_SQL = sql`(${IS_CANCELLED_SQL} OR ${IS_REFUNDED_SQL})`;
 
 /**
  * Who placed an order, for new-vs-returning: the phone (the feed writes it

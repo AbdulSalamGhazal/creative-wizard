@@ -47,3 +47,30 @@ export const pollVersionsSchema = z.object({
 
 export type SaveVersionInput = z.infer<typeof saveVersionSchema>;
 export type CreateVersionInput = z.infer<typeof createVersionSchema>;
+
+// ── Pricing · Actual (2026-11-27) ───────────────────────────────────────────
+
+/** The Actual page's URL: a range like every range page; a bad value falls back. */
+export const actualParamsSchema = z.object({
+  from: z.string().date().optional().catch(undefined),
+  to: z.string().date().optional().catch(undefined),
+});
+
+/** A Pricing document id (product or offer) — the version schema's own bound. */
+const psId = z.string().min(1).max(200);
+/** The Store's line key: a SKU, or a name when Salla sent none. */
+const productKey = z.string().trim().min(1).max(500);
+
+/** One mapping change; `null` clears it. */
+export const mappingChangeSchema = z.discriminatedUnion("what", [
+  z.object({ what: z.literal("sku"), productKey, psProductId: psId.nullable() }),
+  z.object({
+    what: z.literal("offer"),
+    productKey,
+    quantity: z.number().int().min(1).max(1000),
+    psOfferId: psId.nullable(),
+  }),
+  z.object({ what: z.literal("ads"), productId: z.string().uuid(), psProductId: psId.nullable() }),
+]);
+
+export type MappingChange = z.infer<typeof mappingChangeSchema>;

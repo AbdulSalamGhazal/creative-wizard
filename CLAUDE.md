@@ -28,8 +28,8 @@ If a rule here conflicts with one of those documents, the documents win — flag
   (pure engine + Zod schema + formats), `db/queries/price-structure.ts`,
   `app/actions/price-structure.ts`, `components/price-structure/*`, routes
   under `app/(dashboard)/price-structure/` — the app's ONE nested layout,
-  which holds the client version provider. Tables `ps_versions`,
-  `ps_user_state`. → `docs/decisions/price-structure.md`
+  which holds the client version provider. Tables `ps_versions`, `ps_user_state`, `ps_*_mappings`
+  (3); its Actual page READS the Store + Ads (2026-11-27). → `docs/decisions/price-structure.md`
 - Vercel hosting. Vercel KV is NOT used (upload-validation sessions live in Postgres). **Vercel Blob IS used** for creative thumbnails: uploaded via `POST /api/uploads/thumbnail` (requires `creative.edit`; client downscales→WebP first), stored public, and the returned URL is saved to `creatives.thumbnail_url`. **Profile photos** (2026-10-20) use the same store via `POST /api/uploads/avatar` (yours: signed in; anyone's: `users.manage`) → `users.avatar_url`; with no token in LOCAL dev they fall back to gitignored `public/dev-uploads/avatars/`. **Brand logos** (2026-11) use the same store under `brand-logos/` via the `uploadBrandLogo` server action (`config.brands` + membership; the browser fits the image into a 128 px WebP first) → `accounts.logo_url`. Requires `BLOB_READ_WRITE_TOKEN` (auto-added when a Blob store is connected to the project); the blob host is allow-listed in `next.config.ts` `images.remotePatterns`.
 
 Do not introduce a new dependency without a one-line justification in the PR description.
@@ -461,7 +461,7 @@ this map is still a rule you broke.
 
 - The engine (`price-structure/engine/*`) is pure and is the contract: the
   brief's §11 numbers are its tests; no arithmetic in components.
-- Every blended figure is a weighted sum via component totals; x ÷ 0 is never NaN.
+- Every blended figure is a weighted sum via component totals; x ÷ 0 is never NaN. Actual CML is REAL money (`price-structure/actual/`), withheld while a sold unit has no cost.
 - A version is ONE jsonb document, validated on write AND read; a save carries
   its revision and a refused save merges by section, never silently.
 - Three grants — view · edit · versions — and the SERVER decides per action;

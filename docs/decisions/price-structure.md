@@ -75,10 +75,55 @@ module.
   a brand with none gets a Blank "Main" (user decision, 2026-11-05 — the
   brief's sample data stays a "Start from" choice). Sidebar links inside the
   module carry `?v=` like Budget's `?month=` (`CARRIED_PARAMS`).
-- **The module imports nothing from other modules' code or tables**; from the
-  host it uses auth/permissions, tenancy, the design system, `lib/format`,
-  the shared `readSheetRows` action, the CSV download helper, and the
-  comments/Activity infrastructure (`CommentAnchor`, the audit).
+- **The module imports nothing from other modules' code or tables — except
+  the Actual page, which READS the Store and the Ads** (2026-11-27, user
+  request: "enhance the price module so it can see the data from the store
+  module"). Only `db/queries/price-structure-actual.ts` crosses the line, and
+  only to read `store_orders`, `store_order_items`, `store_product_costs`
+  (through the Store's own `lineProductKey` / `lineUnitCost` / `IS_LOST_SQL`,
+  never a copy) and `performance_records` × `creatives`. Nothing in Pricing
+  writes another module's table, and no other page reads Pricing. From the
+  host the module uses auth/permissions, tenancy, the design system,
+  `lib/format`, the shared `readSheetRows` action, the CSV download helper,
+  and the comments/Activity infrastructure (`CommentAnchor`, the audit).
+- **Actual CML is REAL money** (user decisions 2026-11-27): CML = net revenue
+  − COGS − ad spend. Net revenue = each order's total − its VAT, which
+  INCLUDES the shipping and COD fees the customer paid (the shipping COST is
+  outside CML, deducted later); delivered orders count whole, LOST orders
+  (cancelled, deleted, refunded — the Store's stages) count nothing (no
+  revenue, no COGS; their ad spend still counts), OPEN orders count at their
+  payment method's delivery rate over the last 90 days' closed FEED orders
+  (fewer than 20 closed → the brand's rate → the version's setting), and an
+  UPLOADED order (no status) at the brand's rate, never in the open table.
+  COGS = units × the Product cost in force on the order's day. Ad spend =
+  every platform's spend over the range, RAW like Budget (no exclusion
+  filter), × the version's USD → SAR. The engine (`price-structure/actual/
+  engine.ts`) is pure; the page shows only what it returns.
+- **An order's money splits by Salla's own identity** (verified on a real
+  order 2026-11-27): total = sub_total − discount + shipping + COD fee + VAT,
+  every part before VAT but the VAT. So product = sub_total − discount and
+  fees = net − product; the product part is spread over the order's lines by
+  their line totals, so lines, fees and orders foot to the store total BY
+  CONSTRUCTION (pinned in `tests/db/ps-actual.test.ts`).
+- **Never a guess:** a delivered or open unit with no cost on its day, or an
+  order with no products (an upload), WITHHOLDS the CML, the COGS and the
+  plan → actual bridge ("Incomplete", with the way to fix it). A lost unit
+  needs no cost.
+- **The mapping is per BRAND, explicit, and changes no total**: a Salla line
+  key (SKU, or name) → a Pricing product; that key × a line QUANTITY → an
+  offer (user decision: "quantity decides"); a Library product → the Pricing
+  product its ad spend counts against. A key with no product, a product the
+  open version lacks, a quantity with no offer, spend on an unmapped Library
+  product: each stays its own visible row and still counts in every total.
+  Re-pointing a SKU to another product drops its offers. Writes need
+  `price_structure.edit`; ids are re-validated against the brand's versions.
+- **The plan → actual bridge adds up exactly**: plan CML for the same days
+  (the open version's active plan) → orders · mix · delivery rate · prices
+  sold · unit costs · ad spend · not in the plan → actual CML, by sequential
+  substitution over the MAPPED offers; "not in the plan" carries fees,
+  unmapped SKUs, no-offer quantities and orders without products.
+- **The MCP does not read it** (the 2026-11-11 decision stands until the user
+  reopens it; `lib/mcp/coverage.ts`).
 - **Three grants, and the SERVER decides per action** (2026-11-06):
   `price_structure.view` opens every page read-only; `price_structure.edit`
   changes the open version's document; `price_structure.versions` creates,
@@ -107,6 +152,24 @@ module.
   don't label). The module records no exception.
 
 ## History and rationale
+
+- **2026-11-27 — Pricing · Actual, from the store.** Once every Salla order
+  carried its lines and the Store had dated Product costs, the user asked for
+  Pricing to "see the data from the store" so CML is known "with no
+  misunderstanding, no miscalculation". Decided with the user before building
+  (two rounds of questions and a mockup): real money, not the model fed with
+  order counts; open orders as expected, by payment method (November 1–26:
+  COD lost 44% of its orders, the installment and card methods about 1%);
+  SKU → product + offer, the quantity deciding the offer; shipping and COD
+  fees counted as revenue with the shipping cost left outside; ad spend by
+  the creative's own product; its own page; the mapping per brand; the old
+  CSV actual periods kept for months before the feed; the bridge against the
+  open version's active plan. Found on the way: the amounts identity was
+  checked on a real order through the Salla connector, because the Store's
+  line totals may carry coupons and offers or may not — splitting at the
+  ORDER (sub_total − discount) makes the answer irrelevant to Actual. Whether
+  Store · Insights' gross profit (line totals ÷ 1.15 − COGS) is reduced by
+  order-level coupons and offers is still to verify (store.md).
 
 - **2026-11-27 — the undelivered-order cost removed.** Planning the Store
   integration (real-money actual CML) raised whether actual CML should

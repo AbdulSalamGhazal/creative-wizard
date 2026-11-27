@@ -102,6 +102,8 @@ export const PRICE_STRUCTURE_GATE: readonly Permission[] = PRICE_STRUCTURE_PERMS
 export const PRICE_STRUCTURE_ROUTES = [
   "/price-structure/overview",
   "/price-structure/plan",
+  "/price-structure/actual",
+  "/price-structure/actual/mapping",
   "/price-structure/products",
   "/price-structure/targets",
   "/price-structure/versions",
@@ -128,6 +130,8 @@ export const NAV_ROUTE_GATES = {
   "/admin/audit": [AUDIT_GATE],
   "/price-structure/overview": [...PRICE_STRUCTURE_PERMS],
   "/price-structure/plan": [...PRICE_STRUCTURE_PERMS],
+  "/price-structure/actual": [...PRICE_STRUCTURE_PERMS],
+  "/price-structure/actual/mapping": [...PRICE_STRUCTURE_PERMS],
   "/price-structure/products": [...PRICE_STRUCTURE_PERMS],
   "/price-structure/targets": [...PRICE_STRUCTURE_PERMS],
   "/price-structure/versions": [...PRICE_STRUCTURE_PERMS],
@@ -150,6 +154,8 @@ export const PAGE_REFUSAL_GATES = {
   // Every Price Structure page refuses a member holding none of its three grants.
   "/price-structure/overview": [PRICE_STRUCTURE_GATE],
   "/price-structure/plan": [PRICE_STRUCTURE_GATE],
+  "/price-structure/actual": [PRICE_STRUCTURE_GATE],
+  "/price-structure/actual/mapping": [PRICE_STRUCTURE_GATE],
   "/price-structure/products": [PRICE_STRUCTURE_GATE],
   "/price-structure/targets": [PRICE_STRUCTURE_GATE],
   "/price-structure/versions": [PRICE_STRUCTURE_GATE],

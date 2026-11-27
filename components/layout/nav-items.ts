@@ -250,6 +250,14 @@ export const NAV_ITEMS: NavItem[] = [
     perms: [...NAV_ROUTE_GATES["/price-structure/plan"]],
   },
   {
+    href: "/price-structure/actual",
+    keys: "pa",
+    label: "Actual",
+    icon: Wallet,
+    group: "pricing",
+    perms: [...NAV_ROUTE_GATES["/price-structure/actual"]],
+  },
+  {
     href: "/price-structure/products",
     keys: "px",
     label: "Products & offers",

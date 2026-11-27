@@ -222,7 +222,17 @@
   of the costed lines and withholds the profit ("Add the missing costs");
   the MCP reports COGS and profit over the costed units and counts the rest
   as `units_without_cost`. Pricing's per-version unit costs are NOT read —
-  that module has no current version and keys products its own way.
+  that module has no current version and keys products its own way. The
+  other direction exists since 2026-11-27: Pricing · Actual READS the
+  orders, lines and Product costs through this module's own fragments
+  (`lineProductKey`, `lineUnitCost`, `attrNum`, `IS_LOST_SQL`) —
+  price-structure.md. **Open question (2026-11-27):** a line total is "what
+  the customer paid for that line", but coupons and offers are order-level
+  (Salla: total = sub_total − discount + shipping + COD fee + VAT). If the
+  feed's line totals are BEFORE that discount, gross profit here is
+  overstated by the coupon + offer discount (Nov 1–26: ~19.6k SAR excl.
+  VAT). Pricing · Actual splits at the order, so it is unaffected; verify on
+  real line payloads before changing Insights.
 - **Salla statuses are coloured by stage** (user decision 2026-11-23):
   waiting grey · on the way (shipped, out for delivery) blue (`Chip` tone
   `info`, the theme's blue) · delivered green · refunded amber · cancelled /

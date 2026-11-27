@@ -121,6 +121,10 @@ export const TABLE_KEYS = {
   PS_PLAN_BREAKDOWN: "ps-plan-breakdown",
   /** Price structure → Versions, the all-versions table. */
   PS_VERSIONS: "ps-versions",
+  /** Pricing → Actual, open orders by payment method. */
+  PS_ACTUAL_OPEN: "ps-actual-open",
+  /** Pricing → Actual, by product and offer. */
+  PS_ACTUAL_PRODUCTS: "ps-actual-products",
 } as const;
 
 export type TableKey = (typeof TABLE_KEYS)[keyof typeof TABLE_KEYS];

@@ -47,9 +47,10 @@ function pageAccess(perms: readonly string[]): Record<string, boolean> {
     "/store/uploads": UPLOAD_ORDERS_ACTIONS.some(has) || anyGated(UPLOAD_ORDERS_TABS),
     "/admin/users": has(TEAM_GATE),
     "/admin/audit": has(AUDIT_GATE),
-    // Price structure: one gate, four sidebar entries (Versions has none).
+    // Price structure: one gate, five sidebar entries (Versions and the
+    // SKU mapping have none — each is reached from its page).
     ...Object.fromEntries(
-      PRICE_STRUCTURE_ROUTES.filter((r) => !r.endsWith("/versions")).map((r) => [
+      PRICE_STRUCTURE_ROUTES.filter((r) => !r.endsWith("/versions") && !r.endsWith("/mapping")).map((r) => [
         r,
         PRICE_STRUCTURE_PERMS.some(has),
       ]),

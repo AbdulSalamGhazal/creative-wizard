@@ -144,6 +144,9 @@ export const AUDIT_ACTIONS = {
   // section per sitting (`newEditSections`, lib/price-structure-edits.ts),
   // never one per autosave (2026-11-07).
   PS_VERSION_EDIT: "price_structure.version_edit",
+  // Pricing · Actual (2026-11-27): a SKU, SKU-quantity or Library product
+  // mapped to (or cleared from) a Pricing product or offer. Per brand.
+  PS_MAPPING_UPDATE: "price_structure.mapping_update",
 
   // Brands (accounts)
   ACCOUNT_CREATE: "account.create",
@@ -368,6 +371,7 @@ export const AUDIT_LABELS: Record<AuditAction, string> = {
   "price_structure.version_import": "Imported a price version",
   "price_structure.version_delete": "Deleted a price version",
   "price_structure.version_edit": "Edited the price version",
+  "price_structure.mapping_update": "Changed the Pricing mapping",
   "account.create": "Created brand",
   "account.rename": "Renamed brand",
   "account.window_update": "Changed status window",

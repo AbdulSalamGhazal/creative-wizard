@@ -2056,3 +2056,77 @@ export const psUserState = pgTable(
     userAccountIdx: uniqueIndex("ps_user_state_user_account_idx").on(t.userId, t.accountId),
   }),
 );
+
+/**
+ * Pricing · Actual (2026-11-27): which Pricing PRODUCT a Salla SKU sells. Per
+ * BRAND, not per version (user decision) — it names the version document's
+ * product id, which a copied version keeps; a version without that product
+ * reads the SKU as "Not in this version". `product_key` is the Store's own
+ * line key (`COALESCE(sku, name)`, `lineProductKey`), so a line with no SKU
+ * maps by its name exactly as Product costs keys it.
+ */
+export const psSkuMappings = pgTable(
+  "ps_sku_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    productKey: text("product_key").notNull(),
+    psProductId: varchar("ps_product_id", { length: 200 }).notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountKeyUnique: uniqueIndex("ps_sku_mappings_account_key_idx").on(t.accountId, t.productKey),
+  }),
+);
+
+/**
+ * Which Pricing OFFER a line of a SKU is, by the line's QUANTITY (user
+ * decision: "quantity decides" — 1 unit → the single offer, 2 → the 2-unit
+ * offer). A quantity with no row reads as the product's "No offer" row: its
+ * money still counts in every total.
+ */
+export const psSkuOfferMappings = pgTable(
+  "ps_sku_offer_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    productKey: text("product_key").notNull(),
+    quantity: integer("quantity").notNull(),
+    psOfferId: varchar("ps_offer_id", { length: 200 }).notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountKeyQtyUnique: uniqueIndex("ps_sku_offer_mappings_account_key_qty_idx").on(
+      t.accountId,
+      t.productKey,
+      t.quantity,
+    ),
+  }),
+);
+
+/**
+ * Which Pricing product a LIBRARY product's ad spend belongs to (user
+ * decision: ad spend per product = the creative's own product). Spend on a
+ * Library product with no row stays its own "Ads not mapped" line.
+ */
+export const psAdProductMappings = pgTable(
+  "ps_ad_product_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: accountId(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    psProductId: varchar("ps_product_id", { length: 200 }).notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    accountProductUnique: uniqueIndex("ps_ad_product_mappings_account_product_idx").on(
+      t.accountId,
+      t.productId,
+    ),
+  }),
+);

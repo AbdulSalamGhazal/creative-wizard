@@ -195,6 +195,15 @@ export function metaSummary(row: AuditSummaryInput): string | null {
       const sections = (m.sections as string[] | undefined) ?? [];
       return sections.length ? sections.join(", ") : null;
     }
+    case "price_structure.mapping_update": {
+      // { what: "SKU" | "offer" | "ads", key, quantity?, to: name | null }
+      const what = m.what as string | undefined;
+      const key = m.key as string | undefined;
+      const to = m.to as string | null | undefined;
+      const q = m.quantity as number | undefined;
+      const subject = what === "ads" ? `ads of ${fmtVal(key)}` : q ? `${fmtVal(key)} × ${q}` : fmtVal(key);
+      return join([subject, to ? `→ ${to}` : "cleared"]);
+    }
     case "price_structure.version_create":
     case "price_structure.version_import": {
       const from = m.from as string | undefined;
