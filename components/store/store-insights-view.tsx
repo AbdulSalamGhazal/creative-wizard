@@ -12,7 +12,17 @@ import {
   YAxis,
 } from "recharts";
 import type { TooltipProps } from "recharts";
-import { Coins, Download, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
+import { Coins, Download, PiggyBank, Receipt, RotateCcw, ShoppingBag, Undo2 } from "lucide-react";
+import Link from "@/components/nav/link";
+import { CompareToggle } from "@/components/filters/filter-pill";
+import { StoreInsightsSections } from "@/components/store/store-insights-sections";
+import { addDays, computeDelta, dayCount, deltaVsLabel } from "@/lib/period";
+import type {
+  StoreInsightsKpis,
+  StoreInsightsProducts,
+  StoreInsightsSections as SectionsData,
+} from "@/db/queries/store-insights";
+import { grossProfit, rate, type ProductTotals } from "@/lib/store-insights";
 import { ChartHeader, ChartShell, ExpandButton, plotClass } from "@/components/charts/chart-shell";
 import { CHART_CURSOR, ChartTooltip, CHART_STROKE } from "@/components/charts/chart-tooltip";
 import { SeriesLegend } from "@/components/charts/series-legend";
@@ -35,7 +45,7 @@ import {
   weekBucketsInRange,
   type RangeBucket,
 } from "@/lib/budget";
-import { int, intCompact, num, pct1, sar, sarCompact, sarBare } from "@/lib/format";
+import { int, intCompact, num, pct1, sar, sar0, sarCompact, sarBare } from "@/lib/format";
 import { downloadCsv, matrixToCsv, todayStamp } from "@/lib/csv-export";
 import { PLATFORM_LABEL, seriesColor } from "@/lib/palette";
 import { platformEnum } from "@/lib/enums";
@@ -61,6 +71,7 @@ type GroupBy = "day" | "week" | "month";
 /** The two series share an x-axis but not a scale — orders are counts, revenue is SAR. */
 const ORDERS_COLOR = seriesColor(0);
 const REVENUE_COLOR = seriesColor(2);
+const ALL_SERIES = ["orders", "revenue", "prevOrders", "prevRevenue"] as const;
 /** The analyzer's optional columns — offered, collapsed on a first visit. */
 const INSIGHTS_DEFAULT_HIDDEN = ["firstOrder", "lastOrder"] as const;
 
@@ -69,6 +80,17 @@ interface TrendPoint {
   label: string;
   orders: number;
   revenue: number;
+  /** The previous window's figures, day-aligned — only with `?compare=1`. */
+  prevOrders?: number;
+  prevRevenue?: number;
+}
+
+/** The previous window, as the server scanned it (`?compare=1`). */
+export interface InsightsComparison {
+  range: { from: string; to: string };
+  daily: StoreInsightsDay[];
+  kpis: StoreInsightsKpis;
+  productTotals: ProductTotals;
 }
 
 /** Roll the per-day rows into the chosen buckets — the range-clipped helpers
@@ -103,9 +125,9 @@ interface AnalyzerRow extends BreakdownValue {
  * trend, and the analyzer.
  *
  * STORE FACTS ONLY, SAR ONLY (standing decision): every figure here comes from
- * `store_orders`. There is deliberately NO period comparison in v1 (user
- * decision), so no tile carries a delta chip — the page shows the selected
- * range and says nothing about any other.
+ * `store_orders`. The previous-period comparison is a toggle, OFF by default
+ * (user decision 2026-11-27): only when it is on do tiles carry a delta and
+ * the trend a dashed previous line.
  */
 export function StoreInsightsView({
   from,
@@ -117,6 +139,10 @@ export function StoreInsightsView({
   daily,
   breakdown,
   totalValues,
+  kpis,
+  sections,
+  products,
+  compare,
 }: {
   /** Raw URL range (drives the highlighted preset), null when absent. */
   from: string | null;
@@ -132,6 +158,11 @@ export function StoreInsightsView({
   breakdown: BreakdownValue[];
   /** Distinct values in range before the query's group cap. */
   totalValues: number;
+  kpis: StoreInsightsKpis;
+  sections: SectionsData;
+  products: StoreInsightsProducts;
+  /** The previous window — null unless the comparison toggle is on. */
+  compare: InsightsComparison | null;
 }) {
   const { update, get } = useFilterParams(resolvedFilters);
 
@@ -139,9 +170,9 @@ export function StoreInsightsView({
   // Reconciliation's mode toggle. It re-buckets the rows already on the page,
   // so it never costs a navigation or a scan.
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
-  const [shown, setShown] = useState<Set<string>>(
-    () => new Set(["orders", "revenue"]),
-  );
+  // The two "before" series are keyed in from the start: they only have a
+  // legend chip (and a line) while the comparison is on.
+  const [shown, setShown] = useState<Set<string>>(() => new Set(ALL_SERIES));
 
   const csv = (v: string | null): string[] =>
     v ? v.split(",").filter(Boolean) : [];
@@ -174,8 +205,56 @@ export function StoreInsightsView({
         : groupBy === "week"
           ? weekBucketsInRange(resolvedRange.from, resolvedRange.to)
           : monthBucketsInRange(resolvedRange.from, resolvedRange.to);
-    return bucketize(daily, buckets);
-  }, [daily, groupBy, resolvedRange.from, resolvedRange.to]);
+    const current = bucketize(daily, buckets);
+    if (!compare) return current;
+    // The previous window is the same length, so shifting its days forward
+    // by that length lays day 1 over day 1 — then the SAME buckets apply.
+    const len = dayCount(resolvedRange.from, resolvedRange.to);
+    const shifted = compare.daily.map((d) => ({ ...d, day: addDays(d.day, len) }));
+    const previous = bucketize(shifted, buckets);
+    return current.map((p, i) => ({
+      ...p,
+      prevOrders: previous[i]!.orders,
+      prevRevenue: previous[i]!.revenue,
+    }));
+  }, [daily, groupBy, resolvedRange.from, resolvedRange.to, compare]);
+
+  /** What the legend sees: the "before" keys only while they have chips. */
+  const legendShown = useMemo(
+    () => new Set([...shown].filter((k) => compare !== null || !k.startsWith("prev"))),
+    [shown, compare],
+  );
+
+  // ── KPI tiles, and their previous-window twins ─────────────────────────────
+  const gp = grossProfit(products.total);
+  const lostRate = rate(kpis.cancelled + kpis.refunded, kpis.orders);
+  const knownCustomers = kpis.newOrders + kpis.returningOrders;
+  const returningShare = rate(kpis.returningOrders, knownCustomers);
+  const prevFigures = useMemo(() => {
+    if (!compare) return null;
+    const k = compare.kpis;
+    return {
+      orders: k.orders,
+      revenue: k.revenue,
+      aov: aov(k.revenue, k.orders),
+      profit: grossProfit(compare.productTotals).profit,
+      lostRate: rate(k.cancelled + k.refunded, k.orders),
+      returningShare: rate(k.returningOrders, k.newOrders + k.returningOrders),
+    };
+  }, [compare]);
+  /** A tile's delta and its "vs …" text — only when comparing, never on an empty range. */
+  const vs = (current: number | null, previous: number | null | undefined, format: (n: number | null) => string) =>
+    prevFigures && !empty
+      ? {
+          delta: computeDelta(current, previous ?? null),
+          deltaVs: deltaVsLabel(resolvedRange.from, resolvedRange.to, format(previous ?? null)),
+        }
+      : {};
+  /** A rate's previous value, in points — a % change of a % reads two ways. */
+  const ratePrev = (previous: number | null | undefined) =>
+    prevFigures && !empty ? (
+      <span className="tabular-nums">{pct1(previous ?? null)} before</span>
+    ) : undefined;
 
   // ── Analyzer ───────────────────────────────────────────────────────────────
   // The tail past TOP_VALUE_LIMIT folds into one "Other" row so a long-tail
@@ -432,47 +511,99 @@ export function StoreInsightsView({
             fallback={resolvedRange}
           />
         )}
+        // The right-hand cluster, where the Excluded toggle sits on the ads
+        // pages: a view switch beside the filters, never one of them.
+        toolbar={({ fullWidth }) => (
+          <CompareToggle
+            on={compare !== null}
+            fullWidth={fullWidth}
+            onToggle={() =>
+              update((p) => {
+                if (compare) p.delete("compare");
+                else p.set("compare", "1");
+              })
+            }
+          />
+        )}
       />
 
-      {/* KPIs — the range only. No deltas: v1 has no period comparison. */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* KPIs — deltas only while the comparison toggle is on. */}
+      <div className="grid grid-cols-2 gap-3 @3xl/main:grid-cols-3 @6xl/main:grid-cols-6">
         <MetricCard
           label="Orders"
           value={empty ? "—" : int(totals.orders)}
           icon={ShoppingBag}
           hideBreakdown
           empty={empty}
+          {...vs(totals.orders, prevFigures?.orders, int)}
+          caption={
+            empty || rangeDays === 0 ? undefined : (
+              <span className="tabular-nums">
+                {num(Math.round((totals.orders / rangeDays) * 10) / 10)} a day
+              </span>
+            )
+          }
         />
         <MetricCard
           label="Revenue"
-          value={empty ? "—" : sar(totals.revenue)}
+          value={empty ? "—" : sar0(totals.revenue)}
+          valueTitle={empty ? undefined : sar(totals.revenue)}
           icon={Coins}
           hideBreakdown
           empty={empty}
+          {...vs(totals.revenue, prevFigures?.revenue, sar0)}
         />
         <MetricCard
           label="AOV"
-          value={
-            aov(totals.revenue, totals.orders) === null
-              ? "—"
-              : sar(aov(totals.revenue, totals.orders)!)
-          }
+          value={sar0(aov(totals.revenue, totals.orders))}
           icon={Receipt}
           hideBreakdown
           empty={empty}
+          {...vs(aov(totals.revenue, totals.orders), prevFigures?.aov, sar0)}
         />
         <MetricCard
-          label="Orders / day"
-          value={empty || rangeDays === 0 ? "—" : num(Math.round((totals.orders / rangeDays) * 10) / 10)}
-          icon={TrendingUp}
+          label="Gross profit"
+          value={empty ? "—" : sar0(gp.profit)}
+          icon={PiggyBank}
           hideBreakdown
           empty={empty}
-          footer={
-            empty ? undefined : (
-              <span>
-                over {int(rangeDays)} day{rangeDays === 1 ? "" : "s"}
+          {...(gp.profit === null ? {} : vs(gp.profit, prevFigures?.profit, sar0))}
+          caption={
+            empty ? undefined : gp.margin === null ? (
+              <Link href="/store/costs" className="text-brand hover:underline">
+                Add product costs
+              </Link>
+            ) : (
+              <span className="tabular-nums" title="Gross profit ÷ sales before VAT, on costed products">
+                {pct1(gp.margin)} margin
               </span>
             )
+          }
+        />
+        <MetricCard
+          label="Cancelled or refunded"
+          value={pct1(lostRate)}
+          icon={Undo2}
+          hideBreakdown
+          empty={empty}
+          caption={
+            ratePrev(prevFigures?.lostRate) ??
+            (empty ? undefined : (
+              <span className="tabular-nums">{int(kpis.cancelled + kpis.refunded)} orders</span>
+            ))
+          }
+        />
+        <MetricCard
+          label="Returning"
+          value={pct1(returningShare)}
+          icon={RotateCcw}
+          hideBreakdown
+          empty={empty}
+          caption={
+            ratePrev(prevFigures?.returningShare) ??
+            (empty ? undefined : (
+              <span className="tabular-nums">{int(kpis.returningOrders)} orders</span>
+            ))
           }
         />
       </div>
@@ -485,8 +616,14 @@ export function StoreInsightsView({
             items={[
               { key: "orders", label: "Orders", color: ORDERS_COLOR },
               { key: "revenue", label: "Revenue (SAR)", color: REVENUE_COLOR },
+              ...(compare
+                ? [
+                    { key: "prevOrders", label: "Orders before", color: ORDERS_COLOR },
+                    { key: "prevRevenue", label: "Revenue before", color: REVENUE_COLOR },
+                  ]
+                : []),
             ]}
-            shown={shown}
+            shown={legendShown}
             onToggle={(key) =>
               setShown((prev) => {
                 const next = new Set(prev);
@@ -495,7 +632,7 @@ export function StoreInsightsView({
                 return next;
               })
             }
-            onShowAll={() => setShown(new Set(["orders", "revenue"]))}
+            onShowAll={() => setShown(new Set(ALL_SERIES))}
           />
         }
       >
@@ -568,7 +705,9 @@ export function StoreInsightsView({
                           <ChartTooltip>
                             <div className="mb-1 font-medium text-ink">{p.label}</div>
                             {p.payload.map((entry) => {
-                              const isRevenue = entry.dataKey === "revenue";
+                              const key = String(entry.dataKey);
+                              const isRevenue = key === "revenue" || key === "prevRevenue";
+                              const before = key.startsWith("prev");
                               return (
                                 <div
                                   key={String(entry.dataKey)}
@@ -580,6 +719,7 @@ export function StoreInsightsView({
                                   />
                                   <span className="text-ink-3">
                                     {isRevenue ? "Revenue" : "Orders"}
+                                    {before ? " before" : ""}
                                   </span>
                                   <span className="tabular-nums text-ink ml-auto">
                                     {typeof entry.value !== "number"
@@ -616,6 +756,34 @@ export function StoreInsightsView({
                         isAnimationActive={false}
                       />
                     )}
+                    {/* The previous window, day-aligned: dashed, so "before"
+                        reads at a glance without a word on the plot. */}
+                    {compare && shown.has("prevOrders") && (
+                      <Line
+                        yAxisId="orders"
+                        type="linear"
+                        dataKey="prevOrders"
+                        stroke={ORDERS_COLOR}
+                        strokeWidth={CHART_STROKE.secondary}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {compare && shown.has("prevRevenue") && (
+                      <Line
+                        yAxisId="revenue"
+                        type="linear"
+                        dataKey="prevRevenue"
+                        stroke={REVENUE_COLOR}
+                        strokeWidth={CHART_STROKE.secondary}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                        isAnimationActive={false}
+                      />
+                    )}
                   </ComposedChart>
                 </ResponsiveContainer>
               )}
@@ -624,13 +792,21 @@ export function StoreInsightsView({
         )}
       </ChartShell>
 
-      {/* The analyzer */}
+      {/* The decision sections — the same filtered orders as the tiles. */}
+      <StoreInsightsSections
+        lenses={sections.lenses}
+        total={sections.total}
+        kpis={kpis}
+        products={products}
+      />
+
+      {/* The explorer: any groupable field, never a personal or ID-like one. */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h3 className="shrink-0 text-sm font-medium text-ink">Analyze by</h3>
+          <h2 className="shrink-0 text-sm font-medium text-ink">Break down by</h2>
           {dimensions.length > 0 && dimension && (
             <MetricPicker
-              ariaLabel="Analyze by"
+              ariaLabel="Break down by"
               options={dimensions.map((d) => ({ value: d.key, label: d.label }))}
               value={dimension.key}
               onChange={(key) => update((p) => p.set("by", key))}

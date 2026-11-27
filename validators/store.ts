@@ -102,6 +102,15 @@ export const storeInsightsFiltersSchema = z.object({
   platforms: csvEnum([...platformEnum, UNATTRIBUTED]),
   /** Channel buckets: Website / Application, or the Unmapped sentinel. */
   channels: csvEnum([...CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL]),
+  /**
+   * `?compare=1` — set the range against the previous window of the same
+   * length (user decision 2026-11-27: a toggle, OFF by default, not
+   * remembered). Anything else reads as off.
+   */
+  compare: z
+    .string()
+    .optional()
+    .transform((s) => s === "1"),
 });
 
 /** URL filters for the Reconciliation page — date range only. */

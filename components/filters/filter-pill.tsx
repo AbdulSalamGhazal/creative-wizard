@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Eye, EyeOff, Search, X } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, GitCompareArrows, Search, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -139,6 +139,41 @@ export function ExcludedToggle({
     >
       {on ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
       <span>{on ? "Excluded shown" : "Excluded hidden"}</span>
+    </button>
+  );
+}
+
+/**
+ * "Compare with the previous period" — a view switch, not a filter (it never
+ * narrows the orders, it adds a second window beside them), so it sits in
+ * tier 1 beside the range and Clear never touches it. Brand-tinted when on.
+ */
+export function CompareToggle({
+  on,
+  onToggle,
+  fullWidth,
+}: {
+  on: boolean;
+  onToggle: () => void;
+  fullWidth?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={on}
+      title="Compare with the previous period of the same length"
+      className={cn(
+        pillBase,
+        "shrink-0 whitespace-nowrap",
+        on
+          ? "border-brand/40 text-brand bg-brand-soft"
+          : "border-line text-ink-3 hover:text-ink hover:bg-surface-2",
+        fullWidth && "w-full justify-center",
+      )}
+    >
+      <GitCompareArrows className="w-3.5 h-3.5" />
+      <span>{on ? "Comparing" : "Compare"}</span>
     </button>
   );
 }

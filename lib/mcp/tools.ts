@@ -53,7 +53,13 @@ import { buildRangeModel } from "@/lib/budget-range";
 import { buildAttention } from "@/lib/budget-attention";
 import { storeDataHorizon } from "@/db/queries/series-bounds";
 import { storeTopProducts } from "@/db/queries/store";
-import { storeInsightsBreakdown, storeInsightsDaily } from "@/db/queries/store-insights";
+import {
+  storeInsightsBreakdown,
+  storeInsightsDaily,
+  storeInsightsKpis,
+  storeInsightsProducts,
+  storeInsightsSections,
+} from "@/db/queries/store-insights";
 import { storeConnectionStatus } from "@/db/queries/store-connector";
 import { reconciliationByPlatform, reconciliationOverview } from "@/db/queries/reconciliation";
 import { landingPageRollup } from "@/db/queries/landing-page-performance";
@@ -81,7 +87,13 @@ import {
   type TrackerBar,
 } from "@/lib/budget";
 import { resolveBudgetMonth } from "@/validators/budget";
-import { CHANNEL_LENS, PLATFORM_LENS } from "@/lib/store-insights";
+import {
+  CHANNEL_LENS,
+  PLATFORM_LENS,
+  avgDeliveryDays,
+  grossProfit,
+  type SectionLens,
+} from "@/lib/store-insights";
 import { reconDelta, reconDeltaPct, reconMatchRate, sumPlatformDays } from "@/lib/reconciliation";
 import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
 import { UNATTRIBUTED } from "@/store/sources";
@@ -1094,7 +1106,7 @@ export function registerMcpTools(server: McpServer): void {
     "get_store",
     {
       description:
-        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. `salla_feed` says whether orders arrive automatically from Salla (`connected`) and when the last one did; a brand without it relies on manual uploads. `by_payment_method` splits orders by Salla's payment method (cod, mada, tabby_installment, tamara_installment, credit_card…; 'not reported' = an uploaded order or one Salla sent without it). `by_offer` splits orders by the Salla SPECIAL OFFER applied (e.g. buy two, the third free; several on one order are joined with ', '); 'no offer' = none, or an order Salla sent before 2026-11-23 13:42 Riyadh that has not been pulled again — before then offers arrived inside coupons. Coupons are not offers. `top_products` = the 10 best-selling products in the range by quantity (a product is its SKU, which carries the colour), with the orders they appear in, `sales_sar` = their line totals incl. VAT, `cogs_sar` = units × the unit cost the brand entered (Store → Product costs) in force on each order's date, and `gross_profit_sar` = sales BEFORE VAT (÷1.15) − COGS over the units that have a cost (null when none do; `units_without_cost` counts the rest, which are outside both figures); `sale_discount_sar` = the Salla SALE-PRICE markdown on those units, EXCL. VAT: Σ (regular price − price sold at) × units — separate from coupons and offers; lines Salla sent before 2026-11-23 14:46 Riyadh and not pulled since count 0. Every order counts whatever its status. Only Salla-feed orders carry products: `orders_without_products` counts the range's orders (uploads) the list can't see. A brand that has no store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
+        "The Store module for a range (defaults to the app's last 30 days): store orders and revenue — MONEY IS SAR here, never USD — per day and in total, split by the ad platform the order's UTM source maps to and by sales channel (website / application), plus Reconciliation: store orders against the conversions each ad platform CLAIMS, as COUNTS ONLY (Reconciliation never compares revenue). `delta` = claimed − store orders (positive = the platform over-claims); `delta_pct` and `match_rate` use store orders as the base and are null when the store recorded none. Orders whose source maps to no platform are `unattributed`. `salla_feed` says whether orders arrive automatically from Salla (`connected`) and when the last one did; a brand without it relies on manual uploads. `by_payment_method` splits orders by Salla's payment method (cod, mada, tabby_installment, tamara_installment, credit_card…; 'not reported' = an uploaded order or one Salla sent without it). `by_offer` splits orders by the Salla SPECIAL OFFER applied (e.g. buy two, the third free; several on one order are joined with ', '); 'no offer' = none, or an order Salla sent before 2026-11-23 13:42 Riyadh that has not been pulled again — before then offers arrived inside coupons. Coupons are not offers. Every `by_*` split (payment method, offer, Salla `status` slug, `city`, `coupon_code`, `shipping_company`; the top 10–20 values by orders) carries `lost_orders` = its orders cancelled, deleted or refunded; `by_shipping_company.avg_days_to_deliver` = order day → Salla's delivered day, over delivered orders only. `outcomes` counts cancelled (incl. deleted) and refunded orders — they still count in every total. `customers` splits orders into a customer's FIRST order with the brand (`new_orders`) and later ones (`returning_orders`) — a customer is their phone, else their Salla customer id; `history_from` is the brand's first order, before which no history exists — `repeat_customers_in_range` = customers with 2+ orders in the range. `promotions_sar` = what coupons and special offers gave away (excl. VAT) and the sale-price markdown. `gross_profit` covers every product in the range (same rule as top_products; `margin` = gross profit ÷ costed sales before VAT). `top_products` = the 10 best-selling products in the range by quantity (a product is its SKU, which carries the colour), with the orders they appear in, `sales_sar` = their line totals incl. VAT, `cogs_sar` = units × the unit cost the brand entered (Store → Product costs) in force on each order's date, and `gross_profit_sar` = sales BEFORE VAT (÷1.15) − COGS over the units that have a cost (null when none do; `units_without_cost` counts the rest, which are outside both figures); `sale_discount_sar` = the Salla SALE-PRICE markdown on those units, EXCL. VAT: Σ (regular price − price sold at) × units — separate from coupons and offers; lines Salla sent before 2026-11-23 14:46 Riyadh and not pulled since count 0. Every order counts whatever its status. Only Salla-feed orders carry products: `orders_without_products` counts the range's orders (uploads) the list can't see. A brand that has no store orders returns zeros — call get_data_freshness / see `store_data_through` before reading a gap as a real zero.",
       inputSchema: {
         brand: brandField,
         from: fromField,
@@ -1109,7 +1121,7 @@ export function registerMcpTools(server: McpServer): void {
     async (args) =>
       withBrand(args.brand, async (brand) => {
         const range = defaultRange(args.from, args.to);
-        const [daily, byPlatform, byChannel, overview, recon, storeHorizon, connection, top, byPayment, byOffer] =
+        const [daily, byPlatform, byChannel, overview, recon, storeHorizon, connection, top, kpis, sections, productTotals] =
           await Promise.all([
             storeInsightsDaily(range.from, range.to),
             storeInsightsBreakdown(PLATFORM_LENS, range.from, range.to),
@@ -1124,9 +1136,23 @@ export function registerMcpTools(server: McpServer): void {
             storeDataHorizon(),
             storeConnectionStatus(),
             storeTopProducts(range.from, range.to),
-            storeInsightsBreakdown("payment_method", range.from, range.to),
-            storeInsightsBreakdown("offers", range.from, range.to),
+            // The Insights page's own scans (2026-11-27), unfiltered: one
+            // headline row and the six section lenses in one GROUP BY each.
+            storeInsightsKpis(range.from, range.to),
+            storeInsightsSections(range.from, range.to),
+            storeInsightsProducts(range.from, range.to, {}, 0),
           ]);
+        const lensRows = (lens: SectionLens, name: string, blank: string, top = 10) =>
+          [...sections.lenses[lens]]
+            .sort((a, b) => b.orders - a.orders)
+            .slice(0, top)
+            .map((b) => ({
+              [name]: b.value ?? blank,
+              orders: b.orders,
+              revenue_sar: r2(b.revenue),
+              lost_orders: b.lost,
+            }));
+        const gp = grossProfit(productTotals.total);
         let orders = 0;
         let revenue = 0;
         for (const d of daily) {
@@ -1161,16 +1187,50 @@ export function registerMcpTools(server: McpServer): void {
               orders: b.orders,
               revenue_sar: r2(b.revenue),
             })),
-            by_payment_method: byPayment.rows.map((b) => ({
-              payment_method: b.value ?? "not reported",
-              orders: b.orders,
-              revenue_sar: r2(b.revenue),
-            })),
-            by_offer: byOffer.rows.map((b) => ({
-              offer: b.value ?? "no offer",
-              orders: b.orders,
-              revenue_sar: r2(b.revenue),
-            })),
+            by_payment_method: lensRows("payment", "payment_method", "not reported", 20),
+            by_offer: lensRows("offer", "offer", "no offer", 20),
+            by_status: lensRows("status", "status", "not reported", 20),
+            by_city: lensRows("city", "city", "not reported"),
+            by_coupon: lensRows("coupon", "coupon_code", "no coupon"),
+            by_shipping_company: [...sections.lenses.shipping]
+              .sort((a, b) => b.orders - a.orders)
+              .slice(0, 10)
+              .map((b) => ({
+                shipping_company: b.value ?? "not reported",
+                orders: b.orders,
+                lost_orders: b.lost,
+                avg_days_to_deliver:
+                  avgDeliveryDays(b) === null ? null : Math.round(avgDeliveryDays(b)! * 10) / 10,
+              })),
+            outcomes: {
+              cancelled_orders: kpis.cancelled,
+              refunded_orders: kpis.refunded,
+            },
+            customers: {
+              new_orders: kpis.newOrders,
+              new_revenue_sar: r2(kpis.newRevenue),
+              returning_orders: kpis.returningOrders,
+              returning_revenue_sar: r2(kpis.returningRevenue),
+              orders_without_customer: kpis.unknownCustomerOrders,
+              customers: kpis.customers,
+              repeat_customers_in_range: kpis.repeatCustomers,
+              history_from: kpis.historyFrom,
+            },
+            promotions_sar: {
+              coupon_orders: kpis.couponOrders,
+              coupon_discount: r2(kpis.couponDiscount),
+              offer_orders: kpis.offerOrders,
+              offer_discount: r2(kpis.offerDiscount),
+              sale_price_markdown: r2(productTotals.total.markdown),
+            },
+            gross_profit: {
+              sales_sar: r2(productTotals.total.sales),
+              costed_sales_before_vat_sar: r2(productTotals.total.costedSalesExVat),
+              cogs_sar: r2(productTotals.total.cogs),
+              gross_profit_sar: gp.profit === null ? null : r2(gp.profit),
+              margin: gp.margin,
+              units_without_cost: productTotals.total.unitsWithoutCost,
+            },
             by_channel: byChannel.rows.map((b) => ({
               channel: b.value ?? "unmapped",
               orders: b.orders,

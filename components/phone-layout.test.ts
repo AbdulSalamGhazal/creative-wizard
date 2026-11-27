@@ -35,7 +35,7 @@ describe("crowded rows (W3 walk)", () => {
       "hidden lg:flex flex-wrap items-center gap-2 px-6 py-2 min-h-12",
     );
     const pill = read("components/filters/filter-pill.tsx");
-    expect(pill.match(/shrink-0 whitespace-nowrap/g)?.length).toBe(2); // Clear + Excluded
+    expect(pill.match(/shrink-0 whitespace-nowrap/g)?.length).toBe(3); // Clear + Excluded + Compare
   });
 
   it("the audit chip stays on one line; the upload file name caps at 16rem", () => {

@@ -54,6 +54,8 @@ export const TABLE_KEYS = {
   TRENDS_VIDEO: "trends-video",
   /** Store → Insights, the breakdown table. */
   STORE_INSIGHTS: "store-insights",
+  /** Store → Insights, Products and margin. */
+  STORE_INSIGHTS_PRODUCTS: "store-insights-products",
   /** Store → Reconciliation, Channels view. */
   RECON_CHANNELS: "recon-channels",
   /** Store → Reconciliation, Platforms view (its own column universe). */

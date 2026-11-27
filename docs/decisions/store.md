@@ -27,9 +27,36 @@
   blank removes it, ABSENT leaves the stored value untouched.
 - Sanctioned `store_orders` deletes: batch rollback + the order-cleanup tool.
   No other code deletes from it. The orders table is server-paginated.
-- Insights is **store facts only, SAR only, no period comparison**; two scans
-  per render; the analyze-by list DERIVES from `store_order_fields`; a blank
-  value is its own visible bucket; the CSV exports the full breakdown.
+- Insights is **store facts only, SAR only**; the previous-period comparison
+  is a TOGGLE (`?compare=1`), OFF by default and not remembered (2026-11-27,
+  superseding v1's "no comparison"). Every scan carries the SAME range and
+  filters (trend · KPIs · sections · products · breakdown), so the tiles and
+  the sections add up to each other; the comparison adds three scans only
+  when on. A rate's previous value is shown as itself ("23.0% before"), never
+  as a % change of a %.
+- **The decision sections** (user-chosen 2026-11-27): Products and margin ·
+  How customers pay · Where orders end up · New and returning customers ·
+  Cities · Discounts and offers · Shipping companies. Six of them are ONE
+  scan (`storeInsightsSections`, a MATERIALIZED CTE grouped six ways, each
+  lens capped at `SECTION_VALUE_CAP`); `foldSection` folds the tail into
+  "Other" from the range total and always shows the "Not reported" bucket.
+  **Lost = cancelled, deleted or refunded** — `IS_CANCELLED_SQL` /
+  `IS_REFUNDED_SQL` mirror `orderStatusTone` and a DB test pins them to it. A
+  status is a flag: every order still counts in every total.
+- **Returning = not the customer's first order with the brand, EVER** — the
+  rank runs over every order of the brand, not the range. A customer is the
+  phone, else `id:<salla_customer_id>`; it is a join key and is never shown.
+  `history_from` (the brand's first order) is stated in the ⓘ because nothing
+  before it can count.
+- **Gross profit on Insights** uses the Product-costs rule unchanged
+  (costed lines only, before VAT, cost in force on the order's day), over the
+  FILTERED orders (`storeInsightsProducts`, not `storeTopProducts`).
+- **"Break down by" offers TEXT fields only, minus `BREAKDOWN_EXCLUDED_KEYS`**
+  (name, phone, email, tracking number, Salla customer id): personal data is
+  never charted, and an ID is a row per order, not a breakdown. Numbers and
+  dates are measures and the trend, never dimensions. A remembered `?by=`
+  that is no longer offered falls back. A blank value is its own visible
+  bucket; the CSV exports the full breakdown.
 - Reconciliation is **counts only — no revenue comparison anywhere**. Δ =
   claimed − store; Δ% divides by the STORE side; attribution is EXPLICIT
   mapping only on both axes; unmapped stays its own bucket.
@@ -518,3 +545,27 @@ products, creatives, angles and platform field mappings had gained
   COGS and gross profit on the order panel and the MCP — not Insights or
   Budget for now. Pricing already held unit costs, but per pricing version,
   with optional SKUs and no "current" version, so it could not be the source.
+  (Insights took gross profit on 2026-11-27, below.)
+
+### Store → Insights, the decision page (2026-11-27)
+
+The user asked for Insights to be rebuilt "as a marketing analyst and a
+business stakeholder": the orders now carry ~25 Salla fields, and the old
+page's only lens was a free "Analyze by" over any field — which happily
+charted phone numbers. A mockup and four questions settled it: all four
+offered sections (products and margin · payment and outcome · customers and
+cities · discounts and offers); the comparison as a toggle, off by default
+("toggle to show comparison or not, default is no"); cancelled and refunded
+orders keep counting, with their rate as a tile and a column (the
+alternative, net totals, would have made Insights disagree with Orders and
+Reconciliation); and the explorer kept, curated.
+
+Choices made inside those answers: six tiles (orders · revenue · AOV · gross
+profit with margin · cancelled-or-refunded rate · returning share); a rate's
+"before" is printed as the previous rate rather than a delta chip, because a
+% change of a % reads two ways; shipping companies got days-to-deliver,
+since `delivered_date` was already in every feed order; the section lists
+are ranked bars, not tables, and Products is a `DataTable` with its own
+columns key. The MCP's `get_store` gained `by_status`, `by_city`,
+`by_coupon`, `by_shipping_company`, `outcomes`, `customers`,
+`promotions_sar` and `gross_profit`, and every split carries `lost_orders`.
