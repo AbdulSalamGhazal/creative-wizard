@@ -51,6 +51,46 @@ export function orderStatusTone(slug: string): Extract<ChipTone, "neutral" | "in
 }
 
 /**
+ * The Orders page's status TABS (user decision 2026-11-27): Salla's slugs
+ * grouped into the stages a merchant works in. Matched loosely like
+ * `orderStatusTone` (cancelled first, then refunded), so a new slug of a known
+ * family lands in its stage; an unknown one is "in progress". `none` = no
+ * status at all (an uploaded order), its own tab only when it has orders.
+ * The SQL twin is `orderStageSql` (db/queries/store.ts), pinned to this.
+ */
+export const ORDER_STAGES = [
+  "awaiting",
+  "in_progress",
+  "on_the_way",
+  "delivered",
+  "cancelled",
+  "refunded",
+  "none",
+] as const;
+export type OrderStage = (typeof ORDER_STAGES)[number];
+
+export const ORDER_STAGE_LABEL: Record<OrderStage, string> = {
+  awaiting: "Awaiting payment",
+  in_progress: "In progress",
+  on_the_way: "On the way",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+  none: "No status",
+};
+
+export function orderStatusStage(slug: string | null | undefined): OrderStage {
+  const s = (slug ?? "").trim().toLowerCase();
+  if (!s) return "none";
+  if (s.includes("cancel") || s === "deleted") return "cancelled";
+  if (s.includes("refund") || s.includes("restor")) return "refunded";
+  if (s === "delivered") return "delivered";
+  if (s === "shipped" || s.includes("delivering")) return "on_the_way";
+  if (s === "payment_pending") return "awaiting";
+  return "in_progress";
+}
+
+/**
  * The Orders table's Source column: where an order came from. The key starts
  * with `_`, which `slugifyKey` can never produce, so no custom field collides.
  */

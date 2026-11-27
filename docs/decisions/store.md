@@ -27,6 +27,23 @@
   blank removes it, ABSENT leaves the stored value untouched.
 - Sanctioned `store_orders` deletes: batch rollback + the order-cleanup tool.
   No other code deletes from it. The orders table is server-paginated.
+- **Orders: status tabs, search, Filters** (user decisions 2026-11-27).
+  Tabs are the stages of `orderStatusStage` (All · Awaiting payment · In
+  progress · On the way · Delivered · Cancelled · Refunded · No status, the
+  last only when it has orders); `orderStageSql` is its SQL twin, pinned by a
+  DB test. A tab's count is the listing under every OTHER filter, so it is
+  exactly what the tab shows and All is their sum. `?stage=` is never
+  remembered. The search matches order ID, customer name, phone, email,
+  coupon code and tracking number; a leading "#" is dropped, LIKE wildcards
+  are literal, and 5+ digits also match the phone by digits (00966 / 966 / 0
+  stripped). The Filters dialog: payment method, COD or prepaid, platform,
+  channel (the SAME keys and buckets as Insights), product (`skus` — never
+  `products`, which holds the ads pages' product ids), coupon, offer (one
+  of several joined with ", "). Options are the brand's own values, all
+  time, most-used first, capped at `ORDER_FILTER_OPTION_CAP`; a value with a
+  comma can't ride the URL and isn't offered. Filters are remembered per user
+  per brand, so the page AND the CSV resolve them through ONE function,
+  `resolveStoreOrderFilters` — the export never trusts the URL alone.
 - Insights is **store facts only, SAR only**; the previous-period comparison
   is a TOGGLE (`?compare=1`), OFF by default and not remembered (2026-11-27,
   superseding v1's "no comparison"). Every scan carries the SAME range and

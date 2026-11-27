@@ -4,7 +4,8 @@ import { requireAuth } from "@/lib/auth";
 import { storeOrdersForExport, listStoreFields } from "@/db/queries/store";
 import { storeConnectionStatus } from "@/db/queries/store-connector";
 import { ORDER_SOURCE_COLUMN_KEY, orderSourceLabel } from "@/store/order-status";
-import { storeOrdersFiltersSchema } from "@/validators/store";
+import { storeOrdersExportParamsSchema as exportParamsSchema } from "@/validators/store";
+import { resolveStoreOrderFilters } from "@/lib/store-order-filters";
 import { rowsToCsv, type CsvColumn } from "@/lib/csv-export";
 import type { StoreOrderRow } from "@/db/queries/store";
 import { actionError } from "@/lib/action-error";
@@ -26,11 +27,30 @@ export async function exportStoreOrders(
 ): Promise<{ ok: boolean; csv?: string; truncated?: boolean; error?: string }> {
   try {
     await requireAuth(); // brand scoping happens in the queries
-    const f = storeOrdersFiltersSchema.parse(input ?? {});
+    // The page's own resolution (URL → remembered → none): a remembered
+    // filter the button's params don't carry still narrows the file.
+    const params = exportParamsSchema.parse(input ?? {});
+    const { f } = await resolveStoreOrderFilters((k) => params[k]);
     const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
     const [fields, { rows, truncated }, connection] = await Promise.all([
       listStoreFields(),
-      storeOrdersForExport({ from: range.from, to: range.to, q: f.q, sort: f.sort, dir: f.dir }),
+      // Every filter the page applies — the tab, the search, the dialog's
+      // lists — so the file is exactly the listing (W1-5's rule, extended).
+      storeOrdersForExport({
+        from: range.from,
+        to: range.to,
+        q: f.q,
+        sort: f.sort,
+        dir: f.dir,
+        stage: f.stage,
+        payments: f.payments,
+        paymentTypes: f.paymentTypes,
+        platforms: f.platforms,
+        channels: f.channels,
+        skus: f.skus,
+        coupons: f.coupons,
+        offers: f.offers,
+      }),
       storeConnectionStatus(),
     ]);
 

@@ -4,9 +4,12 @@ import {
   Boxes,
   Bell,
   Clock,
+  CreditCard,
   Flag,
   Gauge,
+  Gift,
   Globe,
+  HandCoins,
   Layers,
   LayoutDashboard,
   Package,
@@ -15,6 +18,7 @@ import {
   Shapes,
   Tag,
   Target,
+  Ticket,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +54,13 @@ export const FILTER_KEY_ICONS: Readonly<Record<string, LucideIcon>> = {
   channels: Globe,
   // The Audit log's one filter: what kind of thing an event touched.
   category: Boxes,
+  // Store → Orders (2026-11-27). A product is a product on every page, so
+  // `skus` wears `productIds`' Package.
+  payments: CreditCard,
+  paymentTypes: HandCoins,
+  skus: Package,
+  coupons: Ticket,
+  offers: Gift,
 };
 
 /** A def's icon: its own if it declared one, else the one its KEY implies. */

@@ -9,6 +9,8 @@ export interface PageTab {
   key: string;
   label: string;
   href: string;
+  /** A count after the label (Store orders' status tabs). */
+  count?: number;
 }
 
 /**
@@ -92,6 +94,11 @@ export function PageTabs({
               }
             >
               {t.label}
+              {t.count !== undefined && (
+                <span className="ml-1.5 text-xs tabular-nums text-ink-3">
+                  {t.count.toLocaleString("en-US")}
+                </span>
+              )}
             </Link>
           );
         })}

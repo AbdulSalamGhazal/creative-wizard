@@ -2,12 +2,18 @@ import { and, asc, between, desc, eq, gte, ilike, inArray, lte, sql, type SQL } 
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
+  storeChannelMappings,
   storeOrderItems,
   storeOrders,
   storeOrderFields,
+  storeSourceMappings,
   storeUploadBatches,
   users,
 } from "@/db/schema";
+import { STORE_SOURCE_FIELD_KEY } from "@/store/fields";
+import { STORE_CHANNEL_FIELD_KEY, UNMAPPED_CHANNEL } from "@/store/channels";
+import { UNATTRIBUTED } from "@/store/sources";
+import { ORDER_STAGES, ORDER_STATUS_FIELD_KEY, type OrderStage } from "@/store/order-status";
 import { getActiveAccountId } from "@/lib/tenant";
 import { beforeVat } from "@/store/vat";
 import { isCoreKey, isSystemRequiredKey, type StoreField, type StoreFieldType } from "@/store/fields";
@@ -123,6 +129,16 @@ export interface StoreOrdersFilters {
   /** Core sort key only ('order_id' | 'order_date' | 'total_amount'); custom cols sort client-side. */
   sort: "order_id" | "order_date" | "total_amount";
   dir: "asc" | "desc";
+  /** The status tab; absent = All. */
+  stage?: OrderStage;
+  /** Filters (2026-11-27) — each list ORs within itself, the lists AND. */
+  payments?: readonly string[];
+  paymentTypes?: readonly string[];
+  platforms?: readonly string[];
+  channels?: readonly string[];
+  skus?: readonly string[];
+  coupons?: readonly string[];
+  offers?: readonly string[];
 }
 
 /** One product line of an order, as the Salla feed last delivered it. */
@@ -160,12 +176,122 @@ export const STORE_PAGE_SIZE = 100;
  * have to come from one server-side resolution (see `/store/orders/page.tsx`).
  * Absence therefore means the user explicitly chose an unbounded range.
  */
-function orderConds(acct: string, f: StoreOrdersFilters): SQL[] {
+function orderConds(
+  acct: string,
+  f: Omit<StoreOrdersFilters, "page" | "sort" | "dir">,
+  opts: { withStage?: boolean } = {},
+): SQL[] {
   const c: SQL[] = [eq(storeOrders.accountId, acct)];
   if (f.from) c.push(gte(storeOrders.orderDate, f.from));
   if (f.to) c.push(lte(storeOrders.orderDate, f.to));
-  if (f.q && f.q.trim()) c.push(ilike(storeOrders.orderId, `%${f.q.trim()}%`));
+  const search = orderSearchCond(f.q);
+  if (search) c.push(search);
+  if ((opts.withStage ?? true) && f.stage) c.push(sql`${orderStageSql} = ${f.stage}`);
+  const inAttr = (key: string, values: readonly string[] | undefined) => {
+    if (values && values.length > 0) c.push(inArray(attr(key), [...values]));
+  };
+  inAttr("payment_method", f.payments);
+  inAttr("payment_type", f.paymentTypes);
+  inAttr("coupon_code", f.coupons);
+  if (f.offers && f.offers.length > 0) {
+    // Several offers on one order arrive joined with ", " — match any of them.
+    c.push(
+      sql`string_to_array(${attr("offers")}, ', ') && ARRAY[${sql.join(
+        f.offers.map((o) => sql`${o}`),
+        sql`, `,
+      )}]::text[]`,
+    );
+  }
+  if (f.platforms && f.platforms.length > 0) {
+    c.push(inArray(platformBucketSql(acct), [...f.platforms]));
+  }
+  if (f.channels && f.channels.length > 0) {
+    c.push(inArray(channelBucketSql(acct), [...f.channels]));
+  }
+  if (f.skus && f.skus.length > 0) {
+    c.push(sql`EXISTS (
+      SELECT 1 FROM ${storeOrderItems}
+       WHERE ${storeOrderItems.storeOrderId} = ${storeOrders.id}
+         AND COALESCE(${storeOrderItems.sku}, ${storeOrderItems.name}) IN (${sql.join(
+           f.skus.map((p) => sql`${p}`),
+           sql`, `,
+         )})
+    )`);
+  }
   return c;
+}
+
+/** `attributes ->> key` (text), as the filters compare it. */
+function attr(key: string) {
+  return sql<string>`(${storeOrders.attributes} ->> ${key})`;
+}
+
+/**
+ * An order's platform bucket, EXACTLY as Insights and Reconciliation bucket it
+ * — the unique `(account_id, raw_value)` source mapping, unmapped → the
+ * Unattributed sentinel — as a scalar subquery, so the listing's own joins
+ * stay as they are.
+ */
+function platformBucketSql(acct: string) {
+  return sql<string>`COALESCE((
+    SELECT ${storeSourceMappings.platform} FROM ${storeSourceMappings}
+     WHERE ${storeSourceMappings.accountId} = ${acct}
+       AND ${storeSourceMappings.rawValue} = ${attr(STORE_SOURCE_FIELD_KEY)}
+  ), ${UNATTRIBUTED})`;
+}
+
+function channelBucketSql(acct: string) {
+  return sql<string>`COALESCE((
+    SELECT ${storeChannelMappings.destination} FROM ${storeChannelMappings}
+     WHERE ${storeChannelMappings.accountId} = ${acct}
+       AND ${storeChannelMappings.rawValue} = ${attr(STORE_CHANNEL_FIELD_KEY)}
+  ), ${UNMAPPED_CHANNEL})`;
+}
+
+/**
+ * The SQL twin of `orderStatusStage` (store/order-status.ts) — the same loose
+ * match in the same order; `tests/db/store-orders-filters.test.ts` pins every
+ * known slug to it.
+ */
+const stageSlug = sql`LOWER(TRIM(COALESCE(${storeOrders.attributes} ->> ${ORDER_STATUS_FIELD_KEY}, '')))`;
+export const orderStageSql = sql<OrderStage>`(CASE
+  WHEN ${stageSlug} = '' THEN 'none'
+  WHEN ${stageSlug} LIKE '%cancel%' OR ${stageSlug} = 'deleted' THEN 'cancelled'
+  WHEN ${stageSlug} LIKE '%refund%' OR ${stageSlug} LIKE '%restor%' THEN 'refunded'
+  WHEN ${stageSlug} = 'delivered' THEN 'delivered'
+  WHEN ${stageSlug} = 'shipped' OR ${stageSlug} LIKE '%delivering%' THEN 'on_the_way'
+  WHEN ${stageSlug} = 'payment_pending' THEN 'awaiting'
+  ELSE 'in_progress'
+END)`;
+
+/** LIKE wildcards in a typed search are literal characters, not patterns. */
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
+
+/**
+ * The search box (user decision 2026-11-27: "order + customer"): order ID,
+ * customer name, phone, email, coupon code and tracking number, any of them,
+ * case-insensitive substring. A leading "#" is dropped (Salla shows order
+ * numbers with one). A query with 5+ digits also matches the phone by its
+ * digits alone, with a leading 00966 / 966 / 0 stripped — so "0501234567"
+ * finds "+966501234567".
+ */
+export function orderSearchCond(q: string | undefined): SQL | null {
+  const raw = q?.trim().replace(/^#/, "") ?? "";
+  if (!raw) return null;
+  const pat = `%${likeEscape(raw)}%`;
+  const parts: SQL[] = [
+    ilike(storeOrders.orderId, pat),
+    ...["customer_name", "email", "phone", "coupon_code", "tracking_number"].map(
+      (k) => sql`${attr(k)} ILIKE ${pat}`,
+    ),
+  ];
+  const digits = raw.replace(/\D/g, "").replace(/^(00966|966|0)/, "");
+  if (digits.length >= 5 && /^[\d\s+()-]+$/.test(raw)) {
+    parts.push(
+      sql`regexp_replace(COALESCE(${attr("phone")}, ''), '\\D', '', 'g') LIKE ${`%${digits}%`}`,
+    );
+  }
+  return sql`(${sql.join(parts, sql` OR `)})`;
 }
 
 /**
@@ -228,6 +354,95 @@ export async function listStoreOrders(
     page,
     pageSize: STORE_PAGE_SIZE,
   };
+}
+
+/**
+ * Orders per status tab over the SAME range, search and filters as the table
+ * — everything but the tab itself, so each count is what clicking it shows
+ * and "All" is the sum. One GROUP BY.
+ */
+export async function storeOrderStageCounts(
+  f: Omit<StoreOrdersFilters, "page" | "sort" | "dir">,
+): Promise<Record<OrderStage, number>> {
+  const acct = await getActiveAccountId();
+  const rows = await db
+    .select({ stage: orderStageSql, n: sql<number>`count(*)::int` })
+    .from(storeOrders)
+    .where(and(...orderConds(acct, f, { withStage: false })))
+    .groupBy(sql`1`);
+  const out = Object.fromEntries(ORDER_STAGES.map((s) => [s, 0])) as Record<OrderStage, number>;
+  for (const r of rows) {
+    if ((ORDER_STAGES as readonly string[]).includes(r.stage)) out[r.stage] = Number(r.n);
+  }
+  return out;
+}
+
+/** How many values each Filters list offers — the most-used first. */
+export const ORDER_FILTER_OPTION_CAP = 200;
+
+export interface StoreOrderFilterOptions {
+  payments: string[];
+  paymentTypes: string[];
+  coupons: string[];
+  offers: string[];
+  products: Array<{ key: string; name: string | null }>;
+}
+
+/**
+ * The values the Filters dialog offers, from the brand's own orders (all
+ * time, so a list doesn't change under you with the range), most-used first
+ * and capped. Values are read, never typed: a value that holds a comma can't
+ * ride the comma-separated URL, so it isn't offered. Two scans: the order
+ * attributes in one UNION, the products in one GROUP BY.
+ */
+export async function storeOrderFilterOptions(): Promise<StoreOrderFilterOptions> {
+  const acct = await getActiveAccountId();
+  const lens = (name: string, value: SQL) => sql`
+    SELECT ${name}::text AS lens, v AS value, count(*) AS n
+      FROM (SELECT ${value} AS v FROM ${storeOrders} WHERE ${storeOrders.accountId} = ${acct}) x
+     WHERE v IS NOT NULL AND v <> '' AND strpos(v, ',') = 0
+     GROUP BY v`;
+  const [attrRows, productRows] = await Promise.all([
+    db.execute<{ lens: string; value: string; n: number }>(sql`
+      SELECT lens, value FROM (
+        SELECT lens, value, ROW_NUMBER() OVER (PARTITION BY lens ORDER BY n DESC, value) AS rn
+          FROM (
+            ${lens("payments", attr("payment_method"))}
+            UNION ALL ${lens("paymentTypes", attr("payment_type"))}
+            UNION ALL ${lens("coupons", attr("coupon_code"))}
+            UNION ALL ${lens(
+              "offers",
+              sql`unnest(string_to_array(${attr("offers")}, ', '))`,
+            )}
+          ) g
+      ) r
+      WHERE rn <= ${ORDER_FILTER_OPTION_CAP}
+    `),
+    db
+      .select({
+        key: sql<string>`COALESCE(${storeOrderItems.sku}, ${storeOrderItems.name})`,
+        name: sql<string | null>`MAX(${storeOrderItems.name})`,
+      })
+      .from(storeOrderItems)
+      .where(eq(storeOrderItems.accountId, acct))
+      .groupBy(sql`1`)
+      .orderBy(sql`SUM(${storeOrderItems.quantity}) DESC`, sql`1`)
+      .limit(ORDER_FILTER_OPTION_CAP),
+  ]);
+  const out: StoreOrderFilterOptions = {
+    payments: [],
+    paymentTypes: [],
+    coupons: [],
+    offers: [],
+    products: productRows
+      .filter((p) => p.key !== null && !p.key.includes(","))
+      .map((p) => ({ key: p.key, name: p.name })),
+  };
+  for (const r of attrRows) {
+    const list = out[r.lens as Exclude<keyof StoreOrderFilterOptions, "products">];
+    if (list) list.push(String(r.value));
+  }
+  return out;
 }
 
 /** The product lines of the given orders (one page), account-scoped. */
@@ -359,7 +574,7 @@ export async function storeOrdersForExport(
   cap = 10_000,
 ): Promise<{ rows: StoreOrderRow[]; truncated: boolean }> {
   const acct = await getActiveAccountId();
-  const conds = orderConds(acct, { ...f, page: 1 });
+  const conds = orderConds(acct, f);
   const sortCol =
     f.sort === "order_id"
       ? storeOrders.orderId

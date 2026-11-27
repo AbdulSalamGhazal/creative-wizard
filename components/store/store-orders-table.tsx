@@ -461,13 +461,9 @@ function ExportButton({ searchParams }: { searchParams: URLSearchParams }) {
     setPending(true);
     try {
       const res = await safeAction(() =>
-        exportStoreOrders({
-          from: searchParams.get("from") ?? undefined,
-          to: searchParams.get("to") ?? undefined,
-          q: searchParams.get("q") ?? undefined,
-          sort: searchParams.get("sort") ?? undefined,
-          dir: searchParams.get("dir") ?? undefined,
-        }),
+        // Every URL param; the server resolves them (and anything remembered)
+        // exactly as the page did.
+        exportStoreOrders(Object.fromEntries(searchParams.entries())),
       );
       if (!res.ok || !("csv" in res) || !res.csv) {
         toastActionFailure(res, "Export failed");

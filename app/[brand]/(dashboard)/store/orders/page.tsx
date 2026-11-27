@@ -1,8 +1,15 @@
 import { auth, can } from "@/lib/auth";
 import { PageShell } from "@/components/layout/page-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { brandHasStoreOrders, listStoreOrders, listStoreFields } from "@/db/queries/store";
-import { storeOrdersFiltersSchema } from "@/validators/store";
+import {
+  brandHasStoreOrders,
+  listStoreOrders,
+  listStoreFields,
+  storeOrderFilterOptions,
+  storeOrderStageCounts,
+} from "@/db/queries/store";
+import { resolveStoreOrderFilters } from "@/lib/store-order-filters";
+import { StoreOrderStageTabs } from "@/components/store/store-order-stage-tabs";
 import { resolvePreferredRange } from "@/db/queries/user-prefs";
 import { defaultDateRange } from "@/lib/date-presets";
 import { StoreFilterBar } from "@/components/store/store-filter-bar";
@@ -21,7 +28,8 @@ const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
 /**
  * Orders — the all-orders table for the Store module (SAR, brand-scoped). Date
- * picker + order-id search, server pagination, totals footer, CSV export, and
+ * picker, search (order + customer), status tabs with counts and the Filters
+ * dialog (2026-11-27), server pagination, totals footer, CSV export, and
  * — for a brand linked to a Salla store — the feed's connection line. Open
  * to any brand member (read is open, like the ads data pages). Uploading orders
  * lives on /store/uploads.
@@ -35,14 +43,9 @@ export default async function StoreOrdersPage({
   const canUpload = user ? can(user, "store.upload") : false;
 
   const sp = await searchParams;
-  const f = storeOrdersFiltersSchema.parse({
-    from: pick(sp.from),
-    to: pick(sp.to),
-    q: pick(sp.q),
-    page: pick(sp.page),
-    sort: pick(sp.sort),
-    dir: pick(sp.dir),
-  });
+  // URL → remembered → none, for the Filters dialog's keys (0049); the CSV
+  // export resolves through the same function.
+  const { f, pref } = await resolveStoreOrderFilters((k) => pick(sp[k]));
 
   // Resolved server-side — URL params → the user's saved preferred range →
   // last 7 days — and the SAME values feed the query and the picker. With the
@@ -52,9 +55,13 @@ export default async function StoreOrdersPage({
   // and the count header, pagination and CSV all follow what's shown.
   const range = await resolvePreferredRange(f.from, f.to, defaultDateRange());
 
-  const [fields, orders, tablePrefs, connection] = await Promise.all([
+  const listed = { ...f, from: range.from, to: range.to };
+  const [fields, orders, stageCounts, options, tablePrefs, connection] = await Promise.all([
     listStoreFields(),
-    listStoreOrders({ ...f, from: range.from, to: range.to }),
+    listStoreOrders(listed),
+    // Every tab's count under the same range, search and filters.
+    storeOrderStageCounts(listed),
+    storeOrderFilterOptions(),
     // The viewer's remembered columns (2026-10) — per user per brand now,
     // where this used to be a localStorage set per browser.
     resolveTablePrefs([TABLE_KEYS.STORE_ORDERS]),
@@ -81,7 +88,10 @@ export default async function StoreOrdersPage({
           to={f.to ?? null}
           resolvedRange={range}
           q={f.q ?? ""}
+          resolvedFilters={pref}
+          options={options}
         />
+        <StoreOrderStageTabs stage={f.stage ?? null} counts={stageCounts} />
         <StoreOrdersTable
           rows={orders.rows}
           itemsByOrder={orders.itemsByOrder}

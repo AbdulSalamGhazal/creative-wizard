@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { platformEnum, storeFieldTypeEnum } from "@/lib/enums";
-import { SORT_DIRS, csvEnum } from "@/validators/shared";
+import { SORT_DIRS, csvEnum, csvList } from "@/validators/shared";
+import { ORDER_STAGES } from "@/store/order-status";
 import { CORE_KEYS } from "@/store/fields";
 import { CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL } from "@/store/channels";
 import { UNATTRIBUTED } from "@/store/sources";
 
 /**
- * URL filters for the Store orders table — date range + order-id search ONLY.
+ * URL filters for the Store orders table — range, search (order + customer,
+ * 2026-11-27), the status tab and the Filters dialog's lists.
  * A malformed or impossible date is DROPPED (the saved range then applies),
  * never a thrown parse: `?from=abc` used to error the whole page (2026-10-31).
  */
@@ -20,7 +22,29 @@ export const storeOrdersFiltersSchema = z.object({
   page: z.coerce.number().int().min(1).catch(1),
   sort: z.enum(CORE_KEYS).catch("order_date"),
   dir: z.enum(SORT_DIRS).catch("desc"),
+  /** The status tab (2026-11-27); absent = All. An unknown stage reads as All. */
+  stage: z.enum(ORDER_STAGES).optional().catch(undefined),
+  /** Filters (2026-11-27). Free values (a payment slug, a SKU, a coupon) are
+   *  matched exactly, so an unknown one simply matches nothing. */
+  payments: csvList(),
+  paymentTypes: csvList(),
+  platforms: csvEnum([...platformEnum, UNATTRIBUTED]),
+  channels: csvEnum([...CHANNEL_DESTINATIONS, UNMAPPED_CHANNEL]),
+  /** Product keys (SKU, or the name when Salla sent none). Not `products`:
+   *  that remembered key holds the ads pages' product ids. */
+  skus: csvList(),
+  coupons: csvList(),
+  offers: csvList(),
 });
+
+/**
+ * The Orders CSV button's payload: the page's raw URL params, as strings.
+ * Only the shape is checked here — `resolveStoreOrderFilters` resolves and
+ * parses them exactly as the page does.
+ */
+export const storeOrdersExportParamsSchema = z
+  .record(z.string().max(64), z.string().max(4000))
+  .catch({});
 
 /**
  * Filters for the order-cleanup tool (mirror of the ads `cleanupFiltersSchema`).

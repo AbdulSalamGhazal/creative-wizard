@@ -60,8 +60,13 @@ const PAGES = {
     file: "components/canvas/canvas-filter-bar.tsx",
     defs: ["statuses", "productIds", "stages"],
   },
-  // Zero-def pages: the same bar with no Filters button and no chips row.
-  storeOrders: { file: "components/store/store-filter-bar.tsx", defs: [] },
+  // Store orders gained its Filters dialog on 2026-11-27 (status is the tab
+  // row, not a def).
+  storeOrders: {
+    file: "components/store/store-filter-bar.tsx",
+    defs: ["payments", "paymentTypes", "platforms", "channels", "skus", "coupons", "offers"],
+  },
+  // Zero-def page: the same bar with no Filters button and no chips row.
   reconciliation: { file: "components/store/reconciliation-view.tsx", defs: [] },
   // Pacing gained the Tracker's two tier-2 filters with the merge (2026-10-19).
   pacing: { file: "components/budget/budget-pacing.tsx", defs: ["buckets", "offpace"] },
@@ -79,7 +84,7 @@ describe("each migrated bar declares exactly its tier-2 filters", () => {
   }
 
   it("the zero-def pages render no Filters button (filters={[]})", () => {
-    for (const page of ["storeOrders", "reconciliation"] as const) {
+    for (const page of ["reconciliation"] as const) {
       expect(readFileSync(PAGES[page].file, "utf8")).toContain("filters={[]}");
     }
   });
