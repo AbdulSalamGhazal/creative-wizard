@@ -76,7 +76,10 @@ export function OrderProductsSheet({
             <SheetHeader className="border-b border-line pr-12">
               <SheetTitle className="font-mono">Order {order.orderId}</SheetTitle>
               <SheetDescription className="flex flex-wrap items-center gap-2 tabular-nums">
-                <span>{isoDate(order.orderDate)}</span>
+                <span>
+                  {isoDate(order.orderDate)}
+                  {order.orderTime && ` ${order.orderTime}`}
+                </span>
                 {statusSlug && <Chip tone={orderStatusTone(statusSlug)}>{orderStatusLabel(statusSlug)}</Chip>}
               </SheetDescription>
             </SheetHeader>

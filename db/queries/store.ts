@@ -20,6 +20,7 @@ import { isCoreKey, isSystemRequiredKey, type StoreField, type StoreFieldType } 
 import { CleanupScopeChangedError } from "@/lib/cleanup-guard";
 import { lineUnitCost } from "@/db/queries/store-costs";
 import { CONNECTOR_OWNED_KEYS } from "@/lib/connector/map-order";
+import { riyadhClock } from "@/lib/connector/time";
 
 /** Attribute keys an upload may not change on an order the Salla feed holds. */
 const FEED_OWNED: ReadonlySet<string> = new Set(CONNECTOR_OWNED_KEYS);
@@ -63,10 +64,30 @@ export async function listStoreFields(): Promise<StoreField[]> {
 
 // ── Orders (paginated) ───────────────────────────────────────────────────────
 
+/**
+ * The orders table's sort — one for the page and the export. By date, the
+ * placed-at time orders a day's orders (2026-11-28); an order with no time
+ * (only a file wrote it) sorts as the START of its day — last on newest-first,
+ * first on oldest-first, exactly as the table's client sort places it.
+ */
+function orderRowSort(f: Pick<StoreOrdersFilters, "sort" | "dir">): SQL[] {
+  const dir = f.dir === "asc" ? asc : desc;
+  if (f.sort === "order_id") return [dir(storeOrders.orderId)];
+  if (f.sort === "total_amount") return [dir(storeOrders.totalAmount)];
+  return [
+    dir(storeOrders.orderDate),
+    f.dir === "asc"
+      ? sql`${storeOrders.orderedAt} ASC NULLS FIRST`
+      : sql`${storeOrders.orderedAt} DESC NULLS LAST`,
+  ];
+}
+
 export interface StoreOrderRow {
   id: string;
   orderId: string;
   orderDate: string;
+  /** Riyadh time the order was placed, `HH:MM` — null when only a file wrote it (a file has no time). */
+  orderTime: string | null;
   totalAmount: number;
   attributes: Record<string, unknown>;
   /** The Salla feed holds this order (false = it came from an upload only). */
@@ -88,6 +109,7 @@ const ORDER_ROW_SELECT = {
   id: storeOrders.id,
   orderId: storeOrders.orderId,
   orderDate: storeOrders.orderDate,
+  orderedAt: storeOrders.orderedAt,
   totalAmount: storeOrders.totalAmount,
   attributes: storeOrders.attributes,
   connectorUpdatedAt: storeOrders.connectorUpdatedAt,
@@ -100,6 +122,7 @@ function toOrderRow(r: {
   id: string;
   orderId: string;
   orderDate: string;
+  orderedAt: Date | null;
   totalAmount: string;
   attributes: unknown;
   connectorUpdatedAt: Date | null;
@@ -111,6 +134,7 @@ function toOrderRow(r: {
     id: r.id,
     orderId: r.orderId,
     orderDate: r.orderDate,
+    orderTime: r.orderedAt ? riyadhClock(r.orderedAt) : null,
     totalAmount: Number(r.totalAmount),
     attributes: (r.attributes ?? {}) as Record<string, unknown>,
     fromFeed: r.connectorUpdatedAt !== null,
@@ -319,13 +343,7 @@ export async function listStoreOrders(
   const conds = orderConds(acct, f);
   const page = Math.max(1, f.page);
 
-  const sortCol =
-    f.sort === "order_id"
-      ? storeOrders.orderId
-      : f.sort === "total_amount"
-        ? storeOrders.totalAmount
-        : storeOrders.orderDate;
-  const orderBy = f.dir === "asc" ? asc(sortCol) : desc(sortCol);
+  const orderBy = orderRowSort(f);
 
   const [rows, [agg]] = await Promise.all([
     db
@@ -334,7 +352,7 @@ export async function listStoreOrders(
       .leftJoin(storeUploadBatches, eq(storeUploadBatches.id, storeOrders.uploadBatchId))
       .where(and(...conds))
       // Secondary key by id so paging is stable when the sort col ties.
-      .orderBy(orderBy, asc(storeOrders.id))
+      .orderBy(...orderBy, asc(storeOrders.id))
       .limit(STORE_PAGE_SIZE)
       .offset((page - 1) * STORE_PAGE_SIZE),
     db
@@ -581,19 +599,13 @@ export async function storeOrdersForExport(
 ): Promise<{ rows: StoreOrderRow[]; truncated: boolean }> {
   const acct = await getActiveAccountId();
   const conds = orderConds(acct, f);
-  const sortCol =
-    f.sort === "order_id"
-      ? storeOrders.orderId
-      : f.sort === "total_amount"
-        ? storeOrders.totalAmount
-        : storeOrders.orderDate;
-  const orderBy = f.dir === "asc" ? asc(sortCol) : desc(sortCol);
+  const orderBy = orderRowSort(f);
   const rows = await db
     .select(ORDER_ROW_SELECT)
     .from(storeOrders)
     .leftJoin(storeUploadBatches, eq(storeUploadBatches.id, storeOrders.uploadBatchId))
     .where(and(...conds))
-    .orderBy(orderBy, asc(storeOrders.id))
+    .orderBy(...orderBy, asc(storeOrders.id))
     .limit(cap + 1);
   const truncated = rows.length > cap;
   return {

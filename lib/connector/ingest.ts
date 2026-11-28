@@ -115,6 +115,7 @@ export async function ingestConnectorEvents(
         accountId,
         orderId: mapped.orderId,
         orderDate: mapped.orderDate,
+        orderedAt: mapped.orderedAt ? new Date(mapped.orderedAt) : null,
         totalAmount: mapped.totalAmount,
         attributes: mapped.attributes,
         connectorUpdatedAt: version,

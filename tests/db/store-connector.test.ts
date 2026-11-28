@@ -158,6 +158,8 @@ describe("ingest — the raw log and the order it applies", () => {
       attributes: { utm_source: "tiktok", channel: "mobile", order_status: "processing" },
     });
     expect(o!.connectorUpdatedAt).not.toBeNull();
+    // 2026-11-28: the instant it was placed (20:56:10 Riyadh), not just the day.
+    expect(o!.orderedAt?.toISOString()).toBe("2026-11-08T17:56:10.000Z");
 
     const [log] = await db.select().from(storeConnectorEvents);
     expect(log).toMatchObject({ accountId: ACCOUNT_A, storeKey: "urjwan", type: "order.created", via: "webhook" });
@@ -291,6 +293,18 @@ describe("uploads coexist — the Salla feed wins", () => {
       totalAmount: "70.00",
       attributes: { utm_source: "ig", channel: "web", notes: "Dammam" },
     });
+    // A file carries the day, never the time: the feed's time is kept, a
+    // file-only order has none — and the Orders table puts it after the
+    // timed orders of its day on newest-first, before them on oldest-first
+    // (same day as 4001, 2026-11-08; 4002 and 4003 are file-only).
+    expect((await orderRow(ACCOUNT_A, "4001"))!.orderedAt?.toISOString()).toBe("2026-11-08T17:56:10.000Z");
+    expect((await orderRow(ACCOUNT_A, "4002"))!.orderedAt).toBeNull();
+    const dayTimes = async (dir: "asc" | "desc") =>
+      (await listStoreOrders({ sort: "order_date", dir, page: 1 })).rows
+        .filter((r) => r.orderDate === "2026-11-08")
+        .map((r) => r.orderTime);
+    expect(await dayTimes("desc")).toEqual(["20:56", null, null]);
+    expect(await dayTimes("asc")).toEqual([null, null, "20:56"]);
   });
 
   it("a blank cell in the file can't clear a feed-owned value, but clears its own column", async () => {

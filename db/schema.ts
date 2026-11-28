@@ -1490,6 +1490,12 @@ export const storeOrders = pgTable(
     accountId: accountId(),
     orderId: varchar("order_id", { length: 64 }).notNull(),
     orderDate: date("order_date").notNull(),
+    /**
+     * The exact instant the order was placed — the Salla feed's `created_at`
+     * (2026-11-28). NULL for an order only a file has written: a file carries
+     * the day, never the time. Display and the within-day sort read it.
+     */
+    orderedAt: timestamp("ordered_at", { withTimezone: true }),
     totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
     attributes: jsonb("attributes").notNull().default(sql`'{}'::jsonb`),
     /**
@@ -1512,9 +1518,11 @@ export const storeOrders = pgTable(
       t.accountId,
       t.orderId,
     ),
+    // ordered_at orders a day's orders on the table's date sort (2026-11-28).
     accountDateIdx: index("store_orders_account_date_idx").on(
       t.accountId,
       t.orderDate,
+      t.orderedAt,
     ),
     batchIdx: index("store_orders_batch_idx").on(t.uploadBatchId),
     // The Orders page searches order_id by SUBSTRING (ILIKE %…%), which no

@@ -45,6 +45,15 @@
   comma can't ride the URL and isn't offered. Filters are remembered per user
   per brand, so the page AND the CSV resolve them through ONE function,
   `resolveStoreOrderFilters` — the export never trusts the URL alone.
+- **An order's time is the feed's alone (2026-11-28, user request).**
+  `store_orders.ordered_at` = the instant of `created_at`, read as Riyadh
+  wall time (`+03:00` or no zone; anything else, or a bare date, is NULL);
+  migration 0090 backfilled it from the raw log. A file carries the day,
+  never the time, so a file-only order stays NULL. The Date cell shows
+  `YYYY-MM-DD HH:MM` (Riyadh, 24-hour, the time muted); the date sort orders
+  a day by it, an untimed order counting as the START of its day (server and
+  client agree). `order_date` stays THE date — every range, trend and
+  filter reads it, never `ordered_at`. The CSV keeps the plain date.
 - Insights is **store facts only, SAR only**; the previous-period comparison
   is a TOGGLE (`?compare=1`), OFF by default and not remembered (2026-11-27,
   superseding v1's "no comparison"). Every scan carries the SAME range and

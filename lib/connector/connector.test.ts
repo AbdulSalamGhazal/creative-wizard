@@ -66,6 +66,7 @@ describe("mapConnectorOrder", () => {
     expect(mapConnectorOrder(order())).toEqual({
       orderId: "298890143",
       orderDate: "2026-11-08",
+      orderedAt: "2026-11-08T17:56:10.000Z",
       totalAmount: "412.00",
       attributes: {
         utm_source: "tiktok",
@@ -88,6 +89,14 @@ describe("mapConnectorOrder", () => {
     expect(mapConnectorOrder(order({ created_at: "2026-11-09T02:00:00+03:00" }))?.orderDate).toBe(
       "2026-11-09",
     );
+  });
+
+  it("keeps the instant it was placed: Riyadh wall time, with or without +03:00; a bare date has none", () => {
+    const at = (created_at: string) => mapConnectorOrder(order({ created_at }))?.orderedAt;
+    expect(at("2026-11-08T23:30:00+03:00")).toBe("2026-11-08T20:30:00.000Z");
+    expect(at("2026-11-08 23:30:00")).toBe("2026-11-08T20:30:00.000Z");
+    expect(at("2026-11-08 23:30 +0300")).toBe("2026-11-08T20:30:00.000Z");
+    expect(at("2026-11-08")).toBeNull();
   });
 
   it("an order with no UTM, device or status simply has no such keys", () => {

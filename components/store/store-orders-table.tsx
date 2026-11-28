@@ -196,8 +196,14 @@ export function StoreOrdersTable({
         key: "order_date",
         label: "Date",
         sortable: true,
-        render: (r) => <span className="tabular-nums">{isoDate(r.orderDate)}</span>,
-        sortValue: (r) => r.orderDate,
+        // The Riyadh time it was placed, muted after the day; a file-only order has none.
+        render: (r) => (
+          <span className="whitespace-nowrap tabular-nums">
+            {isoDate(r.orderDate)}
+            {r.orderTime && <span className="ml-1.5 text-ink-2">{r.orderTime}</span>}
+          </span>
+        ),
+        sortValue: (r) => `${r.orderDate} ${r.orderTime ?? ""}`,
         defaultSortDir: "desc",
       },
       {

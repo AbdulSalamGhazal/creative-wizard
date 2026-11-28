@@ -78,6 +78,8 @@ export interface ConnectorOrderWrite {
   accountId: string;
   orderId: string;
   orderDate: string;
+  /** The exact instant the order was placed, or null when the feed sent no time. */
+  orderedAt: Date | null;
   totalAmount: string;
   /** Feed-owned keys that have a value. */
   attributes: Record<string, string | number>;
@@ -119,6 +121,7 @@ export async function upsertConnectorOrders(
           accountId: r.accountId,
           orderId: r.orderId,
           orderDate: r.orderDate,
+          orderedAt: r.orderedAt,
           totalAmount: r.totalAmount,
           attributes: r.attributes,
           connectorUpdatedAt: r.connectorUpdatedAt,
@@ -129,6 +132,7 @@ export async function upsertConnectorOrders(
         target: [storeOrders.accountId, storeOrders.orderId],
         set: {
           orderDate: sql`excluded.order_date`,
+          orderedAt: sql`excluded.ordered_at`,
           totalAmount: sql`excluded.total_amount`,
           attributes: sql`(COALESCE(${storeOrders.attributes}, '{}'::jsonb) - ${owned}::text[]) || excluded.attributes`,
           connectorUpdatedAt: sql`excluded.connector_updated_at`,

@@ -45,6 +45,8 @@ export interface MappedConnectorOrder {
   orderId: string;
   /** The Riyadh day the order was created, `YYYY-MM-DD`. */
   orderDate: string;
+  /** The exact instant the order was created (ISO), or null when `created_at` carries no time. */
+  orderedAt: string | null;
   /** `numeric(12,2)` as text. */
   totalAmount: string;
   /** Only the keys that HAVE a value; money is a number (SAR), the rest text. */
@@ -84,6 +86,18 @@ function toAmount(v: string | number | null | undefined): number | null {
   return Number.isFinite(n) && Math.abs(n) < TOTAL_LIMIT ? n : null;
 }
 
+/**
+ * The instant inside a `created_at` that `parseStoreDate` accepted: its time
+ * of day in Riyadh (a missing offset IS Riyadh — the only zone the parser
+ * takes), or null for a bare date.
+ */
+function orderedInstant(createdAt: string): string | null {
+  const s = createdAt.trim();
+  if (!/[ T]\d{2}:\d{2}/.test(s)) return null;
+  const local = s.replace(/\s?\+03:?00$/, "").replace(" ", "T");
+  return isoInstant(`${local}+03:00`);
+}
+
 function isoInstant(v: string | null | undefined): string | null {
   if (!v) return null;
   const t = Date.parse(v);
@@ -98,7 +112,9 @@ function isoInstant(v: string | null | undefined): string | null {
  * - order id   = `reference` (Salla's order number)
  * - order date = the DATE PART of `created_at`, which the connector sends in
  *   Riyadh time (`+03:00`) — `parseStoreDate` refuses any other zone, so a
- *   23:30 Riyadh order is never filed under the next UTC day
+ *   23:30 Riyadh order is never filed under the next UTC day; ordered at =
+ *   the same `created_at` as an instant (the Orders table shows its Riyadh
+ *   time of day)
  * - total      = `amounts.total_sar` (incl. VAT, shipping and COD fee) — the
  *   Store module is SAR. A payload from before the connector sent it falls
  *   back to `amounts.total` only when the order is SAR or names no currency;
@@ -122,6 +138,7 @@ export function mapConnectorOrder(raw: unknown): MappedConnectorOrder | null {
 
   const orderDate = o.created_at ? parseStoreDate(o.created_at) : null;
   if (!orderDate) return null;
+  const orderedAt = orderedInstant(o.created_at ?? "");
 
   const currency = clean(o.currency)?.toUpperCase() ?? null;
   const sar = toAmount(o.amounts?.total_sar);
@@ -153,6 +170,7 @@ export function mapConnectorOrder(raw: unknown): MappedConnectorOrder | null {
   return {
     orderId,
     orderDate,
+    orderedAt,
     totalAmount: total.toFixed(2),
     attributes,
     updatedAt: isoInstant(o.updated_at),
